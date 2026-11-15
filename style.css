@@ -452,3 +452,15 @@ code { background: rgba(255, 255, 255, .08); padding: 1px 5px; border-radius: 5p
 .dl-btn span { position: absolute; left: 50%; bottom: -16px; transform: translateX(-50%); font-size: 10px; font-weight: 700; color: var(--gold); white-space: nowrap; }
 .dl-mark { width: 14px; height: 14px; color: var(--gold); vertical-align: -2px; margin-right: 6px; }
 .offline-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: rgba(242, 199, 102, .12); border: 1px solid rgba(242, 199, 102, .4); margin-bottom: 16px; font-size: 14px; }
+
+/* ---------- 3.2 : réglage et synchro des paroles ---------- */
+.lyr-lines { padding-bottom: 52%; }
+.lyr-tools { position: absolute; left: 10px; right: 120px; bottom: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.lyr-tools button, .lyr-tapbar button { border: 0; border-radius: 999px; padding: 6px 10px; background: rgba(7, 11, 28, .7); color: var(--fg); font-weight: 700; font-size: 12px; cursor: pointer; }
+.lyr-tools span { font-size: 12px; font-weight: 700; color: var(--gold); min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+#lyr-publish { background: var(--gold); color: var(--gold-ink); }
+.lyr-tapbar { display: none; position: absolute; left: 10px; right: 10px; bottom: 10px; align-items: center; gap: 8px; }
+.lyr-tapbar span { font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, .8); }
+.lyr-tapbar .lyr-next { flex: 1; padding: 14px; font-size: 16px; background: var(--gold); color: var(--gold-ink); }
+.lyr.tapping .lyr-tapbar { display: flex; }
+.lyr.tapping .lyr-tools, .lyr.tapping ~ .lyr-pill { display: none; }

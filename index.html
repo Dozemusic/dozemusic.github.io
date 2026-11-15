@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=3.1.0">
+<link rel="stylesheet" href="style.css?v=3.2.0">
 </head>
 <body>
 <div class="shell">
@@ -32,7 +32,7 @@
     </nav>
     <div class="side-note">
       <strong>Gratuit. Sans pub.</strong>
-      <span class="ver">Version 3.1.0</span>
+      <span class="ver">Version 3.2.0</span>
       <span>Ouvert à tous : talents en herbe, artistes confirmés et créateurs IA. Ici, chacun a sa chance d'être écouté.</span>
     </div>
   </aside>
@@ -97,7 +97,14 @@
     </header>
     <div class="np-body">
       <div class="np-art"><canvas id="halo" aria-hidden="true"></canvas><img id="np-cover" alt="">
-        <div id="lyr" class="lyr" hidden><div id="lyr-lines" class="lyr-lines"></div><span id="lyr-note" class="lyr-note"></span></div>
+        <div id="lyr" class="lyr" hidden><div id="lyr-lines" class="lyr-lines"></div><span id="lyr-note" class="lyr-note"></span>
+          <div class="lyr-tools">
+            <button type="button" data-lt="later" aria-label="Afficher les paroles plus tard">−0,5 s</button><span id="lyr-off">0,0 s</span><button type="button" data-lt="earlier" aria-label="Afficher les paroles plus tôt">+0,5 s</button>
+            <button type="button" data-lt="tap">Synchroniser</button>
+            <button type="button" data-lt="publish" id="lyr-publish" hidden>Publier pour tous</button>
+          </div>
+          <div class="lyr-tapbar"><span id="lyr-tap-count"></span><button type="button" data-lt="next" class="lyr-next">Ligne suivante</button><button type="button" data-lt="cancel">Annuler</button></div>
+        </div>
         <button id="lyr-pill" class="lyr-pill" type="button" aria-pressed="true" hidden><svg viewBox="0 0 24 24"><path d="M3 5h18v2H3zm0 4h12v2H3zm0 4h18v2H3zm0 4h12v2H3z"/></svg>Paroles</button>
       </div>
       <div class="np-side">
@@ -156,8 +163,8 @@
     if (v && !v.children.length) v.innerHTML = '<div class="empty"><strong>Écrin n\'a pas pu démarrer.</strong><span>Une ancienne version est peut-être restée en mémoire.</span><button class="btn btn-gold" type="button" onclick="location.reload()">Recharger</button></div>';
   }, 50); });
 </script>
-<script src="config.js?v=3.1.0"></script>
+<script src="config.js?v=3.2.0"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="app.js?v=3.1.0"></script>
+<script src="app.js?v=3.2.0"></script>
 </body>
 </html>

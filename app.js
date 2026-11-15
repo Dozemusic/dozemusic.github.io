@@ -1,5 +1,5 @@
-/* Écrin 3.1.0 */
-  const VERSION = "3.1.0";
+/* Écrin 3.2.0 */
+  const VERSION = "3.2.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -14,7 +14,10 @@
   };
   const favs = new Set(store.get("favs", []));
   let myLists = store.get("playlists", []);
-  const offline = store.get("offline", {});            // { id: { t: titre, lyrics, size, at } } : chansons téléchargées          // [{ id, key, name }] (key nulle = playlist d'un autre, enregistrée)
+  const offline = store.get("offline", {});
+  const owned = store.get("owned", {});               // { idTitre: clé } : titres publiés depuis cet appareil
+  let adminKey = store.get("admin", null);
+  const editKey = t => t && (owned[t.id] || adminKey);            // { id: { t: titre, lyrics, size, at } } : chansons téléchargées          // [{ id, key, name }] (key nulle = playlist d'un autre, enregistrée)
   const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)));
   let device = store.get("device", null); if (!device) { device = uuid(); store.set("device", device); }
   // Pays approximatif de l'auditeur, déduit du fuseau horaire puis de la langue (aucune donnée personnelle envoyée).
@@ -49,7 +52,23 @@
   const scReady = () => scApi || (scApi = loadScript("https://w.soundcloud.com/player/api.js"));
   const ytReady = () => ytApi || (ytApi = new Promise((res, rej) => { if (window.YT && YT.Player) return res(); window.onYouTubeIframeAPIReady = res; loadScript("https://www.youtube.com/iframe_api").catch(rej); }));
   class Player extends EventTarget {
-    constructor(el) { super(); this.el = el; this.ext = null; for (const ev of ["play", "pause", "timeupdate", "ended", "loadedmetadata", "error"]) el.addEventListener(ev, () => { if (!this.ext) this.emit(ev); }); }
+    constructor(el) { super(); this.el = el; this.ext = null; this.bind(el); }
+    bind(el) { for (const ev of ["play", "pause", "timeupdate", "ended", "loadedmetadata", "error"]) el.addEventListener(ev, () => { if (el === this.el && !this.ext) this.emit(ev); }); }
+    // Remplace l'élément <audio> par un neuf, au même endroit du morceau : seule façon de « débrancher »
+    // le moteur d'effets sur Safari, où ce branchement est définitif.
+    swapElement() {
+      const old = this.el, n = document.createElement("audio");
+      const src = old.getAttribute("src"), t = old.currentTime, playing = !old.paused;
+      n.preload = "metadata"; n.volume = old.volume; n.loop = old.loop; n.playbackRate = old.playbackRate;
+      this.el = n; this.bind(n);
+      old.pause(); old.removeAttribute("src"); old.load(); old.replaceWith(n); n.id = "audio";
+      if (src && !this.ext) {
+        if (corsOk(src)) n.crossOrigin = "anonymous";
+        n.src = src;
+        n.addEventListener("loadedmetadata", () => { try { n.currentTime = t; } catch {} }, { once: true });
+        if (playing) n.play().catch(() => {});
+      }
+    }
     emit(ev) { this.dispatchEvent(new Event(ev)); }
     get paused() { return this.ext ? this.ext.paused : this.el.paused; }
     get currentTime() { return this.ext ? this.ext.time : this.el.currentTime; }
@@ -209,6 +228,7 @@
     S.offlineMode = false;
     S.all = (data || []).map(t => ({ likes: 0, ...t }));
     render();
+    sb.rpc("can_edit", { p_id: "00000000-0000-4000-8000-000000000000", p_key: "00000000-0000-4000-8000-000000000000" }).then(r => { S.hasV4 = !r.error; });
     if (S.hasV2) {
       const w = await sb.rpc("top_week", { p_limit: 20 });
       if (!w.error && w.data) { S.week = w.data.map(r => { const t = byId(r.track_id); return t && { ...t, weekLikes: r.n }; }).filter(Boolean); if (S.view === "accueil") render(); }
@@ -546,7 +566,7 @@
     closeMenu();
     menuEl = document.createElement("div");
     menuEl.className = "menu";
-    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="dedic">🎁 Dédicacer ce son</button>${t && canOffline(t) ? (offline[t.id] ? '<button type="button" data-a="undl">✓ Retirer des téléchargements</button>' : '<button type="button" data-a="dl">⬇ Télécharger (hors ligne)</button>') : ""}<button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button><div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>`;
+    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="dedic">🎁 Dédicacer ce son</button>${t && canOffline(t) ? (offline[t.id] ? '<button type="button" data-a="undl">✓ Retirer des téléchargements</button>' : '<button type="button" data-a="dl">⬇ Télécharger (hors ligne)</button>') : ""}<button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button>${t && editKey(t) && S.hasV4 ? '<button type="button" data-a="lyredit">✎ Paroles et synchro</button>' : ""}<div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>${t && adminKey && S.hasV4 ? '<button type="button" data-a="admdel" class="danger">🗑 Supprimer ce titre (admin)</button>' : ""}`;
     document.body.appendChild(menuEl);
     const r = btn.getBoundingClientRect(), mh = menuEl.offsetHeight;
     const top = r.bottom + 6 + mh > innerHeight ? r.top - mh - 6 : r.bottom + 6;
@@ -559,6 +579,12 @@
       if (a === "artist") go("artiste", t.artist);
       if (a === "next") playNext(t);
       if (a === "dl") downloadTrack(t);
+      if (a === "lyredit") { S.editTrack = t; closeMenu(); openSheet("lyredit"); return; }
+      if (a === "admdel") {
+        if (menuEl.dataset.del !== "1") { menuEl.dataset.del = "1"; b.textContent = "Confirmer la suppression définitive"; return; }
+        const r = await sb.rpc("admin_delete_track", { p_id: t.id, p_key: adminKey });
+        toast(r.data === true ? "Titre supprimé" : "Suppression impossible"); if (r.data === true) { if (offline[t.id]) removeOffline(t.id); await load(); }
+      }
       if (a === "undl") removeOffline(t.id);
       if (a === "dedic") { S.dedTrack = t; closeMenu(); openSheet("dedic"); return; }
       if (a === "addlist") { const own = myLists.filter(x => x.key); closeMenu(); openMenu(btn, t, own.map(x => `<button type="button" data-a="to:${esc(x.id)}">${esc(x.name)}</button>`).join("") + (own.length ? '<div class="sep"></div>' : "") + '<button type="button" data-a="tonew">+ Nouvelle playlist…</button>'); return; }
@@ -588,7 +614,8 @@
       const tags = [...raw.matchAll(/\[(\d{1,2}):(\d{1,2}(?:[.,]\d{1,3})?)\]/g)];
       const line = raw.replace(/\[[^\]]*\]/g, "").trim();
       if (tags.length) { for (const m of tags) timed.push({ t: +m[1] * 60 + parseFloat(m[2].replace(",", ".")), text: line }); continue; }
-      if (!line || /^\(.*\)$/.test(line)) continue;
+      if (!line) { if (/^\s*\[[^\]]+\]\s*$/.test(raw) && plain.length) plain[plain.length - 1].gap = true; continue; }
+      if (/^\(.*\)$/.test(line)) continue;
       plain.push({ text: line });
     }
     if (timed.length >= 3) return { lines: timed.filter(l => l.text).sort((a, b) => a.t - b.t), timed: true };
@@ -596,7 +623,8 @@
   }
   function estimateTimes(L, dur) {
     if (L.timed || !(dur > 0) || !L.lines.length) return;
-    const start = Math.min(14, dur * .07), end = dur * .94, w = L.lines.map(l => l.text.length + 14), tot = w.reduce((a, b) => a + b, 0);
+    // Durée de chaque ligne proportionnelle à sa longueur, plus une respiration après chaque section.
+    const start = Math.min(14, dur * .07), end = dur * .94, w = L.lines.map(l => l.text.length + 14 + (l.gap ? 40 : 0)), tot = w.reduce((a, b) => a + b, 0);
     let acc = start; L.lines.forEach((l, i) => { l.t = acc; acc += (end - start) * w[i] / tot; });
     L.estimated = true;
   }
@@ -606,7 +634,8 @@
     if (offline[t.id] && offline[t.id].lyrics) text = offline[t.id].lyrics;
     else if (sb && S.hasV2 && !S.offlineMode) { try { const r = await sb.from("tracks").select("lyrics").eq("id", t.id).maybeSingle(); text = r.data && r.data.lyrics; } catch {} }
     if (!current() || current().id !== t.id) return;
-    S.lyr = { id: t.id, ...parseLyrics(text) }; estimateTimes(S.lyr, audio.duration); S.lyrIdx = -1; renderLyr(true);
+    S.lyrRaw = text || "";
+    S.lyr = { id: t.id, ...parseLyrics(text) }; applyMySync(S.lyr); estimateTimes(S.lyr, audio.duration); S.lyrIdx = -1; renderLyr(true);
   }
   function renderLyr(full) {
     const L = S.lyr, box = $("lyr"), pill = $("lyr-pill");
@@ -616,7 +645,8 @@
     if (!has || !S.showLyr) return;
     if (full) {
       $("lyr-lines").innerHTML = L.lines.map((l, i) => `<p data-l="${i}">${esc(l.text)}</p>`).join("");
-      $("lyr-note").textContent = L.timed ? "Paroles synchronisées" : "Synchronisation estimée";
+      $("lyr-note").textContent = L.mine ? "Ta synchronisation" : L.timed ? "Paroles synchronisées" : "Synchronisation estimée · ajustable";
+      $("lyr-off").textContent = fmtOff(lyrOff[L.id] || 0);
       S.lyrIdx = -1;
     }
     syncLyr();
@@ -624,7 +654,8 @@
   function syncLyr() {
     const L = S.lyr; if (!L || !L.lines.length || $("lyr").hidden || $("np").hidden) return;
     if (!L.timed && !L.estimated) estimateTimes(L, audio.duration);
-    const tt = audio.currentTime; let i = -1;
+    if (S.tap) return;
+    const tt = audio.currentTime + (lyrOff[L.id] || 0); let i = -1;
     for (let k = 0; k < L.lines.length; k++) { if (L.lines[k].t <= tt + .15) i = k; else break; }
     if (i === S.lyrIdx) return;
     S.lyrIdx = i;
@@ -634,6 +665,59 @@
     if (cur) { const box = $("lyr-lines"); box.scrollTo({ top: cur.offsetTop - box.clientHeight * .38, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }
   }
   $("lyr-pill").onclick = () => { S.showLyr = !S.showLyr; store.set("showLyr", S.showLyr); renderLyr(true); };
+  // Réglages propres à cet appareil : décalage (secondes) et synchronisation faite au toucher
+  const lyrOff = store.get("lyrOff", {}), mySync = store.get("lyrSync", {});
+  const fmtOff = v => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(1).replace(".", ",") + " s";
+  function applyMySync(L) {
+    const m = mySync[L.id];
+    if (m && m.length === L.lines.length && !L.timed) { L.lines.forEach((l, i) => l.t = m[i]); L.timed = true; L.mine = true; }
+  }
+  function toLRC(L) { return L.lines.map(l => { const m = Math.floor(l.t / 60), sec = (l.t - m * 60).toFixed(2).padStart(5, "0"); return `[${String(m).padStart(2, "0")}:${sec}] ${l.text}`; }).join("\n"); }
+  $("lyr").addEventListener("click", async e => {
+    const b = e.target.closest("[data-lt]"); if (!b || !S.lyr) return;
+    e.stopPropagation();
+    const L = S.lyr, act = b.dataset.lt;
+    if (act === "earlier" || act === "later") {
+      lyrOff[L.id] = Math.round(((lyrOff[L.id] || 0) + (act === "earlier" ? .5 : -.5)) * 10) / 10; store.set("lyrOff", lyrOff);
+      $("lyr-off").textContent = fmtOff(lyrOff[L.id]); S.lyrIdx = -2; syncLyr(); return;
+    }
+    if (act === "tap") { startTap(); return; }
+    if (act === "next") { tapNext(); return; }
+    if (act === "cancel") { S.tap = null; $("lyr").classList.remove("tapping"); renderLyr(true); return; }
+    if (act === "publish") { publishSync(); return; }
+  });
+  function startTap() {
+    const L = S.lyr; if (!L || !L.lines.length) return;
+    S.tap = { i: 0, times: [] };
+    $("lyr").classList.add("tapping");
+    markTap();
+    audio.currentTime = 0; if (audio.paused) audio.play().catch(() => {});
+    toast("Touche « Ligne suivante » au moment où chaque ligne commence");
+  }
+  function markTap() {
+    const ps = $("lyr-lines").children, i = S.tap.i;
+    for (let k = 0; k < ps.length; k++) { ps[k].classList.toggle("on", k === i); ps[k].classList.toggle("past", k < i); }
+    const cur = ps[i]; if (cur) $("lyr-lines").scrollTo({ top: cur.offsetTop - $("lyr-lines").clientHeight * .38, behavior: "smooth" });
+    $("lyr-tap-count").textContent = `Ligne ${Math.min(i + 1, ps.length)} / ${ps.length}`;
+  }
+  function tapNext() {
+    const T = S.tap, L = S.lyr; if (!T) return;
+    T.times[T.i] = Math.max(0, audio.currentTime - .15); T.i++;
+    if (T.i < L.lines.length) { markTap(); return; }
+    mySync[L.id] = T.times; store.set("lyrSync", mySync);
+    L.lines.forEach((l, i) => l.t = T.times[i]); L.timed = true; L.mine = true; lyrOff[L.id] = 0; store.set("lyrOff", lyrOff);
+    S.tap = null; $("lyr").classList.remove("tapping"); renderLyr(true);
+    const t = current();
+    $("lyr-publish").hidden = !(t && editKey(t) && S.hasV4);
+    toast(t && editKey(t) && S.hasV4 ? "Synchro enregistrée. Touche « Publier pour tous » pour la partager." : "Synchro enregistrée sur cet appareil");
+  }
+  async function publishSync() {
+    const t = current(), L = S.lyr; if (!t || !L || !L.timed) return;
+    const r = await sb.rpc("update_track_lyrics", { p_id: t.id, p_key: editKey(t), p_lyrics: toLRC(L) });
+    if (r.data === true) { toast("Paroles synchronisées publiées pour tout le monde"); $("lyr-publish").hidden = true; if (offline[t.id]) { offline[t.id].lyrics = toLRC(L); store.set("offline", offline); } }
+    else toast("Publication impossible : seul l'appareil qui a publié ce titre peut le modifier.");
+  }
+  document.addEventListener("keydown", e => { if (S.tap && (e.code === "Space" || e.key === "Enter") && !e.target.matches("input, textarea")) { e.preventDefault(); tapNext(); } }, true);
   $("lyr-lines").addEventListener("click", e => { const p = e.target.closest("[data-l]"); if (p && S.lyr && S.lyr.lines[+p.dataset.l].t != null) { audio.currentTime = S.lyr.lines[+p.dataset.l].t; if (audio.paused) audio.play(); } });
   async function loadLyrics() {
     const t = current(), box = $("np-lyrics"); if (!t) return;
@@ -739,7 +823,8 @@
     try {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
       FX.ctx = new AC();
-      const src = FX.ctx.createMediaElementSource(media);
+      const src = FX.ctx.createMediaElementSource(audio.el);
+      FX.ctx.onstatechange = () => { if (FX.ctx && FX.ctx.state !== "running" && !audio.paused) FX.ctx.resume().catch(() => {}); };
       FX.filters = BANDS.map(([f, type]) => { const b = FX.ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = 1; b.gain.value = 0; return b; });
       FX.gain = FX.ctx.createGain();
       FX.analyser = FX.ctx.createAnalyser(); FX.analyser.fftSize = 256; FX.analyser.smoothingTimeConstant = .8;
@@ -748,7 +833,19 @@
       return true;
     } catch (e) { console.warn(e); FX.ctx = null; return false; }
   }
-  function fxResume() { if (FX.enabled && fxGraph() && FX.ctx.state !== "running") FX.ctx.resume().catch(() => {}); applyEq(); }
+  function fxResume() {
+    if (FX.enabled) fxGraph();
+    if (FX.ctx && FX.ctx.state !== "running") FX.ctx.resume().catch(() => {});
+    applyEq();
+  }
+  // Désactiver les effets : on ferme le moteur et on repart sur un lecteur neuf, branché directement aux haut-parleurs.
+  function fxTeardown() {
+    if (!FX.ctx) return;
+    try { FX.ctx.close(); } catch {}
+    FX.ctx = null; FX.filters = []; FX.gain = null; FX.analyser = null; FX.bins = null;
+    audio.swapElement();
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && FX.ctx && FX.ctx.state !== "running") FX.ctx.resume().catch(() => {}); });
   function currentGains(t = current()) {
     let key = FX.preset;
     if (key === "auto") key = (t && GENRE_PRESET[norm(t.genre)]) || "plat";
@@ -841,6 +938,16 @@
         ${FX.preset === "auto" ? `<p class="sheet-note">Innovation Écrin : le réglage s'adapte à chaque chanson. Pour ${t ? `« ${esc(t.title)} »${t.genre ? ` (${esc(t.genre)})` : ""}` : "ce titre"}, il applique <b>${autoName}</b>.</p>` : ""}
         <div class="eq-bands">${BANDS.map(([f, , n], i) => `<label class="band"><span class="db">${g[i] > 0 ? "+" : ""}${g[i]} dB</span><input type="range" min="-12" max="12" step="1" value="${g[i]}" data-band="${i}" aria-label="${n}" ${FX.enabled ? "" : "disabled"}><span class="hz">${f >= 1000 ? f / 1000 + " k" : f} Hz</span><small>${n}</small></label>`).join("")}</div>`;
     }
+    if (view === "lyredit") {
+      const d = S.editTrack || current();
+      $("sheet-title").textContent = "Paroles et synchro";
+      const raw = d && current() && d.id === current().id ? S.lyrRaw : "";
+      body.innerHTML = `<div class="ded-track">${d ? imgTag(d) : ""}<span><b>${esc(d ? d.title : "")}</b><i>${esc(d ? d.artist : "")}</i></span></div>
+        <p class="sheet-note">Colle les paroles. Pour une synchro parfaite, utilise le format LRC (<code>[01:23.45] ligne</code>) ou, après avoir enregistré, lance la chanson et touche <b>Synchroniser</b> sur la pochette.</p>
+        <div class="field"><label for="le-text">Paroles</label><textarea id="le-text" rows="12" maxlength="8000">${esc(raw || "")}</textarea></div>
+        <button class="btn btn-gold" type="button" data-save-lyr>Enregistrer pour tout le monde</button>`;
+      if (d && (!current() || d.id !== current().id) && sb) sb.from("tracks").select("lyrics").eq("id", d.id).maybeSingle().then(r => { const ta = $("le-text"); if (ta && !ta.value && r.data && r.data.lyrics) ta.value = r.data.lyrics; });
+    }
     if (view === "dedic") {
       const d = S.dedTrack || current();
       $("sheet-title").textContent = "Dédicacer ce son";
@@ -869,6 +976,17 @@
     const rt = e.target.closest("[data-rate]"); if (rt) { audio.playbackRate = +rt.dataset.rate; S.rate = audio.playbackRate; renderSheet(); return; }
     if (e.target.closest("[data-sleepmenu]")) { $("b-sleep").click(); return; }
     if (e.target.closest("[data-send-dedic]")) { sendDedic(); return; }
+    if (e.target.closest("[data-save-lyr]")) {
+      const d = S.editTrack || current(); if (!d) return;
+      const txt = $("le-text").value.trim();
+      sb.rpc("update_track_lyrics", { p_id: d.id, p_key: editKey(d), p_lyrics: txt }).then(r => {
+        if (r.data !== true) { toast("Enregistrement impossible : seul l'appareil qui a publié ce titre peut le modifier."); return; }
+        delete mySync[d.id]; store.set("lyrSync", mySync);
+        if (offline[d.id]) { offline[d.id].lyrics = txt; store.set("offline", offline); }
+        closeSheet(); toast("Paroles enregistrées"); if (current() && current().id === d.id) loadLyr(d);
+      });
+      return;
+    }
   });
   $("sheet-wrap").addEventListener("input", e => {
     const b = e.target.closest("[data-band]");
@@ -877,7 +995,7 @@
   });
   $("sheet-wrap").addEventListener("change", e => {
     const s2 = e.target.closest("[data-set]"); if (!s2) return;
-    if (s2.dataset.set === "fx") { FX.enabled = s2.checked; store.set("fx", FX.enabled); if (FX.enabled) { fxGraph(); fxResume(); } else applyEq(); }
+    if (s2.dataset.set === "fx") { FX.enabled = s2.checked; store.set("fx", FX.enabled); if (FX.enabled) { fxGraph(); fxResume(); } else fxTeardown(); }
     if (s2.dataset.set === "halo") { FX.halo = s2.checked; store.set("halo", FX.halo); }
     renderSheet();
   });
@@ -1257,9 +1375,12 @@
         if (lyrics && S.hasV2) row.lyrics = lyrics;
         if (S.hasV3) { row.ai = ai; row.made_with = made || (pubMode === "link" ? "Suno" : null); }
         msg("Publication…");
-        const { error } = await sb.from("tracks").insert(row);
+        const key = uuid();
+        if (S.hasV4) row.edit_key = key;
+        const { data: ins, error } = await sb.from("tracks").insert(row).select("id");
         if (error) { if (error.code === "23505") { msg("Cette chanson est déjà sur Écrin.", "err"); return; } throw error; }
         store.set("artist", artist);
+        if (S.hasV4 && ins && ins[0]) { owned[ins[0].id] = key; store.set("owned", owned); }
         msg("Publiée ! Ta chanson est maintenant écoutable par tout le monde.", "ok");
         await load();
         setTimeout(() => go("artiste", artist), 1200);
@@ -1276,12 +1397,18 @@
   syncModes(); syncLike(); render();
   (async () => {
     await load();
+    const adm = new URLSearchParams(location.search).get("admin");
+    if (adm && sb) {
+      const r = await sb.rpc("is_admin", { p_key: adm });
+      history.replaceState(null, "", location.pathname + location.hash);
+      if (r.data === true) { adminKey = adm; store.set("admin", adm); toast("Mode administrateur activé sur cet appareil"); } else toast("Clé administrateur invalide");
+    }
     const plId = new URLSearchParams(location.search).get("p");
     if (plId) openList(plId);
     const id = new URLSearchParams(location.search).get("t");
     if (id && sb) {
       let t = byId(id);
-      if (!t) { const r = await sb.from("tracks").select("*").eq("id", id).maybeSingle(); t = r.data; }
+      if (!t) { const r = await sb.from("tracks").select("id,title,artist,genre,source,suno_id,audio_url,cover_url,plays,likes,created_at").eq("id", id).maybeSingle(); t = r.data; }
       const ded = b64.dec(new URLSearchParams(location.search).get("d") || "");
       if (t) { startQueue([t, ...S.all.filter(x => x.id !== t.id)], 0, false, ded ? ["Dédicace", "pour " + (ded.to || "toi")] : ["Partagé avec toi", "Écrin"]); openNP(); showDedic(ded); toast("Appuie sur lecture pour écouter « " + t.title + " »"); }
     }
