@@ -2,7 +2,7 @@
 
 La musique des créateurs Suno, gratuite pour tout le monde. Les artistes publient leurs chansons (lien Suno ou fichier MP3) et tout le monde peut les écouter en boucle ou en aléatoire.
 
-Version 5.0.1
+Version 5.1.0
 
 ## Fonctions
 - **Accueil** façon plateforme de streaming : titre à la une, rayons « Écoutés récemment », « Nouveautés », « Pépites à découvrir » (titres peu écoutés mis en avant à tour de rôle), « Les plus écoutées », artistes et genres.
@@ -12,6 +12,8 @@ Version 5.0.1
 - **Lecteur** : aléatoire, répéter (liste ou titre), « écouter juste après », minuteur de sommeil, lecteur plein écran avec file d'attente, contrôles sur l'écran verrouillé.
 - **Publier** sans compte : lien Suno (`suno.com/song/…`) ou fichier MP3/WAV/M4A (15 Mo max) avec pochette.
 - **Transparence** : chaque titre est marqué « IA ». Partage d'un titre par lien direct (`?t=…`), signalement (masquage automatique après 5 signalements).
+- **Égaliseur DOZE** : 10 bandes paramétriques avec courbe à glisser au doigt et spectre en direct, basses profondes, clarté, espace 3D (stéréo), volume nivelé, limiteur anti-saturation, comparaison A/B et réglages personnels enregistrés.
+- **IA DOZE** : si l'artiste n'indique pas le genre, l'appli le déduit (titre, fiche de création Suno, puis analyse du son : tempo, poids des basses, attaques, dynamique) et applique le bon réglage, plus une correction tonale propre à chaque morceau. Le résultat est partagé entre auditeurs après la mise à jour `supabase/migration-7.sql`.
 - Installable sur téléphone (PWA).
 
 ## Mise en ligne (une seule fois, environ 10 minutes)

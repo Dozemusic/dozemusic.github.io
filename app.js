@@ -1,5 +1,5 @@
-/* DOZE 5.0.1 */
-  const VERSION = "5.0.1";
+/* DOZE 5.1.0 */
+  const VERSION = "5.1.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -889,23 +889,84 @@
 
   // ---------- effets audio : égaliseur, halo, volume ----------
   const isIOS = /iP(hone|ad|od)/.test(navigator.platform) || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
-  const BANDS = [[60, "lowshelf", "Basses"], [250, "peaking", "Bas-médiums"], [1000, "peaking", "Médiums"], [4000, "peaking", "Présence"], [12000, "highshelf", "Aigus"]];
-  const PRESETS = { plat: ["Plat", [0, 0, 0, 0, 0]], basses: ["Basses+", [6, 3, 0, 0, 1]], voix: ["Voix", [-2, 0, 3, 4, 1]], afro: ["Afro", [4, 2, 0, 2, 3]], rap: ["Rap", [6, 4, -1, 1, 2]], douceur: ["Douceur", [2, 1, 0, -2, -4]], aigus: ["Aigus+", [0, 0, 0, 3, 6]] };
-  const GENRE_PRESET = { rap: "rap", afrobeat: "afro", "coupe-decale": "afro", zouglou: "afro", gospel: "voix", "r&b": "voix", pop: "voix", electro: "basses", reggae: "basses", rock: "aigus", jazz: "plat", classique: "plat" };
-  const FX = { ctx: null, filters: [], analyser: null, gain: null, bins: null,
-    enabled: store.get("fx", !isIOS), preset: store.get("eq", "auto"), custom: store.get("eqCustom", [0, 0, 0, 0, 0]), halo: store.get("halo", true) };
+  const BANDS = [[31, "lowshelf", "Sub"], [62, "peaking", "Basses"], [125, "peaking", "Kick"], [250, "peaking", "Chaleur"], [500, "peaking", "Corps"],
+    [1000, "peaking", "Médiums"], [2000, "peaking", "Voix"], [4000, "peaking", "Présence"], [8000, "peaking", "Brillance"], [16000, "highshelf", "Air"]];
+  const NB = BANDS.length, ZERO = () => Array(NB).fill(0);
+  const PRESETS = {
+    plat: ["Plat", [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
+    rap: ["Rap · Drill", [6, 6, 3, -1, -2, -1, 1, 2, 3, 2]],
+    afro: ["Afro", [4, 4, 2, 0, -1, 0, 1, 2, 3, 3]],
+    coupe: ["Coupé-décalé", [5, 5, 3, 0, -1, 0, 1, 2, 3, 3]],
+    rumba: ["Rumba · Ndombolo", [2, 3, 2, 0, 0, 1, 2, 3, 3, 2]],
+    gospel: ["Gospel · Louange", [2, 2, 1, 1, 0, 1, 2, 3, 2, 2]],
+    rnb: ["R&B · Soul", [4, 4, 2, 0, -1, 0, 1, 2, 2, 2]],
+    reggae: ["Reggae · Dancehall", [5, 5, 3, 0, -1, -1, 0, 1, 2, 1]],
+    electro: ["Électro", [6, 5, 2, -1, -2, -1, 0, 2, 4, 4]],
+    pop: ["Pop", [1, 2, 1, 0, -1, 0, 1, 2, 2, 2]],
+    rock: ["Rock", [3, 2, 1, 0, -1, 0, 2, 3, 3, 2]],
+    jazz: ["Jazz · Acoustique", [1, 1, 1, 1, 0, 0, 1, 1, 2, 2]],
+    classique: ["Classique", [0, 0, 0, 0, 0, 0, 0, 1, 2, 2]],
+    basses: ["Basses+", [7, 6, 4, 1, 0, 0, 0, 0, 1, 1]],
+    voix: ["Voix claire", [-2, -1, 0, -1, 0, 2, 3, 4, 2, 1]],
+    voiture: ["Voiture", [3, 3, 2, -1, -2, 0, 1, 2, 2, 1]],
+    douceur: ["Nuit douce", [2, 2, 1, 0, 0, -1, -2, -3, -4, -4]]
+  };
+  const STYLE_KEYS = ["rap", "afro", "coupe", "rumba", "gospel", "rnb", "reggae", "electro", "pop", "rock", "jazz", "classique"];
+  // Mots qui trahissent le style (genre indiqué par l'artiste, sinon titre)
+  const GENRE_WORDS = [
+    ["gospel", /gospel|louange|adoration|worship|praise|chorale|cantique|\bchrist|jesus|seigneur|\bdieu\b|\bgod\b|\blord\b|allel|jehovah|eternel|\bgrace\b|\bdivin|psaume|\bamen\b|priere|\bsaint\b/],
+    ["coupe", /coupe.?decale|\bdecale|ambianceur|\bfarot/],
+    ["rumba", /rumba|ndombolo|soukous|\bseben/],
+    ["rap", /\brap\b|\bdrill|\btrap\b|hip.?hop|\bgrime|freestyle|\bkpaka|rappeur|\bbars\b|\b808|boom.?bap/],
+    ["afro", /\bafro|amapiano|log.?drum|zouglou|makossa|highlife|naija|bikutsi|mapouka|kompa|konpa|\bzouk|azonto|bongo/],
+    ["reggae", /reggae|dancehall|ragga|\bdub\b|\bska\b|shatta/],
+    ["electro", /electro|\bhouse\b|techno|\bedm\b|\bdance\b|trance|dubstep|drum.?(and|n|&).?bass|\bdnb\b|synthwave/],
+    ["rnb", /r.?(&|n|and).?b\b|\bsoul\b|\bslow\b|ballade?/],
+    ["rock", /\brock|\bmetal|\bpunk|grunge/],
+    ["jazz", /\bjazz|\bblues|acousti|\bfolk\b|bossa|unplugged/],
+    ["classique", /classi|orchestr|symphon|\bopera\b|baroque/],
+    ["pop", /\bpop\b|variete|\bchanson\b/]
+  ];
+  const textStyle = s => { const n = norm(s); if (!n) return null; for (const [k, re] of GENRE_WORDS) if (re.test(n)) return k; return null; };
+
+  const oldCustom = store.get("eqCustom", null);
+  const FX = { ctx: null, filters: [], knobs: null, analyser: null, spec: null, gain: null, bins: null, bypass: false,
+    enabled: store.get("fx", !isIOS), preset: (p0 => PRESETS[p0] || ["auto", "perso"].includes(p0) || String(p0).startsWith("mine:") ? p0 : "auto")(store.get("eq", "auto")),
+    custom: Array.isArray(oldCustom) && oldCustom.length === NB ? oldCustom : ZERO(),
+    k: Object.assign({ bass: 0, clar: 0, width: 0, level: false }, store.get("eqKnobs", {})),
+    tonal: store.get("eqTonal", true), mine: store.get("eqMine", []), halo: store.get("halo", true) };
+  if (FX.preset === "perso" && !(Array.isArray(oldCustom) && oldCustom.length === NB)) FX.preset = "auto";
+  const saveKnobs = () => store.set("eqKnobs", FX.k);
+
   function fxGraph() {
     if (FX.ctx) return true;
     try {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
-      FX.ctx = new AC();
-      const src = FX.ctx.createMediaElementSource(audio.el);
-      FX.ctx.onstatechange = () => { if (FX.ctx && FX.ctx.state !== "running" && !audio.paused) FX.ctx.resume().catch(() => {}); };
-      FX.filters = BANDS.map(([f, type]) => { const b = FX.ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = 1; b.gain.value = 0; return b; });
-      FX.gain = FX.ctx.createGain();
-      FX.analyser = FX.ctx.createAnalyser(); FX.analyser.fftSize = 256; FX.analyser.smoothingTimeConstant = .8;
+      const c = FX.ctx = new AC();
+      const src = c.createMediaElementSource(audio.el);
+      c.onstatechange = () => { if (FX.ctx && FX.ctx.state !== "running" && !audio.paused) FX.ctx.resume().catch(() => {}); };
+      const pre = c.createGain();
+      FX.filters = BANDS.map(([f, type]) => { const b = c.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = type === "peaking" ? 1.2 : .7; b.gain.value = 0; return b; });
+      const bass = c.createBiquadFilter(); bass.type = "lowshelf"; bass.frequency.value = 85;
+      const pres = c.createBiquadFilter(); pres.type = "peaking"; pres.frequency.value = 3200; pres.Q.value = .9;
+      const air = c.createBiquadFilter(); air.type = "highshelf"; air.frequency.value = 10000;
+      // Élargisseur stéréo (mid/side) : L' = aL + bR, R' = aR + bL
+      const up = c.createGain(); up.channelCount = 2; up.channelCountMode = "explicit"; up.channelInterpretation = "speakers";
+      const split = c.createChannelSplitter(2), merge = c.createChannelMerger(2);
+      const [ll, rl, rr, lr] = [0, 0, 0, 0].map(() => c.createGain());
+      up.connect(split); split.connect(ll, 0); split.connect(lr, 0); split.connect(rr, 1); split.connect(rl, 1);
+      ll.connect(merge, 0, 0); rl.connect(merge, 0, 0); rr.connect(merge, 0, 1); lr.connect(merge, 0, 1);
+      const level = c.createDynamicsCompressor(), makeup = c.createGain();
+      const lim = c.createDynamicsCompressor();           // limiteur : empêche toute saturation
+      lim.threshold.value = -1.5; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = .002; lim.release.value = .1;
+      FX.gain = c.createGain();
+      FX.analyser = c.createAnalyser(); FX.analyser.fftSize = 256; FX.analyser.smoothingTimeConstant = .8;
       FX.bins = new Uint8Array(FX.analyser.frequencyBinCount);
-      [src, ...FX.filters, FX.gain, FX.analyser, FX.ctx.destination].reduce((a, b) => (a.connect(b), b));
+      FX.spec = c.createAnalyser(); FX.spec.fftSize = 4096; FX.spec.smoothingTimeConstant = .82;
+      [src, pre, ...FX.filters, bass, pres, air, up].reduce((a, b) => (a.connect(b), b));
+      [merge, level, makeup, lim, FX.gain, FX.analyser, c.destination].reduce((a, b) => (a.connect(b), b));
+      FX.gain.connect(FX.spec);
+      FX.knobs = { pre, bass, pres, air, ll, rl, rr, lr, level, makeup };
       return true;
     } catch (e) { console.warn(e); FX.ctx = null; return false; }
   }
@@ -918,18 +979,295 @@
   function fxTeardown() {
     if (!FX.ctx) return;
     try { FX.ctx.close(); } catch {}
-    FX.ctx = null; FX.filters = []; FX.gain = null; FX.analyser = null; FX.bins = null;
+    FX.ctx = null; FX.filters = []; FX.knobs = null; FX.gain = null; FX.analyser = null; FX.spec = null; FX.bins = null;
     audio.swapElement();
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden && FX.ctx && FX.ctx.state !== "running") FX.ctx.resume().catch(() => {}); });
-  function currentGains(t = current()) {
-    let key = FX.preset;
-    if (key === "auto") key = (t && GENRE_PRESET[norm(t.genre)]) || "plat";
-    return key === "perso" ? FX.custom : PRESETS[key][1];
+
+  // ----- Style de la chanson : artiste > titre > analyse IA du son -----
+  const anaCache = store.get("ana", {});               // { idTitre: analyse } gardée sur l'appareil
+  const titleTags = t => ((t.title || "").match(/[([][^)\]]+[)\]]/g) || []).join(" ");     // « (Naija Vibes Remix) », « (Drill Rumba) »
+  const lyricCues = l => ((l || "").match(/\[[^\]\n]{3,120}\]/g) || []).join(" ");          // « [140 BPM - Heavy Sliding 808] »
+  function styleOf(t) {
+    if (!t) return null;
+    const a = anaCache[t.id];
+    let k = textStyle(t.genre); if (k) return { key: k, src: "artiste" };
+    k = textStyle(titleTags(t)); if (k) return { key: k, src: "titre" };
+    if (a && a.txt && PRESETS[a.txt]) return { key: a.txt, src: "suno" };
+    if (a && a.fam && a.conf >= .3) return { key: a.fam, src: "ia", conf: a.conf };
+    k = textStyle(t.title); if (k) return { key: k, src: "titre" };
+    return null;
   }
-  function applyEq() { if (!FX.ctx) return; const g = FX.enabled ? currentGains() : [0, 0, 0, 0, 0]; FX.filters.forEach((f, i) => f.gain.setTargetAtTime(g[i], FX.ctx.currentTime, .05)); }
-  function applyAutoEq() { applyEq(); }
+  function autoGains(t = current()) {
+    const st = styleOf(t), base = PRESETS[st ? st.key : "plat"][1], a = t && anaCache[t.id];
+    const corr = FX.tonal && a && a.corr ? a.corr : ZERO();
+    return base.map((v, i) => Math.max(-12, Math.min(12, Math.round((v + (corr[i] || 0)) * 2) / 2)));
+  }
+  function currentGains(t = current()) {
+    if (FX.preset === "auto") return autoGains(t);
+    if (FX.preset === "perso") return FX.custom;
+    if (FX.preset.startsWith("mine:")) { const m = FX.mine[+FX.preset.slice(5)]; return m ? m.g : ZERO(); }
+    return (PRESETS[FX.preset] || PRESETS.plat)[1];
+  }
+
+  // Réponse en fréquence calculée (pour la courbe affichée et la réserve anti-saturation)
+  const RESP_F = new Float32Array(160).map((_, i) => 20 * Math.pow(1000, i / 159));
+  let respNodes = null;
+  function responseDb(g, k) {
+    try {
+      if (!respNodes) {
+        const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext; const c = new OAC(1, 128, 44100);
+        respNodes = [...BANDS.map(([f, type]) => { const b = c.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = type === "peaking" ? 1.2 : .7; return b; }),
+          ...[["lowshelf", 85, .7], ["peaking", 3200, .9], ["highshelf", 10000, .7]].map(([type, f, q]) => { const b = c.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; })];
+      }
+      const gains = [...g, k.bass, k.clar * .6, k.clar * .8], out = new Float32Array(RESP_F.length).fill(0);
+      const mag = new Float32Array(RESP_F.length), ph = new Float32Array(RESP_F.length);
+      respNodes.forEach((b, i) => { if (!gains[i]) return; b.gain.value = gains[i]; b.getFrequencyResponse(RESP_F, mag, ph); for (let j = 0; j < mag.length; j++) out[j] += 20 * Math.log10(mag[j] || 1e-6); });
+      return out;
+    } catch { return new Float32Array(RESP_F.length); }
+  }
+  function effState() {
+    if (FX.bypass || !FX.enabled) return { g: ZERO(), k: { bass: 0, clar: 0, width: 0, level: false } };
+    return { g: currentGains(), k: FX.k };
+  }
+  function applyEq() {
+    if (!FX.ctx || !FX.knobs) return;
+    const { g, k } = effState(), now = FX.ctx.currentTime, K = FX.knobs, set = (p, v) => p.setTargetAtTime(v, now, .05);
+    FX.filters.forEach((f, i) => set(f.gain, g[i]));
+    set(K.bass.gain, k.bass); set(K.pres.gain, k.clar * .6); set(K.air.gain, k.clar * .8);
+    const boost = Math.max(0, ...responseDb(g, k));
+    set(K.pre.gain, Math.pow(10, -boost * .8 / 20));      // réserve automatique : on baisse l'entrée d'autant qu'on amplifie
+    const w = 1 + (k.width / 100) * .8, a = (1 + w) / 2, b = (1 - w) / 2;
+    set(K.ll.gain, a); set(K.rr.gain, a); set(K.rl.gain, b); set(K.lr.gain, b);
+    if (k.level) { K.level.threshold.value = -28; K.level.ratio.value = 3; K.level.knee.value = 12; K.level.attack.value = .01; K.level.release.value = .3; set(K.makeup.gain, Math.pow(10, 6 / 20)); }
+    else { K.level.threshold.value = 0; K.level.ratio.value = 1; set(K.makeup.gain, 1); }
+  }
+  function applyAutoEq(t) { applyEq(); if (FX.enabled && FX.preset === "auto") ensureAnalysis(t); }
   function setOutVolume(v) { if (FX.gain) FX.gain.gain.setTargetAtTime(Math.max(0, v), FX.ctx.currentTime, .1); else audio.volume = Math.max(0, Math.min(1, v * (+$("vol").value))); }
+
+  // ----- Analyse IA du son : tempo, énergie par octave, dynamique, attaques → style + correction tonale -----
+  const decodeJobs = new Map();
+  function decodeTrack(url) {
+    if (decodeJobs.has(url)) return decodeJobs.get(url);
+    const job = (async () => {
+      const c = navigator.connection; if (c && (c.saveData || /(^|-)2g|3g/.test(c.effectiveType || ""))) return null;   // économise les données mobiles lentes
+      const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext; if (!OAC) return null;
+      let res = null; try { res = await (await caches.open(OFF_CACHE)).match(url); } catch {}
+      if (!res) res = await fetch(url, { mode: "cors" });
+      if (!res || !res.ok) return null;
+      const buf = await res.arrayBuffer(); if (buf.byteLength > 18e6) return null;
+      const ctx = new OAC(1, 16000, 16000);              // décodage mono à 16 kHz : léger en mémoire
+      return await new Promise((ok, ko) => { const p = ctx.decodeAudioData(buf, ok, ko); if (p && p.catch) p.catch(ko); });
+    })().catch(e => { console.warn("décodage", e); return null; });
+    decodeJobs.set(url, job); setTimeout(() => decodeJobs.delete(url), 60000);
+    return job;
+  }
+  function fft(re, im) {
+    const n = re.length;
+    for (let i = 1, j = 0; i < n; i++) { let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; } }
+    for (let len = 2; len <= n; len <<= 1) {
+      const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+      for (let i = 0; i < n; i += len) {
+        let cr = 1, ci = 0;
+        for (let j = 0; j < len / 2; j++) {
+          const a = i + j, b = a + len / 2, tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr;
+          re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+          const nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr;
+        }
+      }
+    }
+  }
+  const OCT = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000];
+  const TONAL_REF = [-1.8, 5.2, 2.5, 1.5, 2.3, 0.4, -4.2, -6.8, -11.9];   // équilibre moyen d'un mixage (dB par octave, relatif aux médiums), mesuré sur le catalogue DOZE
+  function analyzeBuffer(ab) {
+    const sr = ab.sampleRate, d = ab.getChannelData(0), N = 1024, H = 256, fr = sr / H, half = N / 2, binHz = sr / N;
+    let st = 0, len = d.length;
+    if (len > sr * 50) { st = Math.floor(len * .3); len = Math.min(Math.floor(sr * 32), d.length - st); }   // 32 s au cœur du morceau
+    const frames = Math.floor((len - N) / H); if (frames < 300) return null;
+    const win = new Float32Array(N).map((_, i) => .5 - .5 * Math.cos(2 * Math.PI * i / (N - 1)));
+    const bandOf = new Int8Array(half + 1).fill(-1), nBins = new Float64Array(OCT.length);
+    for (let k = 1; k <= half; k++) { const f = k * binHz; OCT.forEach((c, i) => { if (f >= c / Math.SQRT2 && f < c * Math.SQRT2) { bandOf[k] = i; nBins[i]++; } }); }
+    const bp = new Float64Array(OCT.length), prev = new Float32Array(half + 1), re = new Float32Array(N), im = new Float32Array(N);
+    const flux = new Float32Array(frames), lowF = new Float32Array(frames), hiF = new Float32Array(frames), rmsDb = new Float32Array(frames);
+    let cenNum = 0, cenDen = 0;
+    for (let f = 0; f < frames; f++) {
+      const o = st + f * H; let e = 0;
+      for (let i = 0; i < N; i++) { const s = d[o + i]; re[i] = s * win[i]; im[i] = 0; e += s * s; }
+      rmsDb[f] = 10 * Math.log10(e / N + 1e-10);
+      fft(re, im);
+      let fl = 0, lo = 0, hi = 0;
+      for (let k = 1; k <= half; k++) {
+        const m2 = re[k] * re[k] + im[k] * im[k], b = bandOf[k];
+        if (b >= 0) bp[b] += m2;
+        const lm = Math.log(1 + 1000 * Math.sqrt(m2)), df = lm - prev[k]; prev[k] = lm;
+        if (df > 0) { fl += df; if (k * binHz < 180) lo += df; else if (k * binHz > 3500) hi += df; }
+        const m = Math.sqrt(m2); cenNum += k * binHz * m; cenDen += m;
+      }
+      flux[f] = fl; lowF[f] = lo; hiF[f] = hi;
+    }
+    // Courbe d'attaques → tempo par autocorrélation (préférence douce autour de 115 BPM)
+    const env = new Float32Array(frames), W = Math.round(fr);
+    for (let i = 0; i < frames; i++) { let s = 0, n = 0; for (let j = Math.max(0, i - W); j < Math.min(frames, i + W); j++) { s += flux[j]; n++; } env[i] = Math.max(0, flux[i] - s / n); }
+    let ac0 = 0; for (let i = 0; i < frames; i++) ac0 += env[i] * env[i];
+    const lagMin = Math.floor(fr * 60 / 185), lagMax = Math.ceil(fr * 60 / 62), ac = new Float32Array(lagMax + 2);
+    for (let L = lagMin - 1; L <= lagMax + 1; L++) { let s = 0; for (let i = 0; i + L < frames; i++) s += env[i] * env[i + L]; ac[L] = s / (frames - L); }
+    let best = lagMin, bestS = -1;
+    for (let L = lagMin; L <= lagMax; L++) { const bpm = 60 * fr / L, w = Math.exp(-.5 * Math.pow(Math.log2(bpm / 115) / 1.1, 2)), s = ac[L] * w; if (s > bestS) { bestS = s; best = L; } }
+    const y0 = ac[best - 1], y1 = ac[best], y2 = ac[best + 1], den = y0 - 2 * y1 + y2, off = den ? .5 * (y0 - y2) / den : 0;
+    const bpm = Math.round(60 * fr / (best + Math.max(-.5, Math.min(.5, off))));
+    const pc = ac0 ? Math.min(1, ac[best] / (ac0 / frames)) : 0;
+    const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
+    const peaksPerSec = a => { const m = mean(a), sd = Math.sqrt(mean(a.map(v => (v - m) ** 2))); let n = 0; for (let i = 1; i < a.length - 1; i++) if (a[i] > m + sd && a[i] >= a[i - 1] && a[i] > a[i + 1]) n++; return n / (a.length / fr); };
+    // Énergie par octave, ramenée à la largeur complète de l'octave (les octaves extrêmes sont partiellement mesurées)
+    const B = Array.from(bp, (v, i) => 10 * Math.log10(v / frames / Math.max(1, nBins[i]) * (OCT[i] * (Math.SQRT2 - Math.SQRT1_2) / binHz) + 1e-12));
+    const loud = Array.from(rmsDb).filter(v => v > -60), lm = mean(loud), dyn = Math.sqrt(mean(loud.map(v => (v - lm) ** 2)));
+    const mids = (B[4] + B[5] + B[6]) / 3;
+    const F = { bpm, pc: +pc.toFixed(2), lowR: +(((B[0] + B[1] + B[2]) / 3) - mids).toFixed(1), subR: +(((B[0] + B[1]) / 2) - mids).toFixed(1),
+      hiR: +(((B[7] + B[8]) / 2) - mids).toFixed(1), dyn: +dyn.toFixed(1), cent: Math.round(cenNum / (cenDen || 1)),
+      kick: +peaksPerSec(Array.from(lowF)).toFixed(2), hat: +peaksPerSec(Array.from(hiF)).toFixed(2) };
+    // Correction tonale : écart entre l'équilibre du morceau et une référence moyenne de mixage, adouci (±3 dB max)
+    const anchor = (B[3] + B[4] + B[5] + B[6]) / 4, rel = B.map(v => +(v - anchor).toFixed(1));
+    const corr = rel.map((v, i) => Math.max(-3, Math.min(3, Math.round((TONAL_REF[i] - v) * .5 * 2) / 2)));
+    corr.push(Math.round(corr[8] * .5 * 2) / 2);   // 16 kHz : au-delà de l'analyse, on suit 8 kHz à moitié
+    F.rel = rel;
+    const { fam, conf } = classify(F);
+    return { v: 1, fam, conf, bpm, corr, f: F };
+  }
+  // Style estimé à partir des mesures (règles de musicologie : tempo, poids des basses, attaques, dynamique, brillance)
+  function classify(F) {
+    const G = (x, mu, sd) => Math.exp(-.5 * ((x - mu) / sd) ** 2), f = (x, mu, sd) => .5 + G(x, mu, sd);
+    const tempo = (...mus) => .4 + Math.max(...mus.map(([mu, sd]) => Math.max(G(F.bpm, mu, sd), .7 * G(F.bpm * 2, mu, sd), .7 * G(F.bpm / 2, mu, sd))));
+    const sc = {
+      rap: tempo([140, 7], [88, 6]) * f(F.subR, 7, 5) * f(F.dyn, 4.5, 2),
+      electro: tempo([124, 5], [174, 6]) * f(F.subR, 7, 5) * f(F.pc, .55, .2),
+      afro: tempo([106, 7]) * f(F.lowR, 3, 4) * f(F.pc, .38, .12),
+      coupe: tempo([128, 4]) * f(F.lowR, 5, 4) * f(F.pc, .45, .15),
+      rumba: tempo([120, 8]) * f(F.lowR, 1, 4) * f(F.hiR, -10, 3),
+      gospel: .85 * tempo([72, 10], [98, 8]) * f(F.lowR, 0, 4) * f(F.pc, .2, .1),
+      rnb: .85 * tempo([70, 8], [94, 6]) * f(F.subR, 5, 4) * f(F.pc, .25, .12),
+      reggae: tempo([90, 6]) * f(F.lowR, 6, 4) * f(F.hiR, -13, 3),
+      pop: .9 * tempo([112, 12]) * f(F.lowR, 2, 4) * f(F.hiR, -8, 3),
+      rock: tempo([125, 25]) * f(F.lowR, -3, 3) * f(F.cent, 2400, 500),
+      jazz: .8 * 1.1 * f(F.pc, .12, .08) * f(F.dyn, 7, 2.5) * f(F.lowR, -2, 4),
+      classique: .8 * 1.1 * f(F.pc, .06, .06) * f(F.dyn, 10, 3) * f(F.lowR, -6, 4)
+    };
+    const keys = Object.keys(sc), ex = keys.map(k => Math.exp(sc[k] * 4)), tot = ex.reduce((a, b) => a + b, 0);
+    const i = ex.indexOf(Math.max(...ex));
+    return { fam: keys[i], conf: +(ex[i] / tot).toFixed(2) };
+  }
+  const anaPending = new Set();
+  async function ensureAnalysis(t) {
+    if (!t || anaCache[t.id] || anaPending.has(t.id) || !t.audio_url || ["soundcloud", "youtube"].includes(t.source)) return;
+    anaPending.add(t.id); paintAi();
+    try {
+      let a = null, lyr = t.lyrics || "";
+      if (sb && !S.noAnaCol) { const r = await sb.from("tracks").select("analysis,lyrics").eq("id", t.id).maybeSingle(); if (r.error) S.noAnaCol = true; else if (r.data) { a = r.data.analysis; lyr = lyr || r.data.lyrics || ""; } }
+      if (sb && S.noAnaCol && !lyr) { const r = await sb.from("tracks").select("lyrics").eq("id", t.id).maybeSingle(); lyr = (r.data && r.data.lyrics) || ""; }
+      if (!a || a.v !== 1) {
+        // Indices écrits : étiquettes de style Suno et indications de production entre crochets dans les paroles
+        let txt = textStyle(lyricCues(lyr));
+        if (!txt && t.source === "suno" && t.suno_id) { const j = await relay("song", t.suno_id); const sg = j && j.songs && j.songs[0]; if (sg) txt = textStyle(sg.tags) || textStyle(lyricCues(sg.lyrics)); }
+        const ab = await decodeTrack(playable(t.audio_url));
+        a = ab && analyzeBuffer(ab);
+        if (a) { if (txt) a.txt = txt; if (sb && !S.noAnaCol) sb.rpc("set_track_analysis", { p_id: t.id, p_analysis: a }).then(() => {}, () => {}); }
+        else if (txt) a = { v: 0, txt, corr: ZERO() };
+      }
+      if (a && a.v === 1) { anaCache[t.id] = a; const ks = Object.keys(anaCache); if (ks.length > 300) delete anaCache[ks[0]]; store.set("ana", anaCache); }
+      else anaCache[t.id] = a || { v: 0 };
+    } catch (e) { console.warn("analyse", e); }
+    anaPending.delete(t.id);
+    if (current() && current().id === t.id) { applyEq(); paintAi(); }
+  }
+  function aiText(t) {
+    if (!t) return "Lance un titre pour que l'IA l'analyse.";
+    const st = styleOf(t), a = anaCache[t.id], name = st ? PRESETS[st.key][0] : null;
+    const how = !st ? "" : st.src === "artiste" ? "indiqué par l'artiste" : st.src === "titre" ? "repéré dans le titre" : st.src === "suno" ? "lu dans la fiche de création" : `détecté à l'écoute · confiance ${Math.round(st.conf * 100)} %`;
+    let s = st ? `Style : <b>${name}</b> <small>(${how})</small>` : (a && a.v === 1 ? "Style incertain : réglage équilibré" : "");
+    if (anaPending.has(t.id)) s += `${s ? "<br>" : ""}<span class="ai-busy">Analyse du son en cours…</span>`;
+    else if (a && a.v === 1) {
+      const tips = a.corr.map((v, i) => [v, BANDS[i]]).filter(([v]) => Math.abs(v) >= 1.5).slice(0, 3).map(([v, b]) => `${b[2]} ${v > 0 ? "+" : "−"}${Math.abs(v)}`).join(", ");
+      s += `${s ? "<br>" : ""}~${a.bpm} BPM · correction tonale ${FX.tonal ? (tips ? `<b>${tips} dB</b>` : "<b>aucune nécessaire</b>") : "désactivée"}`;
+    } else if (a && a.v === 0) s += `${s ? "<br>" : ""}Analyse impossible pour ce titre (lecteur externe ou fichier protégé).`;
+    else if (!["soundcloud", "youtube"].includes(t.source)) s += `${s ? "<br>" : ""}<button class="link" type="button" data-analyze>Analyser ce titre</button>`;
+    return s;
+  }
+  function paintAi() { const el = $("eq-ai-txt"); if (el) el.innerHTML = aiText(current()); }
+
+  // ----- Écran de l'égaliseur : courbe interactive + spectre en direct -----
+  const fx2x = (f, w) => Math.log(f / 20) / Math.log(1000) * w, DB = 15;
+  let eqRaf = 0, eqDrag = -1;
+  function drawEqViz() {
+    const cv = $("eq-cv"); if (!cv || $("sheet-wrap").hidden) { eqRaf = 0; return; }
+    const w = cv.clientWidth, h = cv.clientHeight, dpr = Math.min(2, devicePixelRatio || 1);
+    if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const x = cv.getContext("2d"); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+    const y = db => h / 2 - db / DB * (h / 2 - 10);
+    x.strokeStyle = "rgba(244,238,230,.07)"; x.lineWidth = 1; x.fillStyle = "rgba(244,238,230,.35)"; x.font = "10px Inter, sans-serif";
+    [50, 100, 200, 500, 1000, 2000, 5000, 10000].forEach(f => { const X = fx2x(f, w); x.beginPath(); x.moveTo(X, 0); x.lineTo(X, h); x.stroke(); x.fillText(f >= 1000 ? f / 1000 + "k" : f, X + 3, h - 4); });
+    [-12, -6, 0, 6, 12].forEach(d => { x.strokeStyle = d ? "rgba(244,238,230,.07)" : "rgba(244,238,230,.18)"; x.beginPath(); x.moveTo(0, y(d)); x.lineTo(w, y(d)); x.stroke(); });
+    // spectre en direct
+    if (FX.spec && !audio.paused) {
+      const n = FX.spec.frequencyBinCount, arr = new Uint8Array(n); FX.spec.getByteFrequencyData(arr);
+      const ny = FX.ctx.sampleRate / 2, sg = x.createLinearGradient(0, 0, 0, h);
+      sg.addColorStop(0, "rgba(218,154,104,.45)"); sg.addColorStop(1, "rgba(63,95,178,.05)");
+      x.beginPath(); x.moveTo(0, h);
+      for (let X = 0; X <= w; X += 2) { const f = 20 * Math.pow(1000, X / w), k = Math.min(n - 1, Math.round(f / ny * n)); x.lineTo(X, h - arr[k] / 255 * h * .9); }
+      x.lineTo(w, h); x.closePath(); x.fillStyle = sg; x.fill();
+    }
+    // courbe de l'égaliseur
+    const { g, k } = FX.enabled ? { g: currentGains(), k: FX.k } : { g: ZERO(), k: { bass: 0, clar: 0 } }, r = responseDb(g, k);
+    const cg = x.createLinearGradient(0, 0, w, 0); cg.addColorStop(0, "#B06C3E"); cg.addColorStop(.5, "#F0BE92"); cg.addColorStop(1, "#DA9A68");
+    x.beginPath(); r.forEach((v, i) => { const X = fx2x(RESP_F[i], w), Y = y(Math.max(-DB, Math.min(DB, v))); i ? x.lineTo(X, Y) : x.moveTo(X, Y); });
+    x.strokeStyle = cg; x.lineWidth = 2.5; x.stroke();
+    x.lineTo(w, y(0)); x.lineTo(0, y(0)); x.closePath(); x.fillStyle = "rgba(218,154,104,.10)"; x.fill();
+    BANDS.forEach(([f], i) => { const X = fx2x(f, w), Y = y(g[i]); x.beginPath(); x.arc(X, Y, eqDrag === i ? 9 : 6, 0, Math.PI * 2); x.fillStyle = eqDrag === i ? "#F0BE92" : "#12141C"; x.fill(); x.lineWidth = 2; x.strokeStyle = "#DA9A68"; x.stroke(); });
+    if (FX.bypass) { x.fillStyle = "rgba(10,12,18,.55)"; x.fillRect(0, 0, w, h); x.fillStyle = "#F4EEE6"; x.font = "600 13px Inter, sans-serif"; x.textAlign = "center"; x.fillText("Son d'origine (A/B)", w / 2, 22); x.textAlign = "start"; }
+    eqRaf = requestAnimationFrame(drawEqViz);
+  }
+  function startEqViz() { if (!eqRaf) eqRaf = requestAnimationFrame(drawEqViz); }
+  function toPerso() {
+    if (FX.preset === "perso") return;
+    FX.custom = currentGains().slice(); FX.preset = "perso"; store.set("eq", "perso");
+    document.querySelectorAll("[data-preset]").forEach(c => c.classList.toggle("is-on", c.dataset.preset === "perso"));
+  }
+  function setBand(i, v) {
+    toPerso(); FX.custom[i] = Math.max(-12, Math.min(12, Math.round(v * 2) / 2)); store.set("eqCustom", FX.custom); applyEq();
+    const sl = document.querySelector(`[data-band="${i}"]`); if (sl) { sl.value = FX.custom[i]; sl.parentElement.querySelector(".db").textContent = (FX.custom[i] > 0 ? "+" : "") + FX.custom[i] + " dB"; }
+  }
+  function eqPointer(cv) {
+    const pos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top, r.width, r.height]; };
+    const dbAt = (Y, h) => Math.max(-12, Math.min(12, (h / 2 - Y) / (h / 2 - 10) * DB));
+    cv.addEventListener("pointerdown", e => {
+      if (!FX.enabled) return;
+      const [X, , w] = pos(e); let bi = -1, bd = 1e9;
+      BANDS.forEach(([f], i) => { const dd = Math.abs(fx2x(f, w) - X); if (dd < bd) { bd = dd; bi = i; } });
+      if (bd > 34) return;
+      eqDrag = bi; cv.setPointerCapture(e.pointerId); e.preventDefault();
+    });
+    cv.addEventListener("pointermove", e => { if (eqDrag < 0) return; const [, Y, , h] = pos(e); setBand(eqDrag, dbAt(Y, h)); });
+    const end = () => { eqDrag = -1; }; cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
+    cv.addEventListener("dblclick", e => { const [X, , w] = pos(e); BANDS.forEach(([f], i) => { if (Math.abs(fx2x(f, w) - X) < 20) setBand(i, 0); }); });
+  }
+  function eqSheetHtml(t) {
+    const g = FX.enabled ? currentGains() : ZERO(), k = FX.k, on = FX.enabled;
+    const chip = (key, name) => `<button class="chip${FX.preset === key ? " is-on" : ""}" type="button" data-preset="${key}">${name}</button>`;
+    return `${!on ? `<div class="sheet-note">${isIOS ? "Sur iPhone, l'égaliseur passe par le moteur audio de DOZE : la musique peut s'arrêter quand l'écran se verrouille." : "Les effets audio sont désactivés."}</div>` : ""}
+      <div class="eq-top"><label class="set-row eq-power"><span><b>Égaliseur DOZE</b><small>10 bandes · IA · anti-saturation</small></span><input type="checkbox" class="switch" data-set="fx" ${on ? "checked" : ""}></label>
+        <button class="chip eq-ab${FX.bypass ? " is-on" : ""}" type="button" data-ab ${on ? "" : "disabled"}>A/B</button></div>
+      <div class="eq-viz${on ? "" : " is-off"}"><canvas id="eq-cv" aria-label="Courbe de l'égaliseur : fais glisser les points"></canvas></div>
+      <p class="eq-hint">Fais glisser les points de la courbe · double-clic pour remettre à zéro · A/B pour comparer avec le son d'origine.</p>
+      <div class="eq-ai"><div class="eq-ai-head"><b>✨ IA DOZE</b><label class="eq-mini"><input type="checkbox" class="switch" data-set="tonal" ${FX.tonal ? "checked" : ""}> Correction tonale</label></div><p id="eq-ai-txt">${aiText(t)}</p></div>
+      <div class="chips eq-presets">${chip("auto", "✨ Auto IA")}${chip("perso", "Personnalisé")}${FX.mine.map((m, i) => `<span class="chip-mine">${chip("mine:" + i, esc(m.n))}<button type="button" class="chip-x" data-del-mine="${i}" aria-label="Supprimer ${esc(m.n)}">×</button></span>`).join("")}
+        <button class="chip chip-add" type="button" data-save-mine ${on ? "" : "disabled"}>＋ Enregistrer</button></div>
+      <div class="chips eq-presets">${Object.entries(PRESETS).map(([key, v]) => chip(key, v[0])).join("")}</div>
+      <div class="eq-knobs">
+        ${[["bass", "Basses profondes", 0, 10, "dB", "Renfort sous 90 Hz, sans saturer."], ["clar", "Clarté", 0, 8, "dB", "Voix et détails plus nets."], ["width", "Espace 3D", 0, 100, "%", "Élargit la scène stéréo (idéal au casque)."]]
+          .map(([key, n, mn, mx, u, hint]) => `<label class="knob"><span><b>${n}</b><small>${hint}</small></span><input type="range" min="${mn}" max="${mx}" step="1" value="${k[key]}" data-knob="${key}" ${on ? "" : "disabled"}><output>${k[key]} ${u}</output></label>`).join("")}
+        <label class="set-row"><span><b>Volume nivelé</b><small>Tous les titres au même niveau sonore, sans écart d'une chanson à l'autre.</small></span><input type="checkbox" class="switch" data-set="level" ${k.level ? "checked" : ""} ${on ? "" : "disabled"}></label>
+      </div>
+      <details class="eq-fine"><summary>Réglage fin des 10 bandes</summary><div class="eq-bands">${BANDS.map(([f, , n], i) => `<label class="band"><span class="db">${g[i] > 0 ? "+" : ""}${g[i]} dB</span><input type="range" min="-12" max="12" step=".5" value="${g[i]}" data-band="${i}" aria-label="${n}" ${on ? "" : "disabled"}><span class="hz">${f >= 1000 ? f / 1000 + " k" : f} Hz</span><small>${n}</small></label>`).join("")}</div></details>
+      <button class="btn" type="button" data-eq-reset ${on ? "" : "disabled"}>Tout remettre à zéro</button>`;
+  }
   function qualityLabel(t) { return { upload: "Fichier d'origine de l'artiste", soundcloud: "Lecteur officiel SoundCloud", youtube: "Lecteur officiel YouTube" }[t.source] || "Qualité d'origine Suno · AAC"; }
 
   // Couleur dominante de la pochette pour teinter le lecteur plein écran
@@ -1012,12 +1350,8 @@
     }
     if (view === "eq") {
       $("sheet-title").textContent = "Égaliseur";
-      const g = FX.enabled ? currentGains() : [0, 0, 0, 0, 0];
-      const autoName = t ? PRESETS[GENRE_PRESET[norm(t.genre)] || "plat"][0] : "Plat";
-      body.innerHTML = `${!FX.enabled ? `<div class="sheet-note">Les effets audio sont désactivés. <button class="link" type="button" data-sheet="settings">Les activer</button></div>` : ""}
-        <div class="chips">${[["auto", "Auto · selon le genre"], ...Object.entries(PRESETS).map(([k, v]) => [k, v[0]]), ["perso", "Personnalisé"]].map(([k, n]) => `<button class="chip${FX.preset === k ? " is-on" : ""}" type="button" data-preset="${k}">${n}</button>`).join("")}</div>
-        ${FX.preset === "auto" ? `<p class="sheet-note">Innovation DOZE : le réglage s'adapte à chaque chanson. Pour ${t ? `« ${esc(t.title)} »${t.genre ? ` (${esc(t.genre)})` : ""}` : "ce titre"}, il applique <b>${autoName}</b>.</p>` : ""}
-        <div class="eq-bands">${BANDS.map(([f, , n], i) => `<label class="band"><span class="db">${g[i] > 0 ? "+" : ""}${g[i]} dB</span><input type="range" min="-12" max="12" step="1" value="${g[i]}" data-band="${i}" aria-label="${n}" ${FX.enabled ? "" : "disabled"}><span class="hz">${f >= 1000 ? f / 1000 + " k" : f} Hz</span><small>${n}</small></label>`).join("")}</div>`;
+      body.innerHTML = eqSheetHtml(t); eqPointer($("eq-cv")); startEqViz();
+      if (FX.enabled && FX.preset === "auto") ensureAnalysis(t);
     }
     if (view === "newpass") {
       $("sheet-title").textContent = "Nouveau mot de passe";
@@ -1091,7 +1425,17 @@
     const sh = e.target.closest("[data-sheet]"); if (sh) { openSheet(sh.dataset.sheet, true); return; }
     const out = e.target.closest("[data-out]");
     if (out) { if (out.dataset.out === "airplay") audio.webkitShowPlaybackTargetPicker(); else audio.remote.prompt().catch(err => toast(err.name === "NotFoundError" ? "Aucun appareil trouvé sur ce réseau." : "Diffusion impossible depuis ce navigateur.")); return; }
-    const pr = e.target.closest("[data-preset]"); if (pr) { FX.preset = pr.dataset.preset; store.set("eq", FX.preset); applyEq(); renderSheet(); return; }
+    const pr = e.target.closest("[data-preset]"); if (pr) { FX.preset = pr.dataset.preset; store.set("eq", FX.preset); applyAutoEq(current()); renderSheet(); return; }
+    if (e.target.closest("[data-ab]")) { FX.bypass = !FX.bypass; applyEq(); e.target.closest("[data-ab]").classList.toggle("is-on", FX.bypass); toast(FX.bypass ? "Son d'origine" : "Son DOZE"); return; }
+    if (e.target.closest("[data-analyze]")) { ensureAnalysis(current()); return; }
+    if (e.target.closest("[data-eq-reset]")) { FX.custom = ZERO(); FX.k = { bass: 0, clar: 0, width: 0, level: false }; saveKnobs(); store.set("eqCustom", FX.custom); FX.preset = "plat"; store.set("eq", "plat"); applyEq(); renderSheet(); return; }
+    const dm = e.target.closest("[data-del-mine]"); if (dm) { const i = +dm.dataset.delMine; FX.mine.splice(i, 1); store.set("eqMine", FX.mine); if (FX.preset.startsWith("mine:")) { FX.preset = "perso"; FX.custom = ZERO(); store.set("eq", "perso"); } applyEq(); renderSheet(); return; }
+    if (e.target.closest("[data-save-mine]")) {
+      const n = (prompt("Nom de ton réglage (ex. Casque, Voiture, Soirée) :", "Mon son") || "").trim().slice(0, 20); if (!n) return;
+      const g = currentGains().slice(), i = FX.mine.findIndex(m => norm(m.n) === norm(n));
+      if (i >= 0) FX.mine[i] = { n, g }; else { if (FX.mine.length >= 8) FX.mine.shift(); FX.mine.push({ n, g }); }
+      store.set("eqMine", FX.mine); FX.preset = "mine:" + (i >= 0 ? i : FX.mine.length - 1); store.set("eq", FX.preset); renderSheet(); toast("Réglage « " + n + " » enregistré"); return;
+    }
     const rt = e.target.closest("[data-rate]"); if (rt) { audio.playbackRate = +rt.dataset.rate; S.rate = audio.playbackRate; renderSheet(); return; }
     if (e.target.closest("[data-sleepmenu]")) { $("b-sleep").click(); return; }
     if (e.target.closest("[data-send-dedic]")) { sendDedic(); return; }
@@ -1116,13 +1460,15 @@
     }
   });
   $("sheet-wrap").addEventListener("input", e => {
-    const b = e.target.closest("[data-band]");
-    if (b) { if (FX.preset !== "perso") { FX.custom = currentGains().slice(); FX.preset = "perso"; store.set("eq", "perso"); document.querySelectorAll("[data-preset]").forEach(c => c.classList.toggle("is-on", c.dataset.preset === "perso")); }
-      FX.custom[+b.dataset.band] = +b.value; store.set("eqCustom", FX.custom); applyEq(); b.parentElement.querySelector(".db").textContent = (b.value > 0 ? "+" : "") + b.value + " dB"; }
+    const b = e.target.closest("[data-band]"); if (b) { setBand(+b.dataset.band, +b.value); return; }
+    const kn = e.target.closest("[data-knob]");
+    if (kn) { FX.k[kn.dataset.knob] = +kn.value; saveKnobs(); applyEq(); kn.parentElement.querySelector("output").textContent = kn.value + (kn.dataset.knob === "width" ? " %" : " dB"); }
   });
   $("sheet-wrap").addEventListener("change", e => {
     const s2 = e.target.closest("[data-set]"); if (!s2) return;
-    if (s2.dataset.set === "fx") { FX.enabled = s2.checked; store.set("fx", FX.enabled); if (FX.enabled) { fxGraph(); fxResume(); } else fxTeardown(); }
+    if (s2.dataset.set === "fx") { FX.enabled = s2.checked; store.set("fx", FX.enabled); FX.bypass = false; if (FX.enabled) { fxGraph(); fxResume(); applyAutoEq(current()); } else fxTeardown(); }
+    if (s2.dataset.set === "tonal") { FX.tonal = s2.checked; store.set("eqTonal", FX.tonal); applyEq(); paintAi(); return; }
+    if (s2.dataset.set === "level") { FX.k.level = s2.checked; saveKnobs(); applyEq(); return; }
     if (s2.dataset.set === "halo") { FX.halo = s2.checked; store.set("halo", FX.halo); }
     if (s2.dataset.set === "radio") { radioOn = s2.checked; store.set("radio", radioOn); renderQueue(); }
     if (s2.dataset.set === "wave") { waveOn = s2.checked; store.set("wave", waveOn); const c = current(); if (c) loadWave(c); }
@@ -1310,14 +1656,7 @@
   const waveCache = store.get("peaks", {});            // { idTitre: [0..100] } gardé sur l'appareil
   S.wave = null;
   async function computePeaks(url, n = 160) {
-    const c = navigator.connection; if (c && (c.saveData || /(^|-)2g|3g/.test(c.effectiveType || ""))) return null;   // économise les données mobiles lentes
-    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext; if (!OAC) return null;
-    let res = null; try { res = await (await caches.open(OFF_CACHE)).match(url); } catch {}
-    if (!res) res = await fetch(url, { mode: "cors" });
-    if (!res || !res.ok) return null;
-    const buf = await res.arrayBuffer(); if (buf.byteLength > 18e6) return null;
-    const ctx = new OAC(1, 8000, 8000);                 // décodage à 8 kHz : léger en mémoire
-    const ab = await new Promise((ok, ko) => { const p = ctx.decodeAudioData(buf, ok, ko); if (p && p.catch) p.catch(ko); });
+    const ab = await decodeTrack(url); if (!ab) return null;          // décodage partagé avec l'analyse IA
     const d = ab.getChannelData(0), step = Math.max(1, Math.floor(d.length / n)), out = [];
     for (let i = 0; i < n; i++) { let sum = 0; for (let j = i * step, e = Math.min(d.length, j + step); j < e; j++) sum += d[j] * d[j]; out.push(Math.sqrt(sum / step)); }
     const mx = Math.max(...out) || 1;
