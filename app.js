@@ -1,5 +1,5 @@
-/* DOZE 4.2.1 */
-  const VERSION = "4.2.1";
+/* DOZE 5.0.0 */
+  const VERSION = "5.0.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -17,7 +17,8 @@
   const offline = store.get("offline", {});
   const owned = store.get("owned", {});               // { idTitre: clé } : titres publiés depuis cet appareil
   let adminKey = store.get("admin", null);
-  const editKey = t => t && (owned[t.id] || adminKey);            // { id: { t: titre, lyrics, size, at } } : chansons téléchargées          // [{ id, key, name }] (key nulle = playlist d'un autre, enregistrée)
+  const editKey = t => t && (owned[t.id] || adminKey);
+  const canEditTrack = t => !!t && (!!editKey(t) || (!!S.user && t.user_id === S.user.id));            // { id: { t: titre, lyrics, size, at } } : chansons téléchargées          // [{ id, key, name }] (key nulle = playlist d'un autre, enregistrée)
   const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)));
   let device = store.get("device", null); if (!device) { device = uuid(); store.set("device", device); }
   // Pays approximatif de l'auditeur, déduit du fuseau horaire puis de la langue (aucune donnée personnelle envoyée).
@@ -216,7 +217,8 @@
   async function load() {
     if (!sb) { S.loaded = true; const off = Object.values(offline); if (off.length) { S.offlineMode = true; S.all = off.map(o => ({ likes: 0, ...o.t })); } render(); return; }
     const cols = "id,title,artist,genre,source,suno_id,audio_url,cover_url,plays,likes,created_at";
-    let { data, error } = await sb.from("tracks").select(cols + ",ai,made_with").order("created_at", { ascending: false }).limit(1000);
+    let { data, error } = await sb.from("tracks").select(cols + ",ai,made_with,user_id").order("created_at", { ascending: false }).limit(1000);
+    if (error) ({ data, error } = await sb.from("tracks").select(cols + ",ai,made_with").order("created_at", { ascending: false }).limit(1000));
     S.hasV3 = !error;
     if (error) ({ data, error } = await sb.from("tracks").select(cols).order("created_at", { ascending: false }).limit(1000));
     S.hasV2 = S.hasV3 || !error;
@@ -299,7 +301,7 @@
         </span></li>`;
     }).join("")}</ol>`;
   }
-  const mobileBrand = `<div class="mobile-brand"><a class="brand" href="#accueil"><img class="brand-logo" src="brand/logo-doze.webp" alt="DOZE"></a><span class="mb-actions"><button class="ic" type="button" data-install title="Installer l'appli" aria-label="Installer l'appli"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5zM19 9h-4V3H9v6H5l7 7z"/></svg></button><button class="ic" type="button" data-share-app title="Partager DOZE" aria-label="Partager DOZE"><svg viewBox="0 0 24 24"><path d="M18 16a3 3 0 0 0-2 .8L8.9 12.7a3 3 0 0 0 0-1.4L16 7.2A3 3 0 1 0 15 5l.1.7L8 9.8a3 3 0 1 0 0 4.4l7.1 4.2-.1.6a3 3 0 1 0 3-3"/></svg></button><span class="ver">v${VERSION}</span></span></div>`;
+  const mobileBrand = `<div class="mobile-brand"><a class="brand" href="#accueil"><img class="brand-logo" src="brand/logo-doze.webp" alt="DOZE"></a><span class="mb-actions"><a class="ic" href="#compte" title="Mon compte" aria-label="Mon compte"><svg viewBox="0 0 24 24"><path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9m0 2c-3.3 0-9 1.7-9 5v2h18v-2c0-3.3-5.7-5-9-5"/></svg></a><button class="ic" type="button" data-install title="Installer l'appli" aria-label="Installer l'appli"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5zM19 9h-4V3H9v6H5l7 7z"/></svg></button><button class="ic" type="button" data-share-app title="Partager DOZE" aria-label="Partager DOZE"><svg viewBox="0 0 24 24"><path d="M18 16a3 3 0 0 0-2 .8L8.9 12.7a3 3 0 0 0 0-1.4L16 7.2A3 3 0 1 0 15 5l.1.7L8 9.8a3 3 0 1 0 0 4.4l7.1 4.2-.1.6a3 3 0 1 0 3-3"/></svg></button><span class="ver">v${VERSION}</span></span></div>`;
   const playIcon = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
   const shuffleIcon = '<svg viewBox="0 0 24 24"><path d="M10.6 9.2 5.4 4 4 5.4l5.2 5.2zM14.5 4l2 2L4 18.6 5.4 20 18 7.5l2 2V4zm.3 9.4-1.4 1.4 3.1 3.1-2 2H20v-5.5l-2 2z"/></svg>';
   function greeting() { const h = new Date().getHours(); return h < 5 ? "Bonne nuit" : h < 12 ? "Bonjour" : h < 18 ? "Bon après-midi" : "Bonsoir"; }
@@ -402,7 +404,60 @@
           <div class="ph-text"><span class="eyebrow">Genre</span><h1>${esc(name)}</h1><span class="stats">${plural(list.length, "titre")}</span></div></div>
         ${list.length ? `<div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="genre">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="genre">${shuffleIcon} Aléatoire</button></div>${rows(list, "genre")}` : `<div class="empty">Aucun titre dans ce genre pour l'instant.</div>`}`;
     },
+    compte() {
+      const p = S.profile, u = S.user;
+      if (u) return mobileBrand + `<div class="acc">
+        <div class="page-head"><div class="ph-bg" style="background:linear-gradient(135deg,#2E4A8C,#0F121B 80%)"></div>
+          <div class="acc-avatar">${esc(((p && p.username) || u.email || "?")[0].toUpperCase())}</div>
+          <div class="ph-text"><span class="eyebrow">Mon compte</span><h1>${esc((p && p.username) || "Bienvenue")}</h1><span class="stats">${esc(u.email || "")}</span></div></div>
+        <div class="acc-grid">
+          <a class="acc-card" href="#publier"><b>Publier un titre</b><span>Suno, fichier, playlist ou profil Suno, SoundCloud, YouTube.</span></a>
+          <button class="acc-card" type="button" data-mine><b>Mes titres</b><span>Ta page d'artiste et tes statistiques.</span></button>
+          <a class="acc-card" href="#avis"><b>Donner mon avis</b><span>Note DOZE et aide-nous à l'améliorer.</span></a>
+        </div>
+        <label class="set-row acc-row"><span><b>Recevoir les nouveautés de DOZE par e-mail</b><small>${p && p.newsletter ? "Tu as accepté le " + new Date(p.newsletter_at || Date.now()).toLocaleDateString("fr-FR") + ". Décoche pour te désinscrire à tout moment." : "Nouvelles fonctions, concours, artistes à la une. Jamais de pub de tiers, jamais de revente de ton adresse."}</small></span><input type="checkbox" class="switch" data-newsletter ${p && p.newsletter ? "checked" : ""} ${p ? "" : "disabled"}></label>
+        <div class="acc-actions"><button class="btn" type="button" data-auth="logout">Me déconnecter</button></div>
+        ${privacyNote()}</div>`;
+      const mode = S.authMode || "signup";
+      return mobileBrand + `<div class="acc auth">
+        <div class="auth-head"><img src="brand/logo-doze.webp" alt="" class="auth-logo"><h1>${mode === "signup" ? "Crée ton compte DOZE" : "Content de te revoir"}</h1>
+          <p>${mode === "signup" ? "Gratuit. Indispensable pour publier tes sons. L'écoute reste libre pour tous, sans compte." : "Connecte-toi avec ton e-mail et ton mot de passe."}</p></div>
+        <div class="seg"><button class="${mode === "signup" ? "is-on" : ""}" type="button" data-auth-mode="signup">Créer un compte</button><button class="${mode === "login" ? "is-on" : ""}" type="button" data-auth-mode="login">Se connecter</button></div>
+        <form id="auth-form" novalidate>
+          ${mode === "signup" ? `<div class="field"><label for="a-user">Pseudo (ton nom d'artiste public)</label><input id="a-user" maxlength="30" autocomplete="nickname" required><small id="a-user-msg">2 à 30 caractères : lettres, chiffres, espaces, - _ . '</small></div>` : ""}
+          <div class="field"><label for="a-mail">E-mail</label><input id="a-mail" type="email" inputmode="email" autocomplete="email" required></div>
+          <div class="field"><label for="a-pass">Mot de passe</label><input id="a-pass" type="password" minlength="8" autocomplete="${mode === "signup" ? "new-password" : "current-password"}" required>${mode === "signup" ? "<small>8 caractères minimum.</small>" : `<button class="link" type="button" data-auth="forgot">Mot de passe oublié ?</button>`}</div>
+          ${mode === "signup" ? `<div class="field"><label for="a-pass2">Confirme le mot de passe</label><input id="a-pass2" type="password" autocomplete="new-password" required></div>
+          <label class="check"><input id="a-news" type="checkbox"><span>J'accepte de recevoir par e-mail les nouveautés de DOZE. <small>Facultatif. Désinscription possible à tout moment depuis « Mon compte ».</small></span></label>
+          <label class="check"><input id="a-terms" type="checkbox" required><span>J'accepte les règles de DOZE : je ne publie que des sons dont je suis l'auteur ou que j'ai le droit de diffuser. <small>Voir la confidentialité ci-dessous.</small></span></label>` : ""}
+          <p id="auth-msg" class="form-msg" role="status"></p>
+          <button class="btn btn-gold" type="submit" id="auth-submit">${mode === "signup" ? "Créer mon compte" : "Me connecter"}</button>
+        </form>
+        ${privacyNote()}</div>`;
+    },
+    avis() {
+      const R2 = S.reviews || { summary: null, list: null };
+      const sm = R2.summary, avg = sm && sm.count ? (+sm.avg).toFixed(1).replace(".", ",") : "–";
+      const mine = S.user && R2.list ? R2.list.find(r => r.user_id === S.user.id) : null;
+      const stars = (n, cls = "") => `<span class="stars ${cls}" aria-label="${n} sur 5">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= Math.round(n) ? "on" : ""}">★</i>`).join("")}</span>`;
+      return mobileBrand + `<div class="rev">
+        <div class="page-head"><div class="ph-bg" style="background:linear-gradient(135deg,#B06C3E,#0F121B 80%)"></div>
+          <div class="ph-text"><span class="eyebrow">Avis</span><h1>Ton avis compte</h1><span class="stats">Note DOZE et dis-nous ce qu'on peut améliorer.</span></div></div>
+        ${S.hasV6 === false ? `<div class="empty">Les avis arrivent très bientôt (mise à jour de la base en cours).</div>` : `
+        <div class="rev-sum">${sm ? `<div class="rev-avg"><strong>${avg}</strong>${stars(sm.avg || 0, "big")}<span>${plural(sm.count, "avis")}</span></div>
+          <div class="rev-dist">${[5, 4, 3, 2, 1].map(n => { const c = sm.dist[n - 1], pc = sm.count ? Math.round(c / sm.count * 100) : 0; return `<div><span>${n} ★</span><i><b style="width:${pc}%"></b></i><em>${c}</em></div>`; }).join("")}</div>` : `<div class="empty">Chargement…</div>`}</div>
+        ${S.user ? `<form id="rev-form" class="rev-form"><b>${mine ? "Modifier mon avis" : "Mon avis"}</b>
+            <div class="star-input" role="radiogroup" aria-label="Note">${[1, 2, 3, 4, 5].map(i => `<button type="button" role="radio" aria-checked="${S.revRating === i}" data-star="${i}" class="${i <= (S.revRating || 0) ? "on" : ""}" aria-label="${i} étoile${i > 1 ? "s" : ""}">★</button>`).join("")}</div>
+            <textarea id="rev-text" rows="3" maxlength="600" placeholder="Ce que tu aimes, ce qui manque, ce qui bloque…">${esc(S.revDraft != null ? S.revDraft : (mine && mine.comment) || "")}</textarea>
+            <p id="rev-msg" class="form-msg"></p><button class="btn btn-gold" type="submit">${mine ? "Mettre à jour" : "Publier mon avis"}</button></form>`
+          : `<div class="rev-login"><span>Connecte-toi pour donner ton avis : un avis par compte, pour éviter les faux avis.</span><a class="btn btn-gold" href="#compte">Se connecter</a></div>`}
+        <ol class="rev-list">${(R2.list || []).map(r => `<li><div class="rev-top"><b>${esc(r.author)}</b>${stars(r.rating)}<time>${new Date(r.updated_at || r.created_at).toLocaleDateString("fr-FR")}</time>${adminKey ? `<button class="link" type="button" data-hide-rev="${r.id}">Masquer</button>` : ""}</div>${r.comment ? `<p>${esc(r.comment)}</p>` : ""}</li>`).join("")}</ol>`}
+      </div>`;
+    },
     publier() {
+      if (sb && S.hasV6 && !S.user) return mobileBrand + `<div class="acc auth gate"><img src="brand/logo-doze.webp" alt="" class="auth-logo"><h1>Publie tes sons sur DOZE</h1>
+        <p>Crée ton compte gratuit en 30 secondes pour publier. Ton pseudo devient ton nom d'artiste, et tu pourras modifier tes titres et voir tes statistiques.</p>
+        <div class="acc-actions"><button class="btn btn-gold" type="button" data-goauth="signup">Créer mon compte</button><button class="btn" type="button" data-goauth="login">J'ai déjà un compte</button></div></div>`;
       const tools = ["Suno", "Udio", "BandLab", "FL Studio", "GarageBand", "Logic Pro", "Ableton Live", "Mureka", "Enregistrement maison", "Studio"];
       return mobileBrand + `<div class="publish">
         <div>
@@ -461,7 +516,7 @@
             </div>
             <div class="two">
               <div class="field" ${pubMode === "pl" ? "hidden" : ""}><label for="f-title">Titre</label><input id="f-title" maxlength="120" required autocomplete="off"></div>
-              <div class="field"><label for="f-artist">Nom d'artiste</label><input id="f-artist" maxlength="80" required autocomplete="nickname" value="${esc(store.get("artist", ""))}"></div>
+              <div class="field"><label for="f-artist">Nom d'artiste</label><input id="f-artist" maxlength="80" required autocomplete="nickname" value="${esc(store.get("artist", "") || (S.profile && S.profile.username) || "")}"></div>
             </div>
             <div class="two">
               <div class="field"><label for="f-genre">Genre (facultatif)</label><input id="f-genre" maxlength="40" list="genres-list" autocomplete="off">
@@ -495,7 +550,9 @@
     catch (err) { console.error(err); $("view").innerHTML = `<div class="empty"><strong>Un souci d'affichage est survenu.</strong><button class="btn btn-gold" type="button" onclick="location.reload()">Recharger</button></div>`; return; }
     document.querySelectorAll("[data-nav]").forEach(a => a.classList.toggle("is-on", a.dataset.nav === (v === "artiste" || v === "genre" ? "rechercher" : v === "playlist" ? "bibliotheque" : v)));
     syncInstall();
-    if (v === "publier") bindPublish();
+    if (v === "publier" && !(sb && S.hasV6 && !S.user)) bindPublish();
+    if (v === "compte") bindAuth();
+    if (v === "avis") loadReviews();
     if (v === "artiste") loadStats(S.param);
     if (v === "rechercher") { const q = $("q"); q.oninput = e => { clearTimeout(qTimer); qTimer = setTimeout(() => { S.q = e.target.value; const pos = q.selectionStart; render(); const nq = $("q"); nq.focus(); nq.setSelectionRange(pos, pos); }, 250); }; }
   }
@@ -513,7 +570,7 @@
   }
 
   // ---------- navigation ----------
-  const ROUTES = ["accueil", "rechercher", "bibliotheque", "publier"];
+  const ROUTES = ["accueil", "rechercher", "bibliotheque", "publier", "compte", "avis"];
   function go(view, param) {
     S.view = view; S.param = param ?? null;
     if (ROUTES.includes(view) && location.hash !== "#" + view) location.hash = view;
@@ -586,7 +643,7 @@
     closeMenu();
     menuEl = document.createElement("div");
     menuEl.className = "menu";
-    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="radio">📻 Radio de ce titre</button><button type="button" data-a="dedic">🎁 Dédicacer ce son</button>${t && canOffline(t) ? (offline[t.id] ? '<button type="button" data-a="undl">✓ Retirer des téléchargements</button>' : '<button type="button" data-a="dl">⬇ Télécharger (hors ligne)</button>') : ""}<button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button>${t && editKey(t) && S.hasV4 ? '<button type="button" data-a="lyredit">✎ Paroles et synchro</button>' : ""}<div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>${t && adminKey && S.hasV4 ? '<button type="button" data-a="admdel" class="danger">🗑 Supprimer ce titre (admin)</button>' : ""}`;
+    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="radio">📻 Radio de ce titre</button><button type="button" data-a="dedic">🎁 Dédicacer ce son</button>${t && canOffline(t) ? (offline[t.id] ? '<button type="button" data-a="undl">✓ Retirer des téléchargements</button>' : '<button type="button" data-a="dl">⬇ Télécharger (hors ligne)</button>') : ""}<button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button>${t && canEditTrack(t) && S.hasV4 ? '<button type="button" data-a="lyredit">✎ Paroles et synchro</button>' : ""}<div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>${t && adminKey && S.hasV4 ? '<button type="button" data-a="admdel" class="danger">🗑 Supprimer ce titre (admin)</button>' : ""}`;
     document.body.appendChild(menuEl);
     const r = btn.getBoundingClientRect(), mh = menuEl.offsetHeight;
     const top = r.bottom + 6 + mh > innerHeight ? r.top - mh - 6 : r.bottom + 6;
@@ -729,12 +786,12 @@
     L.lines.forEach((l, i) => l.t = T.times[i]); L.timed = true; L.mine = true; lyrOff[L.id] = 0; store.set("lyrOff", lyrOff);
     S.tap = null; $("lyr").classList.remove("tapping"); renderLyr(true);
     const t = current();
-    $("lyr-publish").hidden = !(t && editKey(t) && S.hasV4);
-    toast(t && editKey(t) && S.hasV4 ? "Synchro enregistrée. Touche « Publier pour tous » pour la partager." : "Synchro enregistrée sur cet appareil");
+    $("lyr-publish").hidden = !(t && canEditTrack(t) && S.hasV4);
+    toast(t && canEditTrack(t) && S.hasV4 ? "Synchro enregistrée. Touche « Publier pour tous » pour la partager." : "Synchro enregistrée sur cet appareil");
   }
   async function publishSync() {
     const t = current(), L = S.lyr; if (!t || !L || !L.timed) return;
-    const r = await sb.rpc("update_track_lyrics", { p_id: t.id, p_key: editKey(t), p_lyrics: toLRC(L) });
+    const r = await sb.rpc("update_track_lyrics", { p_id: t.id, p_key: editKey(t) || null, p_lyrics: toLRC(L) });
     if (r.data === true) { toast("Paroles synchronisées publiées pour tout le monde"); $("lyr-publish").hidden = true; if (offline[t.id]) { offline[t.id].lyrics = toLRC(L); store.set("offline", offline); } }
     else toast("Publication impossible : seul l'appareil qui a publié ce titre peut le modifier.");
   }
@@ -962,6 +1019,12 @@
         ${FX.preset === "auto" ? `<p class="sheet-note">Innovation DOZE : le réglage s'adapte à chaque chanson. Pour ${t ? `« ${esc(t.title)} »${t.genre ? ` (${esc(t.genre)})` : ""}` : "ce titre"}, il applique <b>${autoName}</b>.</p>` : ""}
         <div class="eq-bands">${BANDS.map(([f, , n], i) => `<label class="band"><span class="db">${g[i] > 0 ? "+" : ""}${g[i]} dB</span><input type="range" min="-12" max="12" step="1" value="${g[i]}" data-band="${i}" aria-label="${n}" ${FX.enabled ? "" : "disabled"}><span class="hz">${f >= 1000 ? f / 1000 + " k" : f} Hz</span><small>${n}</small></label>`).join("")}</div>`;
     }
+    if (view === "newpass") {
+      $("sheet-title").textContent = "Nouveau mot de passe";
+      body.innerHTML = `<p class="sheet-note">Choisis ton nouveau mot de passe (8 caractères minimum).</p>
+        <div class="field"><label for="np-pass">Nouveau mot de passe</label><input id="np-pass" type="password" autocomplete="new-password" minlength="8"></div>
+        <button class="btn btn-gold" type="button" data-save-pass>Enregistrer</button>`;
+    }
     if (view === "share") {
       const it = S.shareItem || { title: "DOZE", text: "", url: appUrl() };
       $("sheet-title").textContent = it.kind === "appli" ? "Partager DOZE" : "Partager " + (it.kind === "dédicace" ? "la dédicace" : it.kind === "playlist" ? "la playlist" : "ce titre");
@@ -1032,13 +1095,18 @@
     const rt = e.target.closest("[data-rate]"); if (rt) { audio.playbackRate = +rt.dataset.rate; S.rate = audio.playbackRate; renderSheet(); return; }
     if (e.target.closest("[data-sleepmenu]")) { $("b-sleep").click(); return; }
     if (e.target.closest("[data-send-dedic]")) { sendDedic(); return; }
+    if (e.target.closest("[data-save-pass]")) {
+      const v = $("np-pass").value; if (v.length < 8) { toast("8 caractères minimum."); return; }
+      sb.auth.updateUser({ password: v }).then(({ error }) => { if (error) toast(authErr(error)); else { closeSheet(); toast("Mot de passe modifié ✓"); } });
+      return;
+    }
     if (e.target.closest("[data-native-share]")) { const it = S.shareItem; navigator.share({ title: "DOZE", text: it.text, url: it.url }).catch(() => {}); return; }
     if (e.target.closest("[data-copy-link]")) { const it = S.shareItem; navigator.clipboard.writeText(it.text + "\n" + it.url).then(() => toast("Lien copié : colle-le où tu veux"), () => toast(it.url)); return; }
     if (e.target.closest("[data-copy-app]")) { navigator.clipboard.writeText(appUrl()).then(() => toast("Lien copié : colle-le dans " + (isIOSDev ? "Safari" : "Chrome")), () => toast(appUrl())); return; }
     if (e.target.closest("[data-save-lyr]")) {
       const d = S.editTrack || current(); if (!d) return;
       const txt = $("le-text").value.trim();
-      sb.rpc("update_track_lyrics", { p_id: d.id, p_key: editKey(d), p_lyrics: txt }).then(r => {
+      sb.rpc("update_track_lyrics", { p_id: d.id, p_key: editKey(d) || null, p_lyrics: txt }).then(r => {
         if (r.data !== true) { toast("Enregistrement impossible : seul l'appareil qui a publié ce titre peut le modifier."); return; }
         delete mySync[d.id]; store.set("lyrSync", mySync);
         if (offline[d.id]) { offline[d.id].lyrics = txt; store.set("offline", offline); }
@@ -1334,6 +1402,114 @@
       if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5 && current()) { dx < 0 ? next(false) : prev(); }
     }, { passive: true });
   })();
+
+  // ---------- comptes ----------
+  function privacyNote() {
+    return `<details class="privacy"><summary>Confidentialité : ce que DOZE garde sur toi</summary>
+      <p><b>Ton e-mail</b> sert à te connecter et à récupérer ton mot de passe. Il n'est jamais affiché, vendu ni donné à des tiers. Tu ne reçois des nouvelles de DOZE que si tu l'as accepté, et tu peux te désinscrire à tout moment dans « Mon compte ».</p>
+      <p><b>Ton pseudo</b> est public : c'est ton nom d'artiste. <b>Ton mot de passe</b> est chiffré par Supabase, personne ne peut le lire.</p>
+      <p>Pour supprimer ton compte et tes données, écris à l'équipe DOZE depuis l'adresse de ton compte.</p></details>`;
+  }
+  const AUTH_ERR = [[/already registered|already been registered|exists/i, "Un compte existe déjà avec cet e-mail. Connecte-toi plutôt."], [/invalid login|invalid credentials/i, "E-mail ou mot de passe incorrect."], [/email not confirmed/i, "Confirme d'abord ton adresse : clique sur le lien reçu par e-mail."], [/password.*(short|least|weak)/i, "Mot de passe trop faible : 8 caractères minimum."], [/rate limit|too many|security purposes/i, "Trop de tentatives. Patiente quelques minutes puis réessaie."], [/invalid.*email|email.*invalid/i, "Cette adresse e-mail n'est pas valide."]];
+  const authErr = e => { const m = (e && e.message) || String(e); for (const [re, t] of AUTH_ERR) if (re.test(m)) return t; return "Une erreur est survenue (" + m + "). Réessaie."; };
+  async function loadProfile() {
+    if (!sb || !S.user) { S.profile = null; return; }
+    const r = await sb.from("profiles").select("username,newsletter,newsletter_at").eq("id", S.user.id).maybeSingle();
+    S.profile = r.data || null;
+  }
+  function bindAuth() {
+    document.querySelectorAll("[data-auth-mode]").forEach(b => b.onclick = () => { S.authMode = b.dataset.authMode; render(); });
+    const f = $("auth-form"); if (!f) return;
+    const msg = (t, k = "") => { const el = $("auth-msg"); el.textContent = t; el.className = "form-msg " + k; };
+    const user = $("a-user");
+    if (user) user.addEventListener("blur", async () => {
+      const v = user.value.trim(); if (v.length < 2 || !S.hasV6) return;
+      const r = await sb.rpc("username_available", { p_name: v });
+      $("a-user-msg").textContent = r.data === false ? "Ce pseudo est déjà pris : choisis-en un autre." : "Pseudo disponible ✓";
+      $("a-user-msg").className = r.data === false ? "err" : "ok";
+    });
+    f.addEventListener("submit", async e => {
+      e.preventDefault();
+      if (!sb) return;
+      const email = $("a-mail").value.trim(), pass = $("a-pass").value, btn = $("auth-submit");
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { msg("Indique une adresse e-mail valide.", "err"); return; }
+      if (pass.length < 8) { msg("Le mot de passe doit faire au moins 8 caractères.", "err"); return; }
+      btn.disabled = true;
+      try {
+        if ((S.authMode || "signup") === "signup") {
+          const name = $("a-user").value.trim();
+          if (!/^[A-Za-zÀ-ÿ0-9 _.'-]{2,30}$/.test(name)) { msg("Pseudo invalide : 2 à 30 caractères (lettres, chiffres, espaces, - _ . ').", "err"); return; }
+          if (pass !== $("a-pass2").value) { msg("Les deux mots de passe ne sont pas identiques.", "err"); return; }
+          if (!$("a-terms").checked) { msg("Coche la case des règles de DOZE pour continuer.", "err"); return; }
+          if (S.hasV6) { const r = await sb.rpc("username_available", { p_name: name }); if (r.data === false) { msg("Ce pseudo est déjà pris : choisis-en un autre.", "err"); return; } }
+          const { data, error } = await sb.auth.signUp({ email, password: pass, options: { data: { username: name, newsletter: $("a-news").checked }, emailRedirectTo: appUrl() + "#compte" } });
+          if (error) throw error;
+          store.set("artist", name);
+          if (data.session) { toast("Bienvenue sur DOZE, " + name + " 🎉"); }
+          else msg("Compte créé ! Ouvre l'e-mail que DOZE vient de t'envoyer et clique sur le lien pour l'activer (pense à regarder dans les spams).", "ok");
+        } else {
+          const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+          if (error) throw error;
+          toast("Connexion réussie");
+        }
+      } catch (err) { msg(authErr(err), "err"); }
+      finally { const b2 = $("auth-submit"); if (b2) b2.disabled = false; }
+    });
+  }
+  $("view").addEventListener("click", async e => {
+    const ga = e.target.closest("[data-goauth]"); if (ga) { S.authMode = ga.dataset.goauth; go("compte"); return; }
+    const a = e.target.closest("[data-auth]");
+    if (a && a.dataset.auth === "logout") { await sb.auth.signOut(); toast("Tu es déconnecté"); return; }
+    if (a && a.dataset.auth === "forgot") {
+      const email = ($("a-mail") && $("a-mail").value.trim()) || "";
+      if (!email) { toast("Indique d'abord ton e-mail dans le champ, puis touche « Mot de passe oublié ? »."); return; }
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: appUrl() + "#compte" });
+      toast(error ? authErr(error) : "Si un compte existe pour cette adresse, un e-mail de réinitialisation vient d'être envoyé.");
+      return;
+    }
+    if (e.target.closest("[data-mine]") && S.profile) { go("artiste", S.profile.username); return; }
+    const st = e.target.closest("[data-star]"); if (st) { S.revRating = +st.dataset.star; S.revDraft = $("rev-text") ? $("rev-text").value : null; render(); return; }
+    const hr = e.target.closest("[data-hide-rev]"); if (hr) { await sb.rpc("admin_hide_review", { p_id: hr.dataset.hideRev, p_key: adminKey }); loadReviews(true); }
+  });
+  $("view").addEventListener("change", async e => {
+    if (e.target.matches("[data-newsletter]") && S.user) {
+      const on = e.target.checked;
+      const { error } = await sb.from("profiles").update({ newsletter: on }).eq("id", S.user.id);
+      if (error) { toast("Modification impossible, réessaie."); e.target.checked = !on; return; }
+      await loadProfile(); render(); toast(on ? "Merci ! Tu recevras les nouveautés de DOZE." : "C'est noté, tu ne recevras plus d'e-mails de DOZE.");
+    }
+  });
+  $("view").addEventListener("submit", async e => {
+    if (e.target.id !== "rev-form") return;
+    e.preventDefault();
+    const m = $("rev-msg");
+    if (!S.revRating) { m.textContent = "Choisis une note de 1 à 5 étoiles."; m.className = "form-msg err"; return; }
+    const { data, error } = await sb.rpc("save_review", { p_rating: S.revRating, p_comment: $("rev-text").value });
+    if (error || data !== true) { m.textContent = "Envoi impossible, réessaie dans un instant."; m.className = "form-msg err"; return; }
+    S.revDraft = null; toast("Merci pour ton avis ⭐"); loadReviews(true);
+  });
+  async function loadReviews(force) {
+    if (!sb) return;
+    if (S.reviews && !force && Date.now() - S.reviews.at < 30000) return;
+    const [sm, ls] = await Promise.all([sb.rpc("reviews_summary"), sb.from("app_reviews").select("id,author,rating,comment,created_at,updated_at,user_id").order("updated_at", { ascending: false }).limit(100)]);
+    if (sm.error) { S.hasV6 = false; if (S.view === "avis") render(); return; }
+    S.reviews = { summary: sm.data, list: ls.data || [], at: Date.now() };
+    const mine = S.user && S.reviews.list.find(r => r.user_id === S.user.id);
+    if (mine && !S.revRating) S.revRating = mine.rating;
+    if (S.view === "avis") render();
+  }
+  if (sb) {
+    sb.rpc("reviews_summary").then(r => { S.hasV6 = !r.error; if (S.view === "publier") render(); });
+    sb.auth.getSession().then(async ({ data }) => { S.user = data.session ? data.session.user : null; await loadProfile(); if (["compte", "publier", "avis"].includes(S.view)) render(); syncAccountIcon(); });
+    sb.auth.onAuthStateChange(async (ev, session) => {
+      S.user = session ? session.user : null;
+      if (ev === "PASSWORD_RECOVERY") { go("compte"); openSheet("newpass"); }
+      await loadProfile(); syncAccountIcon();
+      if (["compte", "publier", "avis"].includes(S.view)) render();
+      if (ev === "SIGNED_IN" && location.hash.includes("access_token")) { history.replaceState(null, "", location.pathname + "#compte"); go("compte"); }
+    });
+  }
+  function syncAccountIcon() { document.querySelectorAll("[data-account-label]").forEach(el => el.textContent = S.profile ? S.profile.username : "Mon compte"); }
 
   // ---------- file de lecture ----------
   function buildOrder(startIdx) {

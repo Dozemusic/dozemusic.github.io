@@ -605,3 +605,46 @@ html, body, .main, .np, .side { overscroll-behavior: none; }
 .np-art { touch-action: pan-y; }
 /* le lecteur plein écran garde sa barre de progression sur téléphone */
 @media (max-width: 860px) { .np .np-progress { display: flex; } }
+
+/* ---------- 5.0 : comptes et avis ---------- */
+.acc, .rev { display: grid; gap: 18px; max-width: 760px; }
+.auth { max-width: 480px; margin: 0 auto; }
+.auth-head { text-align: center; display: grid; gap: 8px; justify-items: center; }
+.auth-logo { width: 190px; height: auto; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, .55)); }
+.auth-head h1, .gate h1 { font: 800 clamp(24px, 4vw, 32px)/1.1 var(--display); letter-spacing: -.02em; }
+.auth-head p, .gate p { margin: 0; color: var(--muted); }
+.gate { text-align: center; justify-items: center; padding-top: 20px; }
+.field small.err { color: var(--danger); } .field small.ok { color: var(--ok); }
+.acc-avatar { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; font: 800 42px var(--display); color: var(--gold-ink); background: linear-gradient(180deg, #F0BE92, #DA9A68 50%, #B06C3E); box-shadow: 0 14px 34px rgba(0, 0, 0, .45); flex: none; }
+.acc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.acc-card { display: grid; gap: 4px; text-align: left; padding: 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); color: var(--fg); cursor: pointer; font: inherit; }
+.acc-card:hover { border-color: rgba(218, 154, 104, .5); }
+.acc-card span { color: var(--muted); font-size: 13px; }
+.acc-row { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+.acc-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.privacy { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 12px; }
+.privacy summary { cursor: pointer; font-weight: 600; color: var(--fg); }
+.privacy p { margin: 8px 0 0; }
+.stars { color: rgba(244, 238, 230, .25); letter-spacing: 2px; }
+.stars i { font-style: normal; } .stars i.on { color: var(--gold); }
+.stars.big { font-size: 22px; }
+.rev-sum { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 24px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px; }
+.rev-avg { display: grid; justify-items: center; gap: 4px; }
+.rev-avg strong { font: 800 52px/1 var(--display); }
+.rev-avg span { color: var(--muted); font-size: 13px; }
+.rev-dist { display: grid; gap: 6px; }
+.rev-dist div { display: grid; grid-template-columns: 34px minmax(0, 1fr) 28px; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+.rev-dist i { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .07); overflow: hidden; }
+.rev-dist b { display: block; height: 100%; background: linear-gradient(90deg, #B06C3E, #F0BE92); }
+.rev-dist em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; }
+.rev-form { display: grid; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
+.star-input { display: flex; gap: 6px; }
+.star-input button { border: 0; background: none; font-size: 34px; line-height: 1; color: rgba(244, 238, 230, .2); cursor: pointer; padding: 0 2px; transition: transform .12s; }
+.star-input button.on { color: var(--gold); } .star-input button:active { transform: scale(.85); }
+.rev-login { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; color: var(--muted); }
+.rev-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rev-list li { padding: 14px 16px; border-radius: 14px; background: rgba(255, 255, 255, .03); border: 1px solid var(--line); }
+.rev-top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.rev-top time { color: var(--muted); font-size: 12px; margin-left: auto; }
+.rev-list p { margin: 8px 0 0; white-space: pre-wrap; }
+@media (max-width: 860px) { .rev-sum { grid-template-columns: minmax(0, 1fr); } }
