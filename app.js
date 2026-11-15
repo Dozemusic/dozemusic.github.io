@@ -1,5 +1,5 @@
-/* Écrin 3.3.1 */
-  const VERSION = "3.3.1";
+/* Écrin 3.3.2 */
+  const VERSION = "3.3.2";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1405,6 +1405,8 @@
       box.innerHTML = `<div class="pl-head"><strong>${esc(r.title || "Playlist")}</strong><span>${plural(r.songs.length, "chanson")} · ${r.songs.filter(x => x.isPublic && !have.has(x.id)).length} à importer</span></div>
         <ul class="pl-list">${r.songs.map(x => { const ok = x.isPublic && !have.has(x.id);
           return `<li class="${ok ? "" : "off"}"><label><input type="checkbox" data-pl="${x.id}" ${ok ? "checked" : "disabled"}>${x.cover ? `<img src="${esc(x.cover)}" alt="" loading="lazy">` : ""}<span><b>${esc(x.title || "Sans titre")}</b><i>${have.has(x.id) ? "Déjà sur Écrin" : x.isPublic ? (x.duration ? fmt(x.duration) : "") + (x.lyrics ? " · paroles incluses" : "") : "Privée sur Suno : rends-la publique pour l'importer"}</i></span></label></li>`; }).join("")}</ul>`;
+      const priv = r.songs.filter(x => !x.isPublic).length;
+      if (priv) box.insertAdjacentHTML("beforeend", `<p class="sheet-note pl-note">${priv === r.songs.length ? "Toutes les chansons sont privées." : plural(priv, "chanson") + " privée" + (priv > 1 ? "s" : "") + "."} Attention : sur Suno, rendre la <b>playlist</b> publique ne rend pas ses <b>chansons</b> publiques. Pour chaque chanson, touche le <b>⋯</b> à sa droite puis <b>Make public</b>, attends quelques minutes et recolle le lien.</p>`);
       $("submit").textContent = "Importer la sélection";
     }
     $("f-pl").addEventListener("input", () => { clearTimeout(S.plT); S.plT = setTimeout(loadPlaylist, 400); });

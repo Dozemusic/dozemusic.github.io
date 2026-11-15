@@ -1,5 +1,5 @@
-// Version 3.3.1 : change le nom du cache à chaque version publiée.
-const CACHE = "ecrin-3.3.1";
+// Version 3.3.2 : change le nom du cache à chaque version publiée.
+const CACHE = "ecrin-3.3.2";
 const OFFLINE = "ecrin-offline-v1";   // chansons téléchargées : jamais effacées lors d'une mise à jour
 const LIBS = "ecrin-libs-v1";         // bibliothèque Supabase et polices, pour démarrer sans connexion
 self.addEventListener("install", () => self.skipWaiting());
