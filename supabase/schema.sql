@@ -28,6 +28,10 @@ create index if not exists tracks_plays_idx   on public.tracks (plays desc);
 -- 2. Sécurité : tout le monde lit, tout le monde ajoute, personne ne modifie directement
 alter table public.tracks enable row level security;
 
+-- droits explicites (utile si « Afficher automatiquement les nouvelles tables » est désactivé)
+grant usage on schema public to anon, authenticated;
+grant select, insert on public.tracks to anon, authenticated;
+
 drop policy if exists "lecture publique" on public.tracks;
 create policy "lecture publique" on public.tracks
   for select using (hidden = false);
