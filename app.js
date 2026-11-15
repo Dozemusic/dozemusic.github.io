@@ -1,4 +1,4 @@
-/* Écrin 2.0.0 */
+/* Écrin 2.0.1 */
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -282,7 +282,8 @@
     $("setup").hidden = ready;
     S.ctx = {};
     const v = views[S.view] ? S.view : "accueil";
-    $("view").innerHTML = views[v]();
+    try { $("view").innerHTML = views[v](); }
+    catch (err) { console.error(err); $("view").innerHTML = `<div class="empty"><strong>Un souci d'affichage est survenu.</strong><button class="btn btn-gold" type="button" onclick="location.reload()">Recharger</button></div>`; return; }
     document.querySelectorAll("[data-nav]").forEach(a => a.classList.toggle("is-on", a.dataset.nav === (v === "artiste" || v === "genre" ? "rechercher" : v)));
     if (v === "publier") bindPublish();
     if (v === "rechercher") { const q = $("q"); q.oninput = e => { clearTimeout(qTimer); qTimer = setTimeout(() => { S.q = e.target.value; const pos = q.selectionStart; render(); const nq = $("q"); nq.focus(); nq.setSelectionRange(pos, pos); }, 250); }; }

@@ -1,14 +1,15 @@
-// Version 2.0.0 : change le nom du cache à chaque version publiée.
-const CACHE = "ecrin-2.0.0";
-const SHELL = ["./", "index.html", "style.css", "app.js", "config.js", "manifest.json", "logo-64.png", "icon-192.png", "icon-512.png"];
-self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
+// Version 2.0.1 : change le nom du cache à chaque version publiée.
+const CACHE = "ecrin-2.0.1";
+self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => {
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))));
-  self.clients.claim();
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
+// Réseau d'abord, sans cache HTTP, pour toujours servir la dernière version ; copie locale seulement hors connexion.
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
-  if (e.request.method !== "GET" || url.origin !== location.origin) return; // audio et API : toujours en ligne
-  e.respondWith(fetch(e.request).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return r; })
-    .catch(() => caches.match(e.request)));
+  if (e.request.method !== "GET" || url.origin !== location.origin) return;
+  e.respondWith(fetch(e.request, { cache: "no-store" }).then(r => {
+    if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+    return r;
+  }).catch(() => caches.match(e.request)));
 });
