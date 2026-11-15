@@ -1,5 +1,5 @@
-/* DOZE 4.1.1 */
-  const VERSION = "4.1.1";
+/* DOZE 4.2.0 */
+  const VERSION = "4.2.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -586,7 +586,7 @@
     closeMenu();
     menuEl = document.createElement("div");
     menuEl.className = "menu";
-    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="dedic">🎁 Dédicacer ce son</button>${t && canOffline(t) ? (offline[t.id] ? '<button type="button" data-a="undl">✓ Retirer des téléchargements</button>' : '<button type="button" data-a="dl">⬇ Télécharger (hors ligne)</button>') : ""}<button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button>${t && editKey(t) && S.hasV4 ? '<button type="button" data-a="lyredit">✎ Paroles et synchro</button>' : ""}<div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>${t && adminKey && S.hasV4 ? '<button type="button" data-a="admdel" class="danger">🗑 Supprimer ce titre (admin)</button>' : ""}`;
+    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="radio">📻 Radio de ce titre</button><button type="button" data-a="dedic">🎁 Dédicacer ce son</button>${t && canOffline(t) ? (offline[t.id] ? '<button type="button" data-a="undl">✓ Retirer des téléchargements</button>' : '<button type="button" data-a="dl">⬇ Télécharger (hors ligne)</button>') : ""}<button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button>${t && editKey(t) && S.hasV4 ? '<button type="button" data-a="lyredit">✎ Paroles et synchro</button>' : ""}<div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>${t && adminKey && S.hasV4 ? '<button type="button" data-a="admdel" class="danger">🗑 Supprimer ce titre (admin)</button>' : ""}`;
     document.body.appendChild(menuEl);
     const r = btn.getBoundingClientRect(), mh = menuEl.offsetHeight;
     const top = r.bottom + 6 + mh > innerHeight ? r.top - mh - 6 : r.bottom + 6;
@@ -606,6 +606,7 @@
         toast(r.data === true ? "Titre supprimé" : "Suppression impossible"); if (r.data === true) { if (offline[t.id]) removeOffline(t.id); await load(); }
       }
       if (a === "undl") removeOffline(t.id);
+      if (a === "radio") { startRadio(t); closeMenu(); return; }
       if (a === "dedic") { S.dedTrack = t; closeMenu(); openSheet("dedic"); return; }
       if (a === "addlist") { const own = myLists.filter(x => x.key); closeMenu(); openMenu(btn, t, own.map(x => `<button type="button" data-a="to:${esc(x.id)}">${esc(x.name)}</button>`).join("") + (own.length ? '<div class="sep"></div>' : "") + '<button type="button" data-a="tonew">+ Nouvelle playlist…</button>'); return; }
       if (a && a.startsWith("to:")) editList(a.slice(3), ids => ids.includes(t.id) ? ids : [...ids, t.id], null, "Ajouté à « %s »");
@@ -890,7 +891,11 @@
     img.onerror = () => setTint(46, 72, 140);
     img.src = coverOf(t);
   }
-  function setTint(r, g, b) { const np = $("np"); np.style.setProperty("--tint", `rgb(${r},${g},${b})`); np.style.setProperty("--tint-rgb", `${r},${g},${b}`); }
+  function setTint(r, g, b) {
+    const np = $("np"); np.style.setProperty("--tint", `rgb(${r},${g},${b})`); np.style.setProperty("--tint-rgb", `${r},${g},${b}`);
+    // Ambiance : toute l'appli prend doucement la couleur de la pochette en cours.
+    const root = document.documentElement.style; root.setProperty("--amb-rgb", `${r},${g},${b}`); document.body.classList.add("has-amb");
+  }
 
   // Halo vivant : la lumière autour de la pochette suit les basses et le spectre de la musique
   let haloRaf = 0;
@@ -1011,6 +1016,8 @@
       $("sheet-title").textContent = "Réglages audio";
       body.innerHTML = `<label class="set-row"><span><b>Effets audio</b><small>Égaliseur et halo vivant.${isIOS ? " Sur iPhone, la musique peut s'arrêter quand l'écran se verrouille si cette option est active." : ""}</small></span><input type="checkbox" class="switch" data-set="fx" ${FX.enabled ? "checked" : ""}></label>
         <label class="set-row"><span><b>Halo vivant</b><small>La lumière autour de la pochette suit les basses de la musique.</small></span><input type="checkbox" class="switch" data-set="halo" ${FX.halo ? "checked" : ""} ${FX.enabled ? "" : "disabled"}></label>
+        <label class="set-row"><span><b>Radio DOZE automatique</b><small>À la fin de ta liste, DOZE enchaîne des titres proches (même artiste, même genre, pépites) au lieu de s'arrêter.</small></span><input type="checkbox" class="switch" data-set="radio" ${radioOn ? "checked" : ""}></label>
+        <label class="set-row"><span><b>Formes d'onde</b><small>Affiche l'onde réelle du morceau dans le lecteur. Calculée une seule fois par titre, puis partagée avec tous.</small></span><input type="checkbox" class="switch" data-set="wave" ${waveOn ? "checked" : ""}></label>
         <div class="set-row col"><span><b>Vitesse de lecture</b><small>Pour apprendre les paroles ou chanter dessus.</small></span>
           <div class="chips">${[.75, .9, 1, 1.1, 1.25].map(r => `<button class="chip${audio.playbackRate === r ? " is-on" : ""}" type="button" data-rate="${r}">${String(r).replace(".", ",")}×</button>`).join("")}</div></div>
         <div class="set-row"><span><b>Minuteur de sommeil</b><small>${S.sleepAt ? "Arrêt prévu dans " + Math.max(1, Math.ceil((S.sleepAt - Date.now()) / 60000)) + " min, avec un fondu doux." : S.sleepEnd ? "Arrêt à la fin de ce titre." : "Le son baisse doucement avant de s'arrêter."}</small></span><button class="btn" type="button" data-sleepmenu>Régler</button></div>`;
@@ -1049,6 +1056,8 @@
     const s2 = e.target.closest("[data-set]"); if (!s2) return;
     if (s2.dataset.set === "fx") { FX.enabled = s2.checked; store.set("fx", FX.enabled); if (FX.enabled) { fxGraph(); fxResume(); } else fxTeardown(); }
     if (s2.dataset.set === "halo") { FX.halo = s2.checked; store.set("halo", FX.halo); }
+    if (s2.dataset.set === "radio") { radioOn = s2.checked; store.set("radio", radioOn); renderQueue(); }
+    if (s2.dataset.set === "wave") { waveOn = s2.checked; store.set("wave", waveOn); const c = current(); if (c) loadWave(c); }
     renderSheet();
   });
   audio.addEventListener("loadedmetadata", () => { if (S.rate) audio.playbackRate = S.rate; });
@@ -1228,6 +1237,104 @@
     el.addEventListener("click", close); setTimeout(close, 2300);
   })();
 
+  // ---------- formes d'onde ----------
+  let waveOn = store.get("wave", true);
+  const waveCache = store.get("peaks", {});            // { idTitre: [0..100] } gardé sur l'appareil
+  S.wave = null;
+  async function computePeaks(url, n = 160) {
+    const c = navigator.connection; if (c && (c.saveData || /(^|-)2g|3g/.test(c.effectiveType || ""))) return null;   // économise les données mobiles lentes
+    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext; if (!OAC) return null;
+    let res = null; try { res = await (await caches.open(OFF_CACHE)).match(url); } catch {}
+    if (!res) res = await fetch(url, { mode: "cors" });
+    if (!res || !res.ok) return null;
+    const buf = await res.arrayBuffer(); if (buf.byteLength > 18e6) return null;
+    const ctx = new OAC(1, 8000, 8000);                 // décodage à 8 kHz : léger en mémoire
+    const ab = await new Promise((ok, ko) => { const p = ctx.decodeAudioData(buf, ok, ko); if (p && p.catch) p.catch(ko); });
+    const d = ab.getChannelData(0), step = Math.max(1, Math.floor(d.length / n)), out = [];
+    for (let i = 0; i < n; i++) { let sum = 0; for (let j = i * step, e = Math.min(d.length, j + step); j < e; j++) sum += d[j] * d[j]; out.push(Math.sqrt(sum / step)); }
+    const mx = Math.max(...out) || 1;
+    return out.map(v => Math.round(Math.pow(v / mx, .8) * 100));
+  }
+  async function loadWave(t) {
+    S.wave = null; drawWave();
+    if (!waveOn || !t || audio.isExternal || !t.audio_url) return;
+    let p = waveCache[t.id];
+    if (!p && sb && S.hasV2) { try { const r = await sb.from("tracks").select("peaks").eq("id", t.id).maybeSingle(); p = r.data && r.data.peaks; } catch {} }
+    if (!p) {
+      try { p = await computePeaks(playable(t.audio_url)); } catch (e) { console.warn("onde", e); p = null; }
+      if (p && sb) sb.rpc("set_track_peaks", { p_id: t.id, p_peaks: p }).then(() => {}, () => {});
+    }
+    if (!p || !current() || current().id !== t.id) return;
+    waveCache[t.id] = p; const keys = Object.keys(waveCache); if (keys.length > 120) delete waveCache[keys[0]]; store.set("peaks", waveCache);
+    S.wave = p; drawWave();
+  }
+  function drawWave() {
+    const cv = $("np-wave"), wrap = cv && cv.parentElement; if (!cv) return;
+    wrap.classList.toggle("has-wave", !!S.wave);
+    if (!S.wave || $("np").hidden) return;
+    const w = cv.clientWidth, h = cv.clientHeight, dpr = Math.min(2, devicePixelRatio || 1);
+    if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const x = cv.getContext("2d"); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+    const n = S.wave.length, bw = w / n, prog = isFinite(audio.duration) && audio.duration ? audio.currentTime / audio.duration : 0;
+    const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, "#F0BE92"); g.addColorStop(1, "#B06C3E");
+    for (let i = 0; i < n; i++) {
+      const v = Math.max(4, S.wave[i] / 100 * h), y = (h - v) / 2;
+      x.fillStyle = i / n < prog ? g : "rgba(244,238,230,.22)";
+      x.fillRect(i * bw + bw * .18, y, Math.max(1, bw * .64), v);
+    }
+  }
+  audio.addEventListener("timeupdate", () => { if (S.wave && !$("np").hidden) drawWave(); });
+  addEventListener("resize", drawWave);
+
+  // ---------- 1. Gestes ----------
+  (function gestures() {
+    const np = $("np"), art = document.querySelector(".np-art");
+    let sx = 0, sy = 0, mode = null, t0 = 0;
+    np.addEventListener("touchstart", e => {
+      if (e.touches.length !== 1 || e.target.closest(".lyr-lines, .lyr-tools, .lyr-tapbar, input, .np-queue, .sheet-wrap, .wave-wrap")) { mode = "none"; return; }
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY; mode = null; t0 = Date.now();
+    }, { passive: true });
+    np.addEventListener("touchmove", e => {
+      if (mode === "none") return;
+      const dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
+      if (!mode) {
+        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+        if (Math.abs(dx) > Math.abs(dy) && e.target.closest(".np-art") && !audio.isExternal) mode = "h";
+        else if (dy > 0 && np.scrollTop <= 0 && Math.abs(dy) > Math.abs(dx)) mode = "v";
+        else { mode = "none"; return; }
+      }
+      e.preventDefault();
+      if (mode === "h") { art.style.transition = "none"; art.style.transform = `translateX(${dx}px) rotate(${dx / 40}deg)`; art.style.opacity = String(1 - Math.min(.5, Math.abs(dx) / 600)); }
+      if (mode === "v") { np.style.transition = "none"; np.style.transform = `translateY(${Math.max(0, dy)}px)`; np.style.borderRadius = Math.min(28, dy / 6) + "px"; }
+    }, { passive: false });
+    np.addEventListener("touchend", e => {
+      const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy, fast = Date.now() - t0 < 250;
+      if (mode === "h") {
+        art.style.transition = "transform .3s cubic-bezier(.2,.8,.2,1), opacity .3s";
+        if (Math.abs(dx) > 90 || (fast && Math.abs(dx) > 40)) {
+          art.style.transform = `translateX(${dx > 0 ? 120 : -120}%) rotate(${dx > 0 ? 8 : -8}deg)`; art.style.opacity = "0";
+          setTimeout(() => { dx > 0 ? prev() : next(false); art.style.transition = "none"; art.style.transform = `translateX(${dx > 0 ? -60 : 60}%)`; art.style.opacity = "0";
+            requestAnimationFrame(() => { art.style.transition = "transform .35s cubic-bezier(.2,.8,.2,1), opacity .35s"; art.style.transform = ""; art.style.opacity = ""; }); }, 220);
+        } else { art.style.transform = ""; art.style.opacity = ""; }
+      }
+      if (mode === "v") {
+        np.style.transition = "transform .3s cubic-bezier(.2,.8,.2,1), border-radius .3s";
+        if (dy > 140 || (fast && dy > 60)) { np.style.transform = "translateY(100%)"; setTimeout(() => { closeNP(); np.style.transition = "none"; np.style.transform = ""; np.style.borderRadius = ""; }, 280); }
+        else { np.style.transform = ""; np.style.borderRadius = ""; }
+      }
+      mode = null;
+    });
+    // Mini-lecteur : glisser vers le haut pour ouvrir, à gauche ou à droite pour changer de titre
+    const mini = $("player"); let mx = 0, my = 0, mt = 0;
+    mini.addEventListener("touchstart", e => { mx = e.touches[0].clientX; my = e.touches[0].clientY; mt = Date.now(); }, { passive: true });
+    mini.addEventListener("touchend", e => {
+      const dx = e.changedTouches[0].clientX - mx, dy = e.changedTouches[0].clientY - my;
+      if (Date.now() - mt > 600) return;
+      if (dy < -40 && Math.abs(dy) > Math.abs(dx)) { openNP(); return; }
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5 && current()) { dx < 0 ? next(false) : prev(); }
+    }, { passive: true });
+  })();
+
   // ---------- file de lecture ----------
   function buildOrder(startIdx) {
     const n = S.queue.length;
@@ -1265,7 +1372,7 @@
     tintFrom(t); $("np-quality").textContent = qualityLabel(t); applyAutoEq(t);
     document.querySelector(".np-art").classList.toggle("is-ext", audio.isExternal);
     if (audio.isExternal && autoplay) { openNP(); toast(t.source === "youtube" ? "Lecture avec le lecteur YouTube. Touche ▶ sur la vidéo si elle ne démarre pas." : "Lecture avec le lecteur SoundCloud. Touche ▶ s'il ne démarre pas."); }
-    loadLyr(t); syncDl();
+    loadLyr(t); syncDl(); loadWave(t);
     $("np-title").textContent = t.title; $("np-artist").textContent = t.artist;
     renderTags(t); S.lyricsFor = null; if (!$("np").hidden && S.npTab === "lyrics") loadLyrics();
     document.title = t.title + " · " + t.artist + " | DOZE";
@@ -1282,12 +1389,33 @@
     if (!S.queue.length) return;
     if (auto && S.sleepEnd) { S.sleepEnd = false; updateSleepBadge(); audio.pause(); toast("Bonne nuit. Minuteur terminé."); return; }
     if (S.pos < S.order.length - 1) S.pos++;
+    else if (S.repeat === "off" && radioOn && radioExtend(current())) S.pos++;     // fin de liste : la Radio DOZE prend le relais
     else if (S.repeat === "all" || !auto) {
       if (S.shuffle) { const last = S.order[S.pos]; buildOrder(Math.floor(Math.random() * S.queue.length)); if (S.queue.length > 1 && S.order[0] === last) S.pos = 1; }
       else S.pos = 0;
     } else { audio.pause(); audio.currentTime = 0; return; }
     playCurrent();
   }
+  // ---------- Radio DOZE : quand la liste se termine, la musique continue ----------
+  let radioOn = store.get("radio", true);
+  function radioPick(seed, n = 10) {
+    if (!seed) return [];
+    const recent = new Set([...history.slice(0, 15), ...S.queue.map(t => t.id), seed.id]);
+    const pool = S.all.filter(t => !recent.has(t.id) && t.audio_url);
+    const score = t => (norm(t.artist) === norm(seed.artist) ? 3 : 0) + (seed.genre && norm(t.genre) === norm(seed.genre) ? 2.5 : 0) + (favs.has(t.id) ? 1 : 0) + (t.plays < 10 ? .8 : 0) + Math.random() * 2;
+    let out = pool.map(t => [score(t), t]).sort((a, b) => b[0] - a[0]).slice(0, n).map(x => x[1]);
+    if (!out.length) out = shuffled(S.all.filter(t => t.id !== seed.id)).slice(0, n);   // tout a été écouté : on repart du catalogue
+    return out;
+  }
+  function radioExtend(seed) {
+    const add = radioPick(seed); if (!add.length) return false;
+    for (const t of add) { S.queue.push(t); S.order.push(S.queue.length - 1); }
+    S.label = ["Radio DOZE", "d'après « " + seed.title + " »"]; $("np-ctx-type").textContent = S.label[0]; $("np-ctx-name").textContent = S.label[1];
+    toast("📻 Radio DOZE : la musique continue avec des titres proches");
+    return true;
+  }
+  function startRadio(t) { startQueue([t, ...radioPick(t, 15)], 0, true, ["Radio DOZE", "d'après « " + t.title + " »"]); }
+
   function prev() {
     if (!S.queue.length) return;
     if (audio.currentTime > 3) { audio.currentTime = 0; return; }
@@ -1301,7 +1429,7 @@
     const ol = $("np-queue");
     const upcoming = S.order.slice(S.pos + 1, S.pos + 31).map(i => ({ t: S.queue[i], k: i }));
     ol.innerHTML = upcoming.length ? upcoming.map(({ t }, j) => `<li data-q="${S.pos + 1 + j}">${imgTag(t)}<span><b>${esc(t.title)}</b><i>${esc(t.artist)}</i></span></li>`).join("")
-      : `<li class="q-empty">${S.repeat === "all" ? "La liste reprendra au début." : "Rien après ce titre."}</li>`;
+      : `<li class="q-empty">${S.repeat === "all" ? "La liste reprendra au début." : radioOn ? "📻 La Radio DOZE prendra le relais avec des titres proches." : "Rien après ce titre."}</li>`;
   }
   $("np-queue").addEventListener("click", e => { const li = e.target.closest("[data-q]"); if (li) { S.pos = +li.dataset.q; playCurrent(); } });
 
@@ -1326,7 +1454,7 @@
   $("np-artist").onclick = () => { const t = current(); if (t) go("artiste", t.artist); };
 
   // ---------- plein écran ----------
-  function openNP() { if (!current()) return; $("np").hidden = false; renderQueue(); startHalo(); requestAnimationFrame(placeExt); renderLyr(true); }
+  function openNP() { if (!current()) return; $("np").hidden = false; renderQueue(); startHalo(); requestAnimationFrame(placeExt); renderLyr(true); requestAnimationFrame(drawWave); }
   function closeNP() { $("np").hidden = true; closeSheet(); placeExt(); }
   $("np").addEventListener("scroll", placeExt, { passive: true });
   $("p-open").onclick = openNP; $("b-queue").onclick = openNP; $("np-close").onclick = closeNP;
