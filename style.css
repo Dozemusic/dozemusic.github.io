@@ -693,3 +693,7 @@ html, body, .main, .np, .side { overscroll-behavior: none; }
 .btn-off.is-run { color: var(--gold); }
 .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(218, 154, 104, .3); border-top-color: var(--gold); animation: spin .8s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* L'écran ne doit jamais glisser de côté (pochette déplacée au doigt, animations) */
+html, body, .main, .np { overflow-x: hidden; }
+.np { overflow-x: clip; }

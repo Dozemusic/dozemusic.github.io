@@ -1,5 +1,5 @@
-/* DOZE 5.2.0 */
-  const VERSION = "5.2.0";
+/* DOZE 5.2.1 */
+  const VERSION = "5.2.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1730,6 +1730,29 @@
   audio.addEventListener("timeupdate", () => { if (S.wave && !$("np").hidden) drawWave(); });
   addEventListener("resize", drawWave);
 
+  // ---------- Reprise automatique après un appel (ou une autre coupure imposée par le téléphone) ----------
+  // Safari signale les coupures via la session audio : « interrupted » pendant l'appel, puis retour à la normale.
+  // On ne relance que si la musique jouait et que la pause ne venait pas de l'auditeur (pas après un débranchement de casque).
+  let intentAt = 0, playingAt = 0;
+  function pauseByUser() { intentAt = Date.now(); audio.pause(); }
+  audio.addEventListener("timeupdate", () => { if (!audio.paused) playingAt = Date.now(); });
+  (function resumeAfterCall() {
+    const AS = navigator.audioSession; if (!AS) return;
+    try { AS.type = "playback"; } catch {}
+    let wasPlaying = false;
+    const tryPlay = (n = 0) => {
+      if (!audio.paused || Date.now() - intentAt < 1500) return;
+      fxResume();
+      audio.play().then(() => toast("Lecture reprise"), () => { if (n < 6) setTimeout(() => tryPlay(n + 1), 1500); else toast("Touche ▶ pour reprendre la musique"); });
+    };
+    AS.addEventListener("statechange", () => {
+      if (AS.state === "interrupted") { if (Date.now() - playingAt < 4000 && Date.now() - intentAt > 1500) wasPlaying = true; }
+      else if (wasPlaying) { wasPlaying = false; setTimeout(tryPlay, 700); }
+    });
+    // Au retour dans l'appli après l'appel, si la session n'a pas prévenu
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && wasPlaying && AS.state !== "interrupted") { wasPlaying = false; setTimeout(tryPlay, 400); } });
+  })();
+
   // ---------- 1. Gestes ----------
   (function gestures() {
     const np = $("np"), art = document.querySelector(".np-art");
@@ -1942,13 +1965,13 @@
   }
   function next(auto = false) {
     if (!S.queue.length) return;
-    if (auto && S.sleepEnd) { S.sleepEnd = false; updateSleepBadge(); audio.pause(); toast("Bonne nuit. Minuteur terminé."); return; }
+    if (auto && S.sleepEnd) { S.sleepEnd = false; updateSleepBadge(); pauseByUser(); toast("Bonne nuit. Minuteur terminé."); return; }
     if (S.pos < S.order.length - 1) S.pos++;
     else if (S.repeat === "off" && radioOn && radioExtend(current())) S.pos++;     // fin de liste : la Radio DOZE prend le relais
     else if (S.repeat === "all" || !auto) {
       if (S.shuffle) { const last = S.order[S.pos]; buildOrder(Math.floor(Math.random() * S.queue.length)); if (S.queue.length > 1 && S.order[0] === last) S.pos = 1; }
       else S.pos = 0;
-    } else { audio.pause(); audio.currentTime = 0; return; }
+    } else { pauseByUser(); audio.currentTime = 0; return; }
     playCurrent();
   }
   // ---------- Radio DOZE : quand la liste se termine, la musique continue ----------
@@ -1978,7 +2001,7 @@
   }
   function togglePlay() {
     if (!audio.src) { const l = S.ctx.hero || S.all; if (l && l.length) startQueue(l, 0); return; }
-    if (audio.paused) { fxResume(); audio.play().catch(() => {}); } else audio.pause();
+    if (audio.paused) { fxResume(); audio.play().catch(() => {}); } else pauseByUser();
   }
   function renderQueue() {
     const ol = $("np-queue");
@@ -2039,7 +2062,7 @@
     if (!S.sleepAt) { if (S.fading) { S.fading = false; setOutVolume(1); } return; }
     const left = S.sleepAt - Date.now();
     if (left <= 30000 && left > 0) { S.fading = true; setOutVolume(left / 30000); }    // fondu doux sur les 30 dernières secondes
-    if (left <= 0) { S.sleepAt = 0; audio.pause(); S.fading = false; setTimeout(() => setOutVolume(1), 500); toast("Bonne nuit. Minuteur terminé."); }
+    if (left <= 0) { S.sleepAt = 0; pauseByUser(); S.fading = false; setTimeout(() => setOutVolume(1), 500); toast("Bonne nuit. Minuteur terminé."); }
     updateSleepBadge();
   }, 1000);
 
@@ -2069,12 +2092,12 @@
   audio.addEventListener("error", () => { if (audio.src) { toast("Ce titre n'est pas encore écoutable (son non public chez Suno). Passage au suivant."); setTimeout(() => next(true), 900); } });
   if ("mediaSession" in navigator) {
     const ms = navigator.mediaSession;
-    ms.setActionHandler("play", () => audio.play()); ms.setActionHandler("pause", () => audio.pause());
+    ms.setActionHandler("play", () => audio.play()); ms.setActionHandler("pause", () => pauseByUser());
     ms.setActionHandler("nexttrack", () => next(false)); ms.setActionHandler("previoustrack", prev);
     try { ms.setActionHandler("seekto", d => { audio.currentTime = d.seekTime; }); } catch {}
     // Pas de boutons « ±10 s » : sur iPhone ils remplacent précédent / suivant sur l'écran verrouillé.
     try { ms.setActionHandler("seekbackward", null); ms.setActionHandler("seekforward", null); } catch {}
-    try { ms.setActionHandler("stop", () => audio.pause()); } catch {}
+    try { ms.setActionHandler("stop", () => pauseByUser()); } catch {}
     // Barre de progression sur l'écran verrouillé et l'écran de la voiture
     const pos = () => { try { if (isFinite(audio.duration) && audio.duration > 0) ms.setPositionState({ duration: audio.duration, position: Math.min(audio.currentTime, audio.duration), playbackRate: audio.playbackRate || 1 }); } catch {} };
     ["loadedmetadata", "play", "pause"].forEach(ev => audio.addEventListener(ev, pos));
