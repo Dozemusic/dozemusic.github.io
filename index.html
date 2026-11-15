@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=2.0.1">
+<link rel="stylesheet" href="style.css?v=2.1.0">
 </head>
 <body>
 <div class="shell">
@@ -117,8 +117,9 @@
           <button class="ic" data-act="repeat" type="button" aria-pressed="false" title="Répéter"><svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg><span class="badge" hidden>1</span></button>
         </div>
         <div class="np-queue">
-          <h3>À suivre</h3>
+          <div class="np-tabs" role="tablist"><button type="button" role="tab" data-np-tab="queue" aria-selected="true">À suivre</button><button type="button" role="tab" data-np-tab="lyrics" aria-selected="false">Paroles</button></div>
           <ol id="np-queue"></ol>
+          <div id="np-lyrics" class="lyrics" hidden></div>
         </div>
       </div>
     </div>
@@ -134,8 +135,8 @@
     if (v && !v.children.length) v.innerHTML = '<div class="empty"><strong>Écrin n\'a pas pu démarrer.</strong><span>Une ancienne version est peut-être restée en mémoire.</span><button class="btn btn-gold" type="button" onclick="location.reload()">Recharger</button></div>';
   }, 50); });
 </script>
-<script src="config.js?v=2.0.1"></script>
+<script src="config.js?v=2.1.0"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="app.js?v=2.0.1"></script>
+<script src="app.js?v=2.1.0"></script>
 </body>
 </html>

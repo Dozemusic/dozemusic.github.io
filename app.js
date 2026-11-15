@@ -1,4 +1,4 @@
-/* Écrin 2.0.1 */
+/* Écrin 2.1.0 */
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -12,11 +12,23 @@
     set(k, v) { try { localStorage.setItem("ecrin." + k, JSON.stringify(v)); } catch {} }
   };
   const favs = new Set(store.get("favs", []));
+  let myLists = store.get("playlists", []);          // [{ id, key, name }] (key nulle = playlist d'un autre, enregistrée)
+  const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)));
+  let device = store.get("device", null); if (!device) { device = uuid(); store.set("device", device); }
+  // Pays approximatif de l'auditeur, déduit du fuseau horaire puis de la langue (aucune donnée personnelle envoyée).
+  const TZ_CC = { "Africa/Abidjan": "CI", "Africa/Accra": "GH", "Africa/Bamako": "ML", "Africa/Dakar": "SN", "Africa/Lome": "TG", "Africa/Ouagadougou": "BF", "Africa/Conakry": "GN", "Africa/Porto-Novo": "BJ", "Africa/Lagos": "NG", "Africa/Douala": "CM", "Africa/Libreville": "GA", "Africa/Kinshasa": "CD", "Africa/Lubumbashi": "CD", "Africa/Brazzaville": "CG", "Africa/Niamey": "NE", "Africa/Ndjamena": "TD", "Africa/Bangui": "CF", "Africa/Malabo": "GQ", "Africa/Nouakchott": "MR", "Africa/Freetown": "SL", "Africa/Monrovia": "LR", "Africa/Banjul": "GM", "Africa/Bissau": "GW", "Africa/Casablanca": "MA", "Africa/Algiers": "DZ", "Africa/Tunis": "TN", "Africa/Cairo": "EG", "Africa/Johannesburg": "ZA", "Africa/Nairobi": "KE", "Africa/Kigali": "RW", "Africa/Bujumbura": "BI", "Africa/Addis_Ababa": "ET", "Africa/Dar_es_Salaam": "TZ", "Africa/Kampala": "UG", "Indian/Antananarivo": "MG", "Indian/Reunion": "RE", "Indian/Mauritius": "MU", "Europe/Paris": "FR", "Europe/Brussels": "BE", "Europe/Zurich": "CH", "Europe/Luxembourg": "LU", "Europe/Monaco": "MC", "Europe/London": "GB", "Europe/Dublin": "IE", "Europe/Berlin": "DE", "Europe/Madrid": "ES", "Europe/Rome": "IT", "Europe/Lisbon": "PT", "Europe/Amsterdam": "NL", "America/Montreal": "CA", "America/Toronto": "CA", "America/Vancouver": "CA", "America/New_York": "US", "America/Chicago": "US", "America/Denver": "US", "America/Los_Angeles": "US", "America/Phoenix": "US", "America/Port-au-Prince": "HT", "America/Martinique": "MQ", "America/Guadeloupe": "GP", "America/Cayenne": "GF", "America/Sao_Paulo": "BR", "America/Mexico_City": "MX", "Asia/Dubai": "AE", "Asia/Tokyo": "JP", "Asia/Shanghai": "CN", "Asia/Kolkata": "IN", "Asia/Beirut": "LB" };
+  function myCountry() {
+    try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone; if (TZ_CC[tz]) return TZ_CC[tz]; } catch {}
+    for (const l of navigator.languages || [navigator.language || ""]) { const m = /[-_]([A-Z]{2})$/i.exec(l); if (m) return m[1].toUpperCase(); }
+    return null;
+  }
+  const regionName = (() => { try { const d = new Intl.DisplayNames(["fr"], { type: "region" }); return c => { try { return d.of(c); } catch { return c; } }; } catch { return c => c; } })();
+  const flag = c => /^[A-Z]{2}$/.test(c) ? String.fromCodePoint(...[...c].map(x => 0x1F1E6 + x.charCodeAt(0) - 65)) : "🌍";
   let history = store.get("history", []);
 
   // ---------- état ----------
   const S = {
-    all: [], loaded: false, error: false,
+    all: [], loaded: false, error: false, week: [], hasV2: false,
     view: "accueil", param: null, q: "", genre: null,
     ctx: {},                               // listes affichées, pour lancer la lecture depuis n'importe quel rayon
     queue: [], order: [], pos: -1,
@@ -90,11 +102,18 @@
   // ---------- données ----------
   async function load() {
     if (!sb) { S.loaded = true; render(); return; }
-    const { data, error } = await sb.from("tracks").select("*").order("created_at", { ascending: false }).limit(1000);
+    const cols = "id,title,artist,genre,source,suno_id,audio_url,cover_url,plays,likes,created_at";
+    let { data, error } = await sb.from("tracks").select(cols).order("created_at", { ascending: false }).limit(1000);
+    S.hasV2 = !error;
+    if (error) ({ data, error } = await sb.from("tracks").select("*").order("created_at", { ascending: false }).limit(1000));
     S.loaded = true;
     if (error) { S.error = true; render(); return; }
-    S.all = data || [];
+    S.all = (data || []).map(t => ({ likes: 0, ...t }));
     render();
+    if (S.hasV2) {
+      const w = await sb.rpc("top_week", { p_limit: 20 });
+      if (!w.error && w.data) { S.week = w.data.map(r => { const t = byId(r.track_id); return t && { ...t, weekLikes: r.n }; }).filter(Boolean); if (S.view === "accueil") render(); }
+    }
   }
   const byId = id => S.all.find(t => t.id === id);
   const newest = () => S.all.slice();
@@ -151,9 +170,10 @@
         ${imgTag(t, "t-cover")}
         <span class="t-text"><span class="t-title">${esc(t.title)}</span><span class="t-sub">${opts.noArtist ? (t.genre ? esc(t.genre) : "Création IA") : `<button type="button" data-artist="${esc(t.artist)}">${esc(t.artist)}</button>`}</span></span>
         <span class="t-genre">${t.genre ? esc(t.genre) : ""}</span>
-        <span class="t-plays">${plural(t.plays, "écoute")}</span>
+        <span class="t-plays">${plural(t.plays, "écoute")}${t.likes ? ` · ${nf.format(t.likes)} ♥` : ""}</span>
         <span class="t-acts">
           <button class="ic like" type="button" data-like="${t.id}" aria-pressed="${favs.has(t.id)}" aria-label="Coup de cœur"><svg viewBox="0 0 24 24"><path d="M12 21 10.6 19.7C5.4 15 2 11.9 2 8.1 2 5 4.4 2.6 7.5 2.6c1.7 0 3.4.8 4.5 2.1a6 6 0 0 1 4.5-2.1C19.6 2.6 22 5 22 8.1c0 3.8-3.4 6.9-8.6 11.6z"/></svg></button>
+          ${opts.removable ? `<button class="ic" type="button" data-remove="${i}" aria-label="Retirer de la playlist"><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button>` : ""}
           <button class="ic" type="button" data-menu="${t.id}" aria-label="Plus d'options"><svg viewBox="0 0 24 24"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4m0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4m0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4"/></svg></button>
         </span></li>`;
     }).join("")}</ol>`;
@@ -188,6 +208,7 @@
           </div>
         </section>
         ${shelf("Écoutés récemment", "", recent, "recent")}
+        ${shelf("Coups de cœur de la semaine", "Les titres les plus aimés ces 7 derniers jours", S.week, "week")}
         ${shelf("Nouveautés", "Les dernières créations publiées", newest().slice(0, 16), "new", `<a class="link" href="#rechercher">Tout voir</a>`)}
         ${shelf("Pépites à découvrir", "Des titres encore peu écoutés, mis en avant à tour de rôle", gems(), "gems")}
         ${shelf("Les plus écoutées", "", popular().slice(0, 16), "top")}
@@ -213,7 +234,27 @@
           <div class="ph-text"><span class="eyebrow">Ma bibliothèque</span><h1>Coups de cœur</h1><span class="stats">${plural(f.length, "titre")} · gardés sur cet appareil, sans compte</span></div></div>
         ${f.length ? `<div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="favs">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="favs">${shuffleIcon} Aléatoire</button></div>${rows(f, "favs")}`
           : `<div class="empty">Touche le cœur à côté d'une chanson pour la retrouver ici.</div>`}
+        <div class="sec-head"><div><h2>Mes playlists</h2><p>Partage-les avec un simple lien</p></div><button class="link" type="button" data-newlist>+ Nouvelle playlist</button></div>
+        ${myLists.length ? `<div class="shelf">${myLists.map(pl => `<div class="card" data-open-list="${esc(pl.id)}" role="button" tabindex="0"><div class="art playlist-art" style="background:${genreBg(pl.name)}"><svg viewBox="0 0 24 24"><path d="M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-2V8h2v6.2a3 3 0 1 1-2 2.8z"/></svg></div><strong>${esc(pl.name)}</strong><span class="sub">${pl.key ? "Ma playlist" : "Enregistrée"}</span></div>`).join("")}</div>`
+          : `<div class="empty">Crée une playlist, puis ajoute des titres avec le menu ⋮ d'une chanson.</div>`}
         ${h.length ? `<div class="sec-head"><div><h2>Historique</h2><p>Tes dernières écoutes</p></div></div>${rows(h.slice(0, 30), "hist")}` : ""}`;
+    },
+    playlist() {
+      const pl = S.list;
+      if (!pl) return mobileBrand + `<div class="empty">Chargement de la playlist…</div>`;
+      if (pl.missing) return mobileBrand + `<div class="empty">Cette playlist n'existe plus.</div>`;
+      const mine = myLists.find(x => x.id === pl.id);
+      const owner = !!(mine && mine.key);
+      const list = pl.tracks.map(byId).filter(Boolean);
+      return mobileBrand + `<div class="page-head"><div class="ph-bg" style="background:linear-gradient(135deg, ${genreColors(pl.name)[0]}, #0B1129 80%)"></div>
+          <div class="ph-art square playlist-art" style="background:${genreBg(pl.name)}"><svg viewBox="0 0 24 24"><path d="M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-2V8h2v6.2a3 3 0 1 1-2 2.8z"/></svg></div>
+          <div class="ph-text"><span class="eyebrow">Playlist</span><h1>${esc(pl.name)}</h1><span class="stats">${plural(list.length, "titre")}</span></div></div>
+        <div class="page-actions">
+          ${list.length ? `<button class="btn btn-gold" type="button" data-play-ctx="pl">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="pl">${shuffleIcon} Aléatoire</button>` : ""}
+          <button class="btn" type="button" data-share-list>Partager</button>
+          ${owner ? `<button class="btn" type="button" data-rename-list>Renommer</button><button class="btn" type="button" data-delete-list>Supprimer</button>` : mine ? "" : `<button class="btn" type="button" data-save-list>Enregistrer</button>`}
+        </div>
+        ${list.length ? rows(list, "pl", { removable: owner }) : `<div class="empty">${owner ? "Ajoute des titres avec le menu ⋮ d'une chanson, puis « Ajouter à une playlist »." : "Cette playlist est vide."}</div>`}`;
     },
     artiste() {
       const name = S.param || "";
@@ -225,7 +266,8 @@
           ${imgTag(list[0], "ph-art")}
           <div class="ph-text"><span class="eyebrow">Artiste IA</span><h1>${esc(name)}</h1><span class="stats">${plural(list.length, "titre")} · ${plural(plays, "écoute")}</span></div></div>
         <div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="artist">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="artist">${shuffleIcon} Aléatoire</button></div>
-        ${rows(list.sort((x, y) => y.plays - x.plays), "artist", { noArtist: true })}`;
+        ${rows(list.sort((x, y) => y.plays - x.plays), "artist", { noArtist: true })}
+        <section class="stats-box" id="stats" aria-live="polite"></section>`;
     },
     genre() {
       const name = S.param || "";
@@ -263,6 +305,7 @@
             </div>
             <div class="field"><label for="f-genre">Genre (facultatif)</label><input id="f-genre" maxlength="40" list="genres-list" autocomplete="off">
               <datalist id="genres-list">${["Afrobeat", "Coupé-décalé", "Zouglou", "Rap", "R&B", "Pop", "Gospel", "Reggae", "Électro", "Rock", "Jazz", "Classique", ...genres().map(g => g.name)].filter((v, i, a) => a.indexOf(v) === i).map(g => `<option>${esc(g)}</option>`).join("")}</datalist></div>
+            <div class="field"><label for="f-lyrics">Paroles (facultatif)</label><textarea id="f-lyrics" rows="6" maxlength="8000" placeholder="Colle ici les paroles de ta chanson (sur Suno : onglet Lyrics)"></textarea><small>Elles s'afficheront pendant l'écoute.</small></div>
             <label class="check"><input id="f-rights" type="checkbox" required><span>J'ai créé cette chanson avec mon propre compte (Suno ou autre outil IA) et j'accepte qu'elle soit écoutée gratuitement par tous.</span></label>
             <p id="form-msg" class="form-msg" role="status"></p>
             <div><button id="submit" class="btn btn-gold" type="submit">Publier</button></div>
@@ -284,8 +327,9 @@
     const v = views[S.view] ? S.view : "accueil";
     try { $("view").innerHTML = views[v](); }
     catch (err) { console.error(err); $("view").innerHTML = `<div class="empty"><strong>Un souci d'affichage est survenu.</strong><button class="btn btn-gold" type="button" onclick="location.reload()">Recharger</button></div>`; return; }
-    document.querySelectorAll("[data-nav]").forEach(a => a.classList.toggle("is-on", a.dataset.nav === (v === "artiste" || v === "genre" ? "rechercher" : v)));
+    document.querySelectorAll("[data-nav]").forEach(a => a.classList.toggle("is-on", a.dataset.nav === (v === "artiste" || v === "genre" ? "rechercher" : v === "playlist" ? "bibliotheque" : v)));
     if (v === "publier") bindPublish();
+    if (v === "artiste") loadStats(S.param);
     if (v === "rechercher") { const q = $("q"); q.oninput = e => { clearTimeout(qTimer); qTimer = setTimeout(() => { S.q = e.target.value; const pos = q.selectionStart; render(); const nq = $("q"); nq.focus(); nq.setSelectionRange(pos, pos); }, 250); }; }
   }
   let qTimer;
@@ -319,6 +363,13 @@
   // ---------- clics dans les vues ----------
   $("view").addEventListener("click", e => {
     const like = e.target.closest("[data-like]"); if (like) { toggleFav(like.dataset.like); return; }
+    if (e.target.closest("[data-newlist]")) { newList(); return; }
+    const ol = e.target.closest("[data-open-list]"); if (ol) { openList(ol.dataset.openList); return; }
+    const rm = e.target.closest("[data-remove]"); if (rm) { editList(S.list.id, ids => ids.filter((_, k) => k !== +rm.dataset.remove)); return; }
+    if (e.target.closest("[data-share-list]")) { shareList(S.list); return; }
+    if (e.target.closest("[data-rename-list]")) { const n = prompt("Nouveau nom de la playlist", S.list.name); if (n && n.trim()) editList(S.list.id, ids => ids, n.trim().slice(0, 80)); return; }
+    if (e.target.closest("[data-delete-list]")) { deleteList(e.target.closest("[data-delete-list]")); return; }
+    if (e.target.closest("[data-save-list]")) { myLists.push({ id: S.list.id, key: null, name: S.list.name }); store.set("playlists", myLists); toast("Playlist enregistrée dans ta bibliothèque"); render(); return; }
     const menu = e.target.closest("[data-menu]"); if (menu) { openMenu(menu, byId(menu.dataset.menu)); return; }
     const art = e.target.closest("[data-artist]"); if (art) { go("artiste", art.dataset.artist); return; }
     const gen = e.target.closest("[data-genre]"); if (gen) { go("genre", gen.dataset.genre); return; }
@@ -335,13 +386,19 @@
     }
   });
   $("view").addEventListener("keydown", e => {
-    if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-ctx][tabindex], [data-artist][tabindex]")) { e.preventDefault(); e.target.click(); }
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-ctx][tabindex], [data-artist][tabindex], [data-open-list][tabindex]")) { e.preventDefault(); e.target.click(); }
   });
 
   // ---------- coups de cœur ----------
   function toggleFav(id) {
-    if (favs.has(id)) { favs.delete(id); toast("Retiré de tes coups de cœur"); } else { favs.add(id); toast("Ajouté à tes coups de cœur"); }
+    const on = !favs.has(id);
+    if (on) { favs.add(id); toast("Ajouté à tes coups de cœur"); } else { favs.delete(id); toast("Retiré de tes coups de cœur"); }
     store.set("favs", [...favs]);
+    if (sb && S.hasV2) sb.rpc("like_track", { p_track: id, p_device: device, p_on: on }).then(r => {
+      if (r.error || typeof r.data !== "number") return;
+      const t = byId(id); if (t) t.likes = r.data;
+      const c = current(); if (c && c.id === id) { c.likes = r.data; renderTags(c); }
+    });
     document.querySelectorAll(`[data-like="${CSS.escape(id)}"]`).forEach(b => b.setAttribute("aria-pressed", favs.has(id)));
     syncLike();
     if (S.view === "bibliotheque") render();
@@ -355,7 +412,7 @@
     closeMenu();
     menuEl = document.createElement("div");
     menuEl.className = "menu";
-    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button><div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>`;
+    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button><div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>`;
     document.body.appendChild(menuEl);
     const r = btn.getBoundingClientRect(), mh = menuEl.offsetHeight;
     const top = r.bottom + 6 + mh > innerHeight ? r.top - mh - 6 : r.bottom + 6;
@@ -367,6 +424,9 @@
       if (a === "share") share(t);
       if (a === "artist") go("artiste", t.artist);
       if (a === "next") playNext(t);
+      if (a === "addlist") { const own = myLists.filter(x => x.key); closeMenu(); openMenu(btn, t, own.map(x => `<button type="button" data-a="to:${esc(x.id)}">${esc(x.name)}</button>`).join("") + (own.length ? '<div class="sep"></div>' : "") + '<button type="button" data-a="tonew">+ Nouvelle playlist…</button>'); return; }
+      if (a && a.startsWith("to:")) editList(a.slice(3), ids => ids.includes(t.id) ? ids : [...ids, t.id], null, "Ajouté à « %s »");
+      if (a === "tonew") newList([t.id]);
       if (a === "report") {
         if (menuEl.dataset.confirm !== "1") { menuEl.dataset.confirm = "1"; b.textContent = "Confirmer le signalement"; return; }
         if (sb) await sb.rpc("report_track", { track: t.id });
@@ -376,7 +436,104 @@
       closeMenu();
     };
   }
-  document.addEventListener("click", e => { if (menuEl && !menuEl.contains(e.target) && !e.target.closest("[data-menu], #b-sleep")) closeMenu(); });
+  document.addEventListener("click", e => { if (menuEl && e.target.isConnected && !menuEl.contains(e.target) && !e.target.closest("[data-menu], #b-sleep")) closeMenu(); });
+
+  // ---------- étiquettes, paroles ----------
+  function renderTags(t) {
+    $("np-tags").innerHTML = `<span class="ai">Création IA</span>${t.genre ? `<span>${esc(t.genre)}</span>` : ""}<span>${plural(t.plays, "écoute")}</span>${t.likes ? `<span>${nf.format(t.likes)} ♥</span>` : ""}`;
+  }
+  S.npTab = "queue";
+  async function loadLyrics() {
+    const t = current(), box = $("np-lyrics"); if (!t) return;
+    if (S.lyricsFor === t.id) return;
+    S.lyricsFor = t.id; box.textContent = "Chargement des paroles…";
+    let text = null;
+    if (sb && S.hasV2) { const r = await sb.from("tracks").select("lyrics").eq("id", t.id).maybeSingle(); text = r.data && r.data.lyrics; }
+    if (current() !== t) return;
+    box.textContent = text || "Pas de paroles pour ce titre. L'artiste peut les ajouter en le publiant.";
+    box.classList.toggle("none", !text);
+  }
+  document.querySelectorAll("[data-np-tab]").forEach(b => b.onclick = () => {
+    S.npTab = b.dataset.npTab;
+    document.querySelectorAll("[data-np-tab]").forEach(x => x.setAttribute("aria-selected", x === b));
+    $("np-queue").hidden = S.npTab !== "queue"; $("np-lyrics").hidden = S.npTab !== "lyrics";
+    if (S.npTab === "lyrics") loadLyrics();
+  });
+
+  // ---------- statistiques d'artiste ----------
+  async function loadStats(name) {
+    const box = $("stats"); if (!box || !sb || !S.hasV2) return;
+    const r = await sb.rpc("artist_stats", { p_artist: name });
+    if (r.error || !r.data || S.view !== "artiste" || S.param !== name) return;
+    const st = r.data, days = [], map = new Map((st.days || []).map(d => [d.day, d.n]));
+    for (let i = 29; i >= 0; i--) { const d = new Date(Date.now() - i * 864e5); const k = d.toISOString().slice(0, 10); days.push({ k, d, n: map.get(k) || 0 }); }
+    const max = Math.max(1, ...days.map(d => d.n));
+    const W = 600, H = 150, bw = W / 30;
+    const df = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+    const bars = days.map((d, i) => { const h = d.n ? Math.max(4, d.n / max * (H - 8)) : 0; const x = i * bw + 1;
+      return `<g class="bar"><rect class="hit" x="${i * bw}" y="0" width="${bw}" height="${H}"></rect>${h ? `<path d="M${x} ${H}V${H - h + 4}q0-4 4-4h${bw - 10}q4 0 4 4V${H}z"></path>` : `<rect class="zero" x="${x}" y="${H - 1}" width="${bw - 2}" height="1"></rect>`}<title>${df.format(d.d)} : ${plural(d.n, "écoute")}</title></g>`; }).join("");
+    const cs = (st.countries || []); const cmax = Math.max(1, ...cs.map(c => c.n)); const ctot = cs.reduce((s, c) => s + c.n, 0);
+    box.innerHTML = `<div class="sec-head"><div><h2>Statistiques</h2><p>Chiffres publics et anonymes, mis à jour à chaque écoute de plus de 30 secondes</p></div></div>
+      <div class="stats-grid">
+        <div class="kpi"><span>7 derniers jours</span><strong>${nf.format(st.week || 0)}</strong><em>écoutes</em></div>
+        <div class="kpi"><span>30 derniers jours</span><strong>${nf.format(st.month || 0)}</strong><em>écoutes</em></div>
+        <div class="chart-card"><h3>Écoutes par jour · 30 derniers jours</h3>
+          <svg class="chart" viewBox="0 0 ${W} ${H + 22}" preserveAspectRatio="none" role="img" aria-label="Écoutes par jour sur 30 jours, maximum ${max}">
+            <line class="base" x1="0" y1="${H}" x2="${W}" y2="${H}"></line>${bars}
+          </svg>
+          <div class="chart-x"><span>${df.format(days[0].d)}</span><span>${df.format(days[14].d)}</span><span>Aujourd'hui</span></div>
+          <p class="chart-note">Plus haute journée : ${plural(max === 1 && !days.some(d => d.n) ? 0 : max, "écoute")}</p></div>
+        <div class="chart-card"><h3>Pays des auditeurs</h3>
+          ${cs.length ? `<ol class="countries">${cs.map(c => `<li><span class="cn">${flag(c.country)} ${c.country === "??" ? "Inconnu" : esc(regionName(c.country))}</span><span class="cbar"><i style="width:${(c.n / cmax * 100).toFixed(1)}%"></i></span><span class="cv">${Math.round(c.n / ctot * 100)} %</span></li>`).join("")}</ol>` : `<p class="chart-note">Les pays apparaîtront après les premières écoutes.</p>`}
+          <p class="chart-note">Pays estimé d'après le fuseau horaire de l'appareil.</p></div>
+      </div>`;
+  }
+
+  // ---------- playlists ----------
+  async function openList(id) {
+    S.view = "playlist"; S.param = id; S.list = null; render(); $("main").scrollTop = 0; closeNP();
+    if (!sb) return;
+    const r = await sb.rpc("get_playlist", { p_id: id });
+    if (S.param !== id) return;
+    S.list = r.data ? r.data : { missing: true };
+    const mine = myLists.find(x => x.id === id); if (mine && r.data && mine.name !== r.data.name) { mine.name = r.data.name; store.set("playlists", myLists); }
+    render();
+  }
+  async function newList(initial = []) {
+    if (!sb || !S.hasV2) { toast("Les playlists arrivent bientôt."); return; }
+    const name = prompt("Nom de la nouvelle playlist", "Ma playlist");
+    if (!name || !name.trim()) return;
+    const key = uuid();
+    const r = await sb.rpc("save_playlist", { p_id: null, p_key: key, p_name: name.trim().slice(0, 80), p_tracks: initial });
+    if (r.error) { toast("Impossible de créer la playlist. Réessaie."); return; }
+    myLists.unshift({ id: r.data, key, name: name.trim().slice(0, 80) }); store.set("playlists", myLists);
+    toast(initial.length ? "Playlist créée avec ce titre" : "Playlist créée");
+    if (S.view === "bibliotheque") render();
+  }
+  async function editList(id, fn, newName, okMsg) {
+    const mine = myLists.find(x => x.id === id && x.key); if (!mine) return;
+    const cur = (S.list && S.list.id === id) ? S.list : (await sb.rpc("get_playlist", { p_id: id })).data;
+    if (!cur) { toast("Cette playlist n'existe plus."); return; }
+    const tracks = fn(cur.tracks.slice()), name = newName || cur.name;
+    const r = await sb.rpc("save_playlist", { p_id: id, p_key: mine.key, p_name: name, p_tracks: tracks });
+    if (r.error) { toast("Modification impossible. Réessaie."); return; }
+    mine.name = name; store.set("playlists", myLists);
+    if (S.list && S.list.id === id) { S.list = { ...cur, name, tracks }; render(); }
+    if (okMsg) toast(okMsg.replace("%s", name));
+  }
+  async function deleteList(btn) {
+    if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = "Confirmer la suppression"; return; }
+    const mine = myLists.find(x => x.id === S.list.id && x.key);
+    if (mine) await sb.rpc("delete_playlist", { p_id: mine.id, p_key: mine.key });
+    myLists = myLists.filter(x => x.id !== S.list.id); store.set("playlists", myLists);
+    toast("Playlist supprimée"); go("bibliotheque");
+  }
+  function shareList(pl) {
+    const u = new URL(location.href); u.search = "?p=" + pl.id; u.hash = "";
+    const url = u.toString();
+    if (navigator.share) { navigator.share({ title: pl.name + " | ÉCRIN.AI", url }).catch(() => {}); return; }
+    navigator.clipboard.writeText(url).then(() => toast("Lien de la playlist copié"), () => toast(url));
+  }
 
   // ---------- file de lecture ----------
   function buildOrder(startIdx) {
@@ -405,7 +562,7 @@
     $("np-cover").src = coverOf(t); $("np-cover").dataset.fb = t.id; delete $("np-cover").dataset.failed;
     $("np-bg").style.backgroundImage = `url('${coverOf(t).replace(/'/g, "%27")}')`;
     $("np-title").textContent = t.title; $("np-artist").textContent = t.artist;
-    $("np-tags").innerHTML = `<span class="ai">Création IA</span>${t.genre ? `<span>${esc(t.genre)}</span>` : ""}<span>${plural(t.plays, "écoute")}</span>`;
+    renderTags(t); S.lyricsFor = null; if (!$("np").hidden && S.npTab === "lyrics") loadLyrics();
     document.title = t.title + " · " + t.artist + " | Écrin";
     if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: "ÉCRIN.AI", artwork: [{ src: coverOf(t), sizes: "512x512" }] });
     history = [t.id, ...history.filter(x => x !== t.id)].slice(0, 50); store.set("history", history);
@@ -501,7 +658,7 @@
     if (!S.counted && audio.currentTime > 30) {
       S.counted = true;
       const t = current();
-      if (t && sb) sb.rpc("count_play", { track: t.id }).then(() => { t.plays++; });
+      if (t && sb) sb.rpc("count_play", S.hasV2 ? { track: t.id, p_country: myCountry() } : { track: t.id }).then(() => { t.plays++; });
     }
   });
   audio.addEventListener("loadedmetadata", () => { $("t-dur").textContent = $("np-dur").textContent = fmt(audio.duration); });
@@ -545,6 +702,7 @@
       e.preventDefault();
       if (!sb) { msg("L'appli n'est pas encore reliée à sa base de données.", "err"); return; }
       const title = $("f-title").value.trim(), artist = $("f-artist").value.trim(), genre = $("f-genre").value.trim() || null;
+      const lyrics = $("f-lyrics").value.trim() || null;
       if (!title || !artist) { msg("Indique le titre et ton nom d'artiste.", "err"); return; }
       if (!$("f-rights").checked) { msg("Coche la case pour confirmer que la chanson est la tienne.", "err"); return; }
       const btn = $("submit"); btn.disabled = true;
@@ -554,6 +712,7 @@
           const p = parseSuno($("f-link").value);
           if (!p || !p.id) { msg(p && p.short ? "Utilise l'adresse complète suno.com/song/…" : "Colle le lien de ta chanson Suno (suno.com/song/…).", "err"); return; }
           row = { title, artist, genre, source: "suno", suno_id: p.id, audio_url: sunoAudio(p.id), cover_url: sunoCover(p.id) };
+          if (lyrics && S.hasV2) row.lyrics = lyrics;
         } else {
           const f = $("f-audio").files[0];
           if (!f) { msg("Choisis le fichier audio de ta chanson.", "err"); return; }
@@ -572,6 +731,7 @@
             if (!cu.error) coverUrl = sb.storage.from("songs").getPublicUrl(`covers/${id}.${cext}`).data.publicUrl;
           }
           row = { title, artist, genre, source: "upload", audio_url: audioUrl, cover_url: coverUrl };
+          if (lyrics && S.hasV2) row.lyrics = lyrics;
         }
         msg("Publication…");
         const { error } = await sb.from("tracks").insert(row);
@@ -593,6 +753,8 @@
   syncModes(); syncLike(); render();
   (async () => {
     await load();
+    const plId = new URLSearchParams(location.search).get("p");
+    if (plId) openList(plId);
     const id = new URLSearchParams(location.search).get("t");
     if (id && sb) {
       let t = byId(id);
