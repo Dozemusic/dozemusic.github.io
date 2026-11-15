@@ -1,5 +1,5 @@
-/* DOZE 5.0.0 */
-  const VERSION = "5.0.0";
+/* DOZE 5.0.1 */
+  const VERSION = "5.0.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1501,12 +1501,15 @@
   if (sb) {
     sb.rpc("reviews_summary").then(r => { S.hasV6 = !r.error; if (S.view === "publier") render(); });
     sb.auth.getSession().then(async ({ data }) => { S.user = data.session ? data.session.user : null; await loadProfile(); if (["compte", "publier", "avis"].includes(S.view)) render(); syncAccountIcon(); });
-    sb.auth.onAuthStateChange(async (ev, session) => {
+    // Ne jamais attendre une requête Supabase dans ce rappel : cela bloque toutes les autres requêtes (verrou d'authentification).
+    sb.auth.onAuthStateChange((ev, session) => {
       S.user = session ? session.user : null;
-      if (ev === "PASSWORD_RECOVERY") { go("compte"); openSheet("newpass"); }
-      await loadProfile(); syncAccountIcon();
-      if (["compte", "publier", "avis"].includes(S.view)) render();
-      if (ev === "SIGNED_IN" && location.hash.includes("access_token")) { history.replaceState(null, "", location.pathname + "#compte"); go("compte"); }
+      setTimeout(async () => {
+        if (ev === "PASSWORD_RECOVERY") { go("compte"); openSheet("newpass"); }
+        await loadProfile(); syncAccountIcon();
+        if (["compte", "publier", "avis"].includes(S.view)) render();
+        if (ev === "SIGNED_IN" && location.hash.includes("access_token")) { history.replaceState(null, "", location.pathname + "#compte"); go("compte"); }
+      }, 0);
     });
   }
   function syncAccountIcon() { document.querySelectorAll("[data-account-label]").forEach(el => el.textContent = S.profile ? S.profile.username : "Mon compte"); }
