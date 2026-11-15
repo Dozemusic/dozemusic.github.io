@@ -1,5 +1,5 @@
-/* Écrin 3.4.0 */
-  const VERSION = "3.4.0";
+/* Écrin 3.4.1 */
+  const VERSION = "3.4.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1393,7 +1393,7 @@
     ["f-link", "f-ext", "f-title", "f-artist"].forEach(id => $(id).addEventListener("input", update));
     let PL = null;
     async function loadPlaylist() {
-      const v = $("f-pl").value.trim();
+      const v = $("f-pl").value.trim().replace(/[.,;:!?)\]]+$/, "");   // ponctuation collée par erreur en fin de lien
       const m = /suno\.(?:com|ai)\/playlist\/([0-9a-f-]{36})/i.exec(v), hm = /suno\.(?:com|ai)\/@([A-Za-z0-9_.-]{1,40})/i.exec(v) || /^@([A-Za-z0-9_.-]{1,40})$/.exec(v);
       const box = $("pl-box");
       if (!m && !hm) { box.innerHTML = v ? `<p class="form-msg err">Colle un lien de playlist (suno.com/playlist/…) ou de profil (suno.com/@ton-pseudo).</p>` : ""; PL = null; return; }
