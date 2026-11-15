@@ -1,5 +1,5 @@
-/* DOZE 4.2.0 */
-  const VERSION = "4.2.0";
+/* DOZE 4.2.1 */
+  const VERSION = "4.2.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1517,8 +1517,8 @@
     ms.setActionHandler("play", () => audio.play()); ms.setActionHandler("pause", () => audio.pause());
     ms.setActionHandler("nexttrack", () => next(false)); ms.setActionHandler("previoustrack", prev);
     try { ms.setActionHandler("seekto", d => { audio.currentTime = d.seekTime; }); } catch {}
-    try { ms.setActionHandler("seekbackward", d => { audio.currentTime = Math.max(0, audio.currentTime - (d.seekOffset || 10)); }); } catch {}
-    try { ms.setActionHandler("seekforward", d => { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + (d.seekOffset || 10)); }); } catch {}
+    // Pas de boutons « ±10 s » : sur iPhone ils remplacent précédent / suivant sur l'écran verrouillé.
+    try { ms.setActionHandler("seekbackward", null); ms.setActionHandler("seekforward", null); } catch {}
     try { ms.setActionHandler("stop", () => audio.pause()); } catch {}
     // Barre de progression sur l'écran verrouillé et l'écran de la voiture
     const pos = () => { try { if (isFinite(audio.duration) && audio.duration > 0) ms.setPositionState({ duration: audio.duration, position: Math.min(audio.currentTime, audio.duration), playbackRate: audio.playbackRate || 1 }); } catch {} };
