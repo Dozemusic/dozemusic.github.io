@@ -450,7 +450,7 @@ code { background: rgba(255, 255, 255, .08); padding: 1px 5px; border-radius: 5p
 .dl-btn { position: relative; }
 .dl-btn.is-on { color: var(--gold); background: rgba(218, 154, 104, .18); }
 .dl-btn span { position: absolute; left: 50%; bottom: -16px; transform: translateX(-50%); font-size: 10px; font-weight: 700; color: var(--gold); white-space: nowrap; }
-.dl-mark { width: 14px; height: 14px; color: var(--gold); vertical-align: -2px; margin-right: 6px; }
+.dl-mark { width: 16px; height: 16px; color: var(--gold); vertical-align: -3px; margin-right: 6px; flex: none; filter: drop-shadow(0 0 4px rgba(218, 154, 104, .45)); }
 .offline-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: rgba(218, 154, 104, .12); border: 1px solid rgba(218, 154, 104, .4); margin-bottom: 16px; font-size: 14px; }
 
 /* ---------- 3.2 : réglage et synchro des paroles ---------- */
@@ -683,3 +683,13 @@ html, body, .main, .np, .side { overscroll-behavior: none; }
 .eq-fine summary { cursor: pointer; font-weight: 600; color: var(--muted); padding: 6px 0; }
 .eq-fine .eq-bands { margin-top: 10px; }
 .band input { accent-color: var(--gold); }
+
+/* Hors ligne : badge sur les pochettes et bouton de téléchargement d'une liste */
+.off-badge { position: absolute; left: 8px; bottom: 8px; z-index: 2; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: rgba(10, 12, 18, .78); box-shadow: 0 0 0 1.5px var(--gold), 0 4px 12px rgba(0, 0, 0, .4); backdrop-filter: blur(6px); }
+.off-badge svg { width: 18px; height: 18px; fill: var(--gold); }
+.btn-off svg { width: 18px; height: 18px; fill: currentColor; }
+.btn-off.is-done { color: var(--gold); border-color: rgba(218, 154, 104, .6); background: rgba(218, 154, 104, .12); }
+.btn-off.is-run { color: var(--gold); }
+.spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(218, 154, 104, .3); border-top-color: var(--gold); animation: spin .8s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }

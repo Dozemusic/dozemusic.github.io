@@ -1,5 +1,5 @@
-/* DOZE 5.1.0 */
-  const VERSION = "5.1.0";
+/* DOZE 5.2.0 */
+  const VERSION = "5.2.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -263,10 +263,41 @@
   }
 
   // ---------- rendu : composants ----------
+  const offBadge = `<span class="off-badge" title="Disponible hors ligne" aria-label="Disponible hors ligne"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m-1 5h2v6l2.6-2.6L17 11.8 12 16.8l-5-5 1.4-1.4L11 13z"/></svg></span>`;
+  // Bouton « Hors ligne » d'une liste : télécharge tous ses titres en un clic, avec la progression
+  S.packs = {}; S.packRun = {};
+  function offBtn(list, key) {
+    const ok = list.filter(canOffline); if (!ok.length) return "";
+    S.packs[key] = ok.map(t => t.id);
+    return `<button class="btn btn-off${ok.every(t => offline[t.id]) ? " is-done" : ""}${S.packRun[key] ? " is-run" : ""}" type="button" data-pack="${key}">${packLabel(key)}</button>`;
+  }
+  function packLabel(key) {
+    const ids = S.packs[key] || [], done = ids.filter(id => offline[id]).length, run = S.packRun[key];
+    if (run) return `<span class="spin" aria-hidden="true"></span> Téléchargement ${done}/${ids.length}`;
+    if (done === ids.length) return `<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m-1 5h2v6l2.6-2.6L17 11.8 12 16.8l-5-5 1.4-1.4L11 13z"/></svg> Hors ligne ✓`;
+    return `<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m-1 5h2v6l2.6-2.6L17 11.8 12 16.8l-5-5 1.4-1.4L11 13z"/></svg> ${done ? `Hors ligne (${done}/${ids.length})` : "Télécharger"}`;
+  }
+  function paintPack(key) { document.querySelectorAll(`[data-pack="${key}"]`).forEach(b => { b.innerHTML = packLabel(key); b.classList.toggle("is-done", (S.packs[key] || []).every(id => offline[id])); b.classList.toggle("is-run", !!S.packRun[key]); }); }
+  async function runPack(key) {
+    const ids = S.packs[key] || [];
+    if (S.packRun[key]) { S.packRun[key] = "stop"; return; }
+    if (ids.every(id => offline[id])) {
+      if (!confirm("Retirer ces " + ids.length + " titres des téléchargements ?")) return;
+      for (const id of ids) await removeOffline(id, true);
+      toast("Retiré des téléchargements"); paintPack(key); refreshMarks(); return;
+    }
+    if (!("caches" in window) || !("serviceWorker" in navigator)) { toast("Ce navigateur ne permet pas l'écoute hors ligne. Ouvre DOZE dans Safari ou Chrome."); return; }
+    S.packRun[key] = true; paintPack(key);
+    const todo = ids.filter(id => !offline[id]).map(byId).filter(Boolean); let fail = 0;
+    const worker = async () => { while (todo.length && S.packRun[key] === true) { const t = todo.shift(); await downloadTrack(t, true, true); if (!offline[t.id]) fail++; paintPack(key); } };
+    await Promise.all([worker(), worker()]);           // deux titres à la fois
+    const stopped = S.packRun[key] === "stop"; delete S.packRun[key]; paintPack(key); refreshMarks();
+    toast(stopped ? "Téléchargement interrompu" : fail ? `${ids.length - fail} titres disponibles hors ligne · ${fail} échec(s), réessaie plus tard` : "Tout est disponible hors ligne ✓ Écoute même sans connexion");
+  }
   function card(t, ctx, i) {
     const cur = current();
     return `<div class="card${cur && cur.id === t.id ? " is-current" : ""}" style="--i:${Math.min(i, 12)}" data-ctx="${ctx}" data-i="${i}" role="button" tabindex="0" aria-label="Écouter ${esc(t.title)} de ${esc(t.artist)}">
-      <div class="art">${imgTag(t)}${t.ai ? '<span class="ai-tag">IA</span>' : ""}
+      <div class="art">${imgTag(t)}${t.ai ? '<span class="ai-tag">IA</span>' : ""}${offline[t.id] ? offBadge : ""}
         <button class="fab" type="button" tabindex="-1" aria-hidden="true">${cur && cur.id === t.id && !audio.paused ? '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'}</button></div>
       <strong>${esc(t.title)}</strong><span class="sub">${esc(t.artist)}</span></div>`;
   }
@@ -291,7 +322,7 @@
       return `<li class="row-t${playing ? " is-current" : ""}" data-ctx="${ctx}" data-i="${i}" tabindex="0">
         <span class="t-num">${playing ? `<span class="eq${audio.paused ? " paused" : ""}"><i></i><i></i><i></i></span>` : i + 1}</span>
         ${imgTag(t, "t-cover")}
-        <span class="t-text"><span class="t-title">${offline[t.id] ? '<svg class="dl-mark" viewBox="0 0 24 24" aria-label="Téléchargé"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m-1 5h2v6l2.6-2.6L17 11.8 12 16.8l-5-5 1.4-1.4L11 13z"/></svg>' : ""}${esc(t.title)}</span><span class="t-sub">${opts.noArtist ? (t.genre ? esc(t.genre) : "Single") : `<button type="button" data-artist="${esc(t.artist)}">${esc(t.artist)}</button>`}</span></span>
+        <span class="t-text"><span class="t-title">${offline[t.id] ? '<svg class="dl-mark" viewBox="0 0 24 24" role="img" aria-label="Disponible hors ligne"><title>Disponible hors ligne</title><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m-1 5h2v6l2.6-2.6L17 11.8 12 16.8l-5-5 1.4-1.4L11 13z"/></svg>' : ""}${esc(t.title)}</span><span class="t-sub">${opts.noArtist ? (t.genre ? esc(t.genre) : "Single") : `<button type="button" data-artist="${esc(t.artist)}">${esc(t.artist)}</button>`}</span></span>
         <span class="t-genre">${t.genre ? esc(t.genre) : ""}</span>
         <span class="t-plays">${plural(t.plays, "écoute")}${t.likes ? ` · ${nf.format(t.likes)} ♥` : ""}</span>
         <span class="t-acts">
@@ -357,9 +388,9 @@
       const h = history.map(byId).filter(Boolean);
       return mobileBrand + `<div class="page-head"><div class="ph-bg" style="background:linear-gradient(135deg,#2E4A8C,#0F121B 75%)"></div>
           <div class="ph-text"><span class="eyebrow">Ma bibliothèque</span><h1>Coups de cœur</h1><span class="stats">${plural(f.length, "titre")} · gardés sur cet appareil, sans compte</span></div></div>
-        ${f.length ? `<div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="favs">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="favs">${shuffleIcon} Aléatoire</button></div>${rows(f, "favs")}`
+        ${f.length ? `<div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="favs">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="favs">${shuffleIcon} Aléatoire</button>${offBtn(f, "favs")}</div>${rows(f, "favs")}`
           : `<div class="empty">Touche le cœur à côté d'une chanson pour la retrouver ici.</div>`}
-        <div class="sec-head"><div><h2>Téléchargés</h2><p>${Object.keys(offline).length ? plural(Object.keys(offline).length, "titre") + " · " + fmtSize(Object.values(offline).reduce((a, o) => a + (o.size || 0), 0)) + " · écoutables sans connexion" : "Écoute tes titres sans connexion, comme sur Deezer"}</p></div>${f.some(x => canOffline(x) && !offline[x.id]) ? `<button class="link" type="button" data-dl-favs>⬇ Télécharger mes coups de cœur</button>` : ""}</div>
+        <div class="sec-head"><div><h2>Téléchargés</h2><p>${Object.keys(offline).length ? plural(Object.keys(offline).length, "titre") + " · " + fmtSize(Object.values(offline).reduce((a, o) => a + (o.size || 0), 0)) + " · écoutables sans connexion" : "Écoute tes titres sans connexion, comme sur Deezer"}</p></div></div>
         ${Object.keys(offline).length ? `<div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="off">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="off">${shuffleIcon} Aléatoire</button></div>${rows(Object.values(offline).sort((a, b) => b.at - a.at).map(o => byId(o.t.id) || o.t), "off")}`
           : `<div class="empty">Touche ⋮ sur une chanson puis « Télécharger », ou le bouton ⬇ dans le lecteur.</div>`}
         <div class="sec-head"><div><h2>Mes playlists</h2><p>Partage-les avec un simple lien</p></div><button class="link" type="button" data-newlist>+ Nouvelle playlist</button></div>
@@ -378,7 +409,7 @@
           <div class="ph-art square playlist-art" style="background:${genreBg(pl.name)}"><svg viewBox="0 0 24 24"><path d="M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-2V8h2v6.2a3 3 0 1 1-2 2.8z"/></svg></div>
           <div class="ph-text"><span class="eyebrow">Playlist</span><h1>${esc(pl.name)}</h1><span class="stats">${plural(list.length, "titre")}</span></div></div>
         <div class="page-actions">
-          ${list.length ? `<button class="btn btn-gold" type="button" data-play-ctx="pl">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="pl">${shuffleIcon} Aléatoire</button>` : ""}
+          ${list.length ? `<button class="btn btn-gold" type="button" data-play-ctx="pl">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="pl">${shuffleIcon} Aléatoire</button>${offBtn(list, "pl")}` : ""}
           <button class="btn" type="button" data-share-list>Partager</button>
           ${owner ? `<button class="btn" type="button" data-rename-list>Renommer</button><button class="btn" type="button" data-delete-list>Supprimer</button>` : mine ? "" : `<button class="btn" type="button" data-save-list>Enregistrer</button>`}
         </div>
@@ -393,7 +424,7 @@
       return mobileBrand + `<div class="page-head"><div class="ph-bg" style="background:linear-gradient(135deg, ${a}, #0F121B 80%)"></div>
           ${imgTag(list[0], "ph-art")}
           <div class="ph-text"><span class="eyebrow">Artiste</span><h1>${esc(name)}</h1><span class="stats">${plural(list.length, "titre")} · ${plural(plays, "écoute")}</span></div></div>
-        <div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="artist">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="artist">${shuffleIcon} Aléatoire</button></div>
+        <div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="artist">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="artist">${shuffleIcon} Aléatoire</button>${offBtn(list, "artist")}</div>
         ${rows(list.sort((x, y) => y.plays - x.plays), "artist", { noArtist: true })}
         <section class="stats-box" id="stats" aria-live="polite"></section>`;
     },
@@ -402,7 +433,7 @@
       const list = S.all.filter(t => norm(t.genre) === norm(name)).sort((x, y) => y.plays - x.plays);
       return mobileBrand + `<div class="page-head"><div class="ph-bg" style="background:${genreBg(name)}"></div>
           <div class="ph-text"><span class="eyebrow">Genre</span><h1>${esc(name)}</h1><span class="stats">${plural(list.length, "titre")}</span></div></div>
-        ${list.length ? `<div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="genre">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="genre">${shuffleIcon} Aléatoire</button></div>${rows(list, "genre")}` : `<div class="empty">Aucun titre dans ce genre pour l'instant.</div>`}`;
+        ${list.length ? `<div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="genre">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="genre">${shuffleIcon} Aléatoire</button>${offBtn(list, "genre")}</div>${rows(list, "genre")}` : `<div class="empty">Aucun titre dans ce genre pour l'instant.</div>`}`;
     },
     compte() {
       const p = S.profile, u = S.user;
@@ -588,6 +619,7 @@
   $("view").addEventListener("click", e => {
     const like = e.target.closest("[data-like]"); if (like) { toggleFav(like.dataset.like); return; }
     if (e.target.closest("[data-newlist]")) { newList(); return; }
+    const pk = e.target.closest("[data-pack]"); if (pk) { runPack(pk.dataset.pack); return; }
     if (e.target.closest("[data-dl-favs]")) { (async () => { for (const x of [...favs].map(byId).filter(x => x && canOffline(x) && !offline[x.id])) await downloadTrack(x, true); toast("Tes coups de cœur sont disponibles hors ligne"); })(); return; }
     const ol = e.target.closest("[data-open-list]"); if (ol) { openList(ol.dataset.openList); return; }
     const rm = e.target.closest("[data-remove]"); if (rm) { editList(S.list.id, ids => ids.filter((_, k) => k !== +rm.dataset.remove)); return; }
@@ -1486,7 +1518,7 @@
   const canOffline = t => !!t && (t.source === "suno" || t.source === "upload");
   const fmtSize = b => b >= 1e9 ? (b / 1e9).toFixed(1).replace(".", ",") + " Go" : Math.max(1, Math.round(b / 1e6)) + " Mo";
   S.dl = {};
-  async function downloadTrack(t, quiet) {
+  async function downloadTrack(t, quiet, inPack) {
     if (!("caches" in window) || !("serviceWorker" in navigator)) { toast("Ce navigateur ne permet pas l'écoute hors ligne. Ouvre DOZE dans Safari ou Chrome."); return; }
     if (!canOffline(t)) { toast("Les titres SoundCloud et YouTube ne peuvent pas être téléchargés."); return; }
     if (offline[t.id] || S.dl[t.id] != null) return;
@@ -1508,17 +1540,22 @@
       offline[t.id] = { t: meta, lyrics, size: blob.size, at: Date.now() }; store.set("offline", offline);
       delete S.dl[t.id]; syncDl();
       if (!quiet) toast("« " + t.title + " » est disponible hors ligne");
-      if (S.view === "bibliotheque") render(); else refreshMarks();
+      if (inPack) markRow(t.id); else if (S.view === "bibliotheque") render(); else refreshMarks();
     } catch (err) {
       console.warn(err); delete S.dl[t.id]; syncDl();
-      toast("Téléchargement impossible pour « " + t.title + " ». Vérifie ta connexion.");
+      if (!inPack) toast("Téléchargement impossible pour « " + t.title + " ». Vérifie ta connexion.");
     }
   }
-  async function removeOffline(id) {
+  // Pendant un téléchargement groupé : on ajoute le signe « hors ligne » sur la ligne sans tout redessiner
+  function markRow(id) {
+    document.querySelectorAll(".row-t").forEach(li => { const L = S.ctx[li.dataset.ctx]; const t = L && L[+li.dataset.i]; if (t && t.id === id) { const ti = li.querySelector(".t-title"); if (ti && !ti.querySelector(".dl-mark")) ti.insertAdjacentHTML("afterbegin", `<svg class="dl-mark" viewBox="0 0 24 24" role="img" aria-label="Disponible hors ligne"><title>Disponible hors ligne</title><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m-1 5h2v6l2.6-2.6L17 11.8 12 16.8l-5-5 1.4-1.4L11 13z"/></svg>`); } });
+    syncDl();
+  }
+  async function removeOffline(id, quiet) {
     const o = offline[id]; if (!o) return;
     try { const c = await caches.open(OFF_CACHE); await c.delete(playable(o.t.audio_url)); if (o.t.cover_url) await c.delete(o.t.cover_url); } catch {}
     delete offline[id]; store.set("offline", offline); syncDl();
-    toast("Retiré des téléchargements"); if (S.view === "bibliotheque") render(); else refreshMarks();
+    if (quiet) return; toast("Retiré des téléchargements"); if (S.view === "bibliotheque") render(); else refreshMarks();
   }
   function refreshMarks() { if (S.view !== "publier") { const y = $("main").scrollTop; render(); $("main").scrollTop = y; } }
   function syncDl() {
