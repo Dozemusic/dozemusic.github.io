@@ -400,3 +400,5 @@ textarea:focus { border-color: var(--gold); outline: none; }
 .dev-card .eqmini { display: inline-flex; gap: 2px; }
 .np-top { position: relative; z-index: 3; }
 @media (max-width: 860px) { .np-body { padding-top: 34px; } }
+
+.ver { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }

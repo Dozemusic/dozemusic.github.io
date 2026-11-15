@@ -1,4 +1,5 @@
-/* Écrin 2.2.0 */
+/* Écrin 2.3.0 */
+  const VERSION = "2.3.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -178,7 +179,7 @@
         </span></li>`;
     }).join("")}</ol>`;
   }
-  const mobileBrand = `<div class="mobile-brand"><a class="brand" href="#accueil"><img src="logo-64.png" alt=""><span class="word">ÉCRIN<em>.AI</em></span></a></div>`;
+  const mobileBrand = `<div class="mobile-brand"><a class="brand" href="#accueil"><img src="logo-64.png" alt=""><span class="word">ÉCRIN<em>.AI</em></span></a><span class="ver">v${VERSION}</span></div>`;
   const playIcon = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
   const shuffleIcon = '<svg viewBox="0 0 24 24"><path d="M10.6 9.2 5.4 4 4 5.4l5.2 5.2zM14.5 4l2 2L4 18.6 5.4 20 18 7.5l2 2V4zm.3 9.4-1.4 1.4 3.1 3.1-2 2H20v-5.5l-2 2z"/></svg>';
   function greeting() { const h = new Date().getHours(); return h < 5 ? "Bonne nuit" : h < 12 ? "Bonjour" : h < 18 ? "Bon après-midi" : "Bonsoir"; }
@@ -830,7 +831,7 @@
   function syncPlayIcons() { document.querySelectorAll(".i-play").forEach(i => i.toggleAttribute("hidden", !audio.paused)); document.querySelectorAll(".i-pause").forEach(i => i.toggleAttribute("hidden", audio.paused)); document.querySelectorAll("#b-play, [data-act=play]").forEach(b => b.title = audio.paused ? "Lecture" : "Pause"); refreshCurrent(); }
   audio.addEventListener("play", syncPlayIcons); audio.addEventListener("pause", syncPlayIcons);
   audio.addEventListener("ended", () => next(true));
-  audio.addEventListener("error", () => { if (audio.src) { toast("Ce titre n'est pas disponible pour le moment, passage au suivant."); setTimeout(() => next(true), 900); } });
+  audio.addEventListener("error", () => { if (audio.src) { toast("Ce titre n'est pas encore écoutable (son non public chez Suno). Passage au suivant."); setTimeout(() => next(true), 900); } });
   if ("mediaSession" in navigator) {
     const ms = navigator.mediaSession;
     ms.setActionHandler("play", () => audio.play()); ms.setActionHandler("pause", () => audio.pause());
@@ -843,6 +844,25 @@
   function bindPublish() {
     document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { pubMode = b.dataset.mode; render(); });
     const msg = (text, kind = "") => { const el = $("form-msg"); el.textContent = text; el.className = "form-msg " + kind; };
+    // Vérifie que Suno sert vraiment le son avant d'autoriser la publication.
+    const probe = { id: null, state: null, wait: null };
+    function probeSuno(id) {
+      if (probe.id === id) return;
+      probe.id = id; probe.state = "pending";
+      const a = new Audio(); a.crossOrigin = "anonymous"; a.preload = "metadata"; a.muted = true;
+      probe.wait = new Promise(res => {
+        const done = st => { if (probe.id === id && probe.state === "pending") { probe.state = st; showProbe(); } a.removeAttribute("src"); res(); };
+        a.onloadedmetadata = () => done("ok"); a.onerror = () => done("fail");
+        setTimeout(() => done("fail"), 12000);
+      });
+      a.src = sunoAudio(id); showProbe();
+    }
+    function showProbe() {
+      if (pubMode !== "link") return;
+      if (probe.state === "pending") msg("Vérification du son chez Suno…");
+      else if (probe.state === "ok") msg("Son vérifié : ta chanson est prête à être publiée.", "ok");
+      else if (probe.state === "fail") msg("Suno ne rend pas encore ce son public. Sur Suno, rends la chanson publique (⋯ › Visibilité › Publique), attends quelques minutes puis recolle le lien. Sinon, choisis « Fichier MP3 » et envoie le fichier (Suno : ⋯ › Télécharger › MP3).", "err");
+    }
     const update = () => {
       const a = $("pv-audio"), img = $("pv-cover");
       if (pvUrl) { URL.revokeObjectURL(pvUrl); pvUrl = null; }
@@ -850,7 +870,7 @@
       $("pv-artist").textContent = $("f-artist").value.trim() || (pubMode === "link" ? "Colle ton lien pour voir ta pochette" : "Choisis ton fichier audio");
       if (pubMode === "link") {
         const p = parseSuno($("f-link").value);
-        if (p && p.id) { if (a.dataset.id !== p.id) { a.src = sunoAudio(p.id); a.dataset.id = p.id; } img.src = sunoCover(p.id); img.hidden = false; a.hidden = false; img.onerror = () => { img.src = `https://cdn2.suno.ai/image_${p.id}.jpeg`; img.onerror = null; }; msg(""); return; }
+        if (p && p.id) { probeSuno(p.id); if (a.dataset.id !== p.id) { a.src = sunoAudio(p.id); a.dataset.id = p.id; } img.src = sunoCover(p.id); img.hidden = false; a.hidden = false; img.onerror = () => { img.src = `https://cdn2.suno.ai/image_${p.id}.jpeg`; img.onerror = null; }; showProbe(); return; }
         if (p && p.short) msg("Ce lien court ne contient pas l'identifiant de la chanson. Ouvre-le dans ton navigateur, puis copie l'adresse complète (suno.com/song/…).", "err");
         img.hidden = true; a.hidden = true; a.removeAttribute("src"); delete a.dataset.id; return;
       }
@@ -876,6 +896,8 @@
         if (pubMode === "link") {
           const p = parseSuno($("f-link").value);
           if (!p || !p.id) { msg(p && p.short ? "Utilise l'adresse complète suno.com/song/…" : "Colle le lien de ta chanson Suno (suno.com/song/…).", "err"); return; }
+          probeSuno(p.id); if (probe.state === "pending") await probe.wait;
+          if (probe.state !== "ok") { showProbe(); return; }
           row = { title, artist, genre, source: "suno", suno_id: p.id, audio_url: sunoAudio(p.id), cover_url: sunoCover(p.id) };
           if (lyrics && S.hasV2) row.lyrics = lyrics;
         } else {
