@@ -482,3 +482,41 @@ code { background: rgba(255, 255, 255, .08); padding: 1px 5px; border-radius: 5p
 .pl-list li.off label { cursor: default; opacity: .6; }
 .pl-list li.off i { color: var(--danger); }
 .pl-note { margin-top: 10px; }
+
+/* ---------- 3.5 : installation et partage ---------- */
+.side-actions { display: grid; gap: 8px; margin-top: auto; }
+.side-actions .btn { justify-content: center; padding: 10px 14px; font-size: 14px; }
+.side-actions svg { width: 18px; height: 18px; }
+.side-actions + .side-note { margin-top: 0; }
+.mb-actions { display: flex; align-items: center; gap: 2px; }
+.mb-actions .ic { color: var(--fg); }
+.install-banner { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; margin-bottom: 18px; background: linear-gradient(135deg, rgba(242, 199, 102, .18), rgba(167, 123, 255, .16)); border: 1px solid rgba(242, 199, 102, .4); }
+.install-banner img { width: 44px; height: 44px; border-radius: 10px; flex: none; }
+.install-banner span { display: grid; flex: 1; min-width: 0; font-size: 13px; color: var(--muted); }
+.install-banner b { color: var(--fg); font-size: 15px; }
+.install-banner .btn { padding: 9px 14px; flex: none; }
+.install-banner .ic { width: 32px; height: 32px; flex: none; }
+.share-head { display: flex; align-items: center; gap: 12px; }
+.share-head img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex: none; }
+.share-head span { display: grid; min-width: 0; }
+.share-head i { font-style: normal; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.share-main { justify-content: center; }
+.share-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 8px; }
+.share-app { display: grid; justify-items: center; gap: 6px; border: 0; background: none; color: var(--fg); font-size: 12px; font-weight: 600; cursor: pointer; padding: 4px 0; }
+.share-app span { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: #2A2B38; }
+.share-app svg { width: 26px; height: 26px; }
+.share-app.wa span { background: #25D366; color: #fff; } .share-app.tg span { background: #229ED9; color: #fff; }
+.share-app.fb span { background: #1877F2; color: #fff; } .share-app.x span { background: #000; color: #fff; border: 1px solid #333; }
+.share-app.sms span { background: #34C759; color: #fff; } .share-app.mail span { background: #5B6CFF; color: #fff; }
+.qr-box { display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, .04); }
+.qr-box canvas { width: 120px; height: 120px; border-radius: 8px; flex: none; image-rendering: pixelated; }
+.qr-box span { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.qr-box b { color: var(--fg); font-size: 15px; }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 14px; }
+.steps.big { list-style: none; padding: 0; gap: 12px; }
+.steps.big li { display: flex; align-items: center; gap: 12px; font-size: 15px; }
+.steps .ico { width: 40px; height: 40px; border-radius: 10px; background: rgba(242, 199, 102, .15); color: var(--gold); display: grid; place-items: center; flex: none; }
+@media (max-width: 860px) { .mobile-brand .ver { display: none; } }
+.steps.big li > span:not(.ico) { flex: 1; min-width: 0; }
+.install-banner span { line-height: 1.35; }
+@media (max-width: 400px) { .install-banner span { font-size: 12px; } }

@@ -1,5 +1,5 @@
-/* Écrin 3.4.1 */
-  const VERSION = "3.4.1";
+/* Écrin 3.5.0 */
+  const VERSION = "3.5.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -180,10 +180,12 @@
   let toastTimer;
   function toast(msg) { const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, Math.max(2800, msg.length * 55)); }
   function shareUrl(t) { const u = new URL(location.href); u.search = "?t=" + t.id; u.hash = ""; return u.toString(); }
-  async function share(t) {
-    const url = shareUrl(t);
-    if (navigator.share) { try { await navigator.share({ title: t.title + " · " + t.artist + " | Écrin", url }); return; } catch (e) { if (e.name === "AbortError") return; } }
-    try { await navigator.clipboard.writeText(url); toast("Lien copié, il ne reste qu'à le coller"); } catch { toast(url); }
+  function share(t) {
+    openShare({ kind: "titre", title: `« ${t.title} » de ${t.artist}`, text: `🎧 Écoute « ${t.title} » de ${t.artist} sur Écrin`, url: shareUrl(t), cover: coverOf(t) });
+  }
+  const appUrl = () => { const u = new URL(location.href); u.search = ""; u.hash = ""; return u.toString(); };
+  function shareApp() {
+    openShare({ kind: "appli", title: "Écrin", text: "🎧 Découvre Écrin : la musique des talents en herbe, des artistes et des créateurs IA. Gratuit et sans pub. Chaque talent mérite d'être entendu.", url: appUrl(), cover: "icon-192.png" });
   }
   function shuffled(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
@@ -297,7 +299,7 @@
         </span></li>`;
     }).join("")}</ol>`;
   }
-  const mobileBrand = `<div class="mobile-brand"><a class="brand" href="#accueil"><img src="logo-64.png" alt=""><span class="word">ÉCRIN</span></a><span class="ver">v${VERSION}</span></div>`;
+  const mobileBrand = `<div class="mobile-brand"><a class="brand" href="#accueil"><img src="logo-64.png" alt=""><span class="word">ÉCRIN</span></a><span class="mb-actions"><button class="ic" type="button" data-install title="Installer l'appli" aria-label="Installer l'appli"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5zM19 9h-4V3H9v6H5l7 7z"/></svg></button><button class="ic" type="button" data-share-app title="Partager Écrin" aria-label="Partager Écrin"><svg viewBox="0 0 24 24"><path d="M18 16a3 3 0 0 0-2 .8L8.9 12.7a3 3 0 0 0 0-1.4L16 7.2A3 3 0 1 0 15 5l.1.7L8 9.8a3 3 0 1 0 0 4.4l7.1 4.2-.1.6a3 3 0 1 0 3-3"/></svg></button><span class="ver">v${VERSION}</span></span></div>`;
   const playIcon = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
   const shuffleIcon = '<svg viewBox="0 0 24 24"><path d="M10.6 9.2 5.4 4 4 5.4l5.2 5.2zM14.5 4l2 2L4 18.6 5.4 20 18 7.5l2 2V4zm.3 9.4-1.4 1.4 3.1 3.1-2 2H20v-5.5l-2 2z"/></svg>';
   function greeting() { const h = new Date().getHours(); return h < 5 ? "Bonne nuit" : h < 12 ? "Bonjour" : h < 18 ? "Bon après-midi" : "Bonsoir"; }
@@ -312,7 +314,8 @@
       const top = popular()[0];
       S.ctx.hero = [top];
       const recent = history.map(byId).filter(Boolean).slice(0, 12);
-      return mobileBrand + `${S.offlineMode ? '<div class="offline-banner">📴 Hors connexion : tu écoutes tes titres téléchargés.</div>' : ""}<h1 class="greet">${greeting()}</h1>
+      const showInstall = !isInstalled() && matchMedia("(max-width: 860px)").matches && !store.get("noInstallBanner", false);
+      return mobileBrand + `${S.offlineMode ? '<div class="offline-banner">📴 Hors connexion : tu écoutes tes titres téléchargés.</div>' : ""}${showInstall ? `<div class="install-banner"><img src="icon-192.png" alt=""><span><b>Installe Écrin</b>Sur ton écran d'accueil, comme une vraie appli, même hors connexion.</span><button class="btn btn-gold" type="button" data-install>Installer</button><button class="ic" type="button" data-hide-install aria-label="Masquer"><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>` : ""}<h1 class="greet">${greeting()}</h1>
         <section class="hero">
           <div class="hero-bg" style="background-image:url('${esc(coverOf(top))}')"></div>
           ${imgTag(top)}
@@ -491,6 +494,7 @@
     try { $("view").innerHTML = views[v](); }
     catch (err) { console.error(err); $("view").innerHTML = `<div class="empty"><strong>Un souci d'affichage est survenu.</strong><button class="btn btn-gold" type="button" onclick="location.reload()">Recharger</button></div>`; return; }
     document.querySelectorAll("[data-nav]").forEach(a => a.classList.toggle("is-on", a.dataset.nav === (v === "artiste" || v === "genre" ? "rechercher" : v === "playlist" ? "bibliotheque" : v)));
+    syncInstall();
     if (v === "publier") bindPublish();
     if (v === "artiste") loadStats(S.param);
     if (v === "rechercher") { const q = $("q"); q.oninput = e => { clearTimeout(qTimer); qTimer = setTimeout(() => { S.q = e.target.value; const pos = q.selectionStart; render(); const nq = $("q"); nq.focus(); nq.setSelectionRange(pos, pos); }, 250); }; }
@@ -551,6 +555,12 @@
   });
   $("view").addEventListener("keydown", e => {
     if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-ctx][tabindex], [data-artist][tabindex], [data-open-list][tabindex]")) { e.preventDefault(); e.target.click(); }
+  });
+
+  document.addEventListener("click", e => {
+    if (e.target.closest("[data-install]")) { e.preventDefault(); installApp(); }
+    else if (e.target.closest("[data-share-app]")) { e.preventDefault(); shareApp(); }
+    else if (e.target.closest("[data-hide-install]")) { store.set("noInstallBanner", true); const b = e.target.closest(".install-banner"); if (b) b.remove(); }
   });
 
   // ---------- coups de cœur ----------
@@ -816,9 +826,7 @@
   }
   function shareList(pl) {
     const u = new URL(location.href); u.search = "?p=" + pl.id; u.hash = "";
-    const url = u.toString();
-    if (navigator.share) { navigator.share({ title: pl.name + " | Écrin", url }).catch(() => {}); return; }
-    navigator.clipboard.writeText(url).then(() => toast("Lien de la playlist copié"), () => toast(url));
+    openShare({ kind: "playlist", title: `la playlist « ${pl.name} »`, text: `🎧 Écoute ma playlist « ${pl.name} » sur Écrin`, url: u.toString(), cover: "icon-192.png" });
   }
 
   // ---------- effets audio : égaliseur, halo, volume ----------
@@ -948,6 +956,36 @@
         ${FX.preset === "auto" ? `<p class="sheet-note">Innovation Écrin : le réglage s'adapte à chaque chanson. Pour ${t ? `« ${esc(t.title)} »${t.genre ? ` (${esc(t.genre)})` : ""}` : "ce titre"}, il applique <b>${autoName}</b>.</p>` : ""}
         <div class="eq-bands">${BANDS.map(([f, , n], i) => `<label class="band"><span class="db">${g[i] > 0 ? "+" : ""}${g[i]} dB</span><input type="range" min="-12" max="12" step="1" value="${g[i]}" data-band="${i}" aria-label="${n}" ${FX.enabled ? "" : "disabled"}><span class="hz">${f >= 1000 ? f / 1000 + " k" : f} Hz</span><small>${n}</small></label>`).join("")}</div>`;
     }
+    if (view === "share") {
+      const it = S.shareItem || { title: "Écrin", text: "", url: appUrl() };
+      $("sheet-title").textContent = it.kind === "appli" ? "Partager Écrin" : "Partager " + (it.kind === "dédicace" ? "la dédicace" : it.kind === "playlist" ? "la playlist" : "ce titre");
+      body.innerHTML = `<div class="share-head">${it.cover ? `<img src="${esc(it.cover)}" alt="">` : ""}<span><b>${esc(it.title)}</b><i>${esc(it.url.replace(/^https?:\/\//, ""))}</i></span></div>
+        ${navigator.share ? `<button class="btn btn-gold share-main" type="button" data-native-share><svg viewBox="0 0 24 24"><path d="M18 16a3 3 0 0 0-2 .8L8.9 12.7a3 3 0 0 0 0-1.4L16 7.2A3 3 0 1 0 15 5l.1.7L8 9.8a3 3 0 1 0 0 4.4l7.1 4.2-.1.6a3 3 0 1 0 3-3"/></svg> Partager avec mes applis…</button>` : ""}
+        <div class="share-grid">${shareLinks(it).map(([n, href, cls, path]) => `<a class="share-app ${cls}" href="${href}" target="_blank" rel="noopener"><span><svg viewBox="0 0 24 24">${path}</svg></span>${n}</a>`).join("")}
+          <button class="share-app copy" type="button" data-copy-link><span><svg viewBox="0 0 24 24"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2m0 16H8V7h11z"/></svg></span>Copier</button></div>
+        <p class="sheet-note">💡 <b>Plusieurs contacts d'un coup</b> : touche WhatsApp, puis coche plusieurs discussions ou groupes (jusqu'à 5 à la fois) avant d'envoyer. Tu peux aussi le publier dans ton <b>Statut</b> WhatsApp.</p>
+        <div class="qr-box"><canvas id="qr" aria-label="QR code du lien"></canvas><span><b>QR code</b>Montre-le à un ami : il le scanne avec l'appareil photo de son téléphone.</span></div>`;
+      drawQR($("qr"), it.url);
+    }
+    if (view === "install") {
+      $("sheet-title").textContent = "Installer Écrin";
+      const android = /Android/i.test(navigator.userAgent);
+      let steps;
+      if (isInstalled()) steps = `<p class="sheet-note">Écrin est déjà installé sur cet appareil. Retrouve-le sur ton écran d'accueil.</p>`;
+      else if (isInApp()) steps = `<p class="sheet-note">Tu as ouvert Écrin depuis une autre appli (WhatsApp, Instagram, Claude…). Pour l'installer, ouvre ce lien dans <b>${isIOSDev ? "Safari" : "Chrome"}</b> :</p>
+          <ol class="steps"><li>Touche <b>Copier le lien</b> ci-dessous.</li><li>Ouvre <b>${isIOSDev ? "Safari" : "Chrome"}</b> et colle le lien dans la barre d'adresse.</li><li>Rouvre ce panneau avec le bouton <b>Installer</b>.</li></ol>
+          <button class="btn btn-gold" type="button" data-copy-app>Copier le lien d'Écrin</button>`;
+      else if (isIOSDev) steps = `<ol class="steps big">
+            <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 2 7.5 6.5l1.4 1.4L11 5.8V16h2V5.8l2.1 2.1 1.4-1.4zM5 10v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V10h-2v10H7V10z"/></svg></span><span>Touche le bouton <b>Partager</b> de Safari (en bas de l'écran, ou en haut sur iPad).</span></li>
+            <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4z"/></svg></span><span>Fais défiler et choisis <b>Sur l'écran d'accueil</b>.</span></li>
+            <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></span><span>Touche <b>Ajouter</b> : l'icône Écrin apparaît sur ton écran d'accueil.</span></li></ol>
+          <p class="sheet-note">Apple n'autorise pas les sites à s'installer en un seul bouton : ces 3 gestes sont nécessaires. Une fois installé, Écrin s'ouvre en plein écran et garde tes titres téléchargés.</p>`;
+      else if (android) steps = `<ol class="steps big"><li><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4m0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4m0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4"/></svg></span><span>Dans Chrome, touche le menu <b>⋮</b> en haut à droite.</span></li>
+            <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5zM19 9h-4V3H9v6H5l7 7z"/></svg></span><span>Choisis <b>Installer l'application</b> (ou <b>Ajouter à l'écran d'accueil</b>).</span></li>
+            <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></span><span>Confirme : Écrin apparaît avec tes applis.</span></li></ol>`;
+      else steps = `<p class="sheet-note">Sur ordinateur, avec Chrome ou Edge : clique sur l'icône d'installation (un écran avec une flèche) à droite de la barre d'adresse, puis sur <b>Installer</b>.</p>`;
+      body.innerHTML = `<div class="share-head"><img src="icon-192.png" alt=""><span><b>Écrin</b><i>Gratuit · sans pub · fonctionne hors connexion</i></span></div>${steps}`;
+    }
     if (view === "lyredit") {
       const d = S.editTrack || current();
       $("sheet-title").textContent = "Paroles et synchro";
@@ -986,6 +1024,9 @@
     const rt = e.target.closest("[data-rate]"); if (rt) { audio.playbackRate = +rt.dataset.rate; S.rate = audio.playbackRate; renderSheet(); return; }
     if (e.target.closest("[data-sleepmenu]")) { $("b-sleep").click(); return; }
     if (e.target.closest("[data-send-dedic]")) { sendDedic(); return; }
+    if (e.target.closest("[data-native-share]")) { const it = S.shareItem; navigator.share({ title: "Écrin", text: it.text, url: it.url }).catch(() => {}); return; }
+    if (e.target.closest("[data-copy-link]")) { const it = S.shareItem; navigator.clipboard.writeText(it.text + "\n" + it.url).then(() => toast("Lien copié : colle-le où tu veux"), () => toast(it.url)); return; }
+    if (e.target.closest("[data-copy-app]")) { navigator.clipboard.writeText(appUrl()).then(() => toast("Lien copié : colle-le dans " + (isIOSDev ? "Safari" : "Chrome")), () => toast(appUrl())); return; }
     if (e.target.closest("[data-save-lyr]")) {
       const d = S.editTrack || current(); if (!d) return;
       const txt = $("le-text").value.trim();
@@ -1069,6 +1110,48 @@
   addEventListener("online", () => { if (S.offlineMode) { toast("Connexion retrouvée"); load(); } });
   addEventListener("offline", () => toast("Hors connexion : tes titres téléchargés restent écoutables"));
 
+  // ---------- partage : feuille du téléphone, applis, QR code ----------
+  const isIOSDev = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+  function openShare(item) { S.shareItem = item; openSheet("share"); }
+  function shareLinks(it) {
+    const t = encodeURIComponent(it.text), u = encodeURIComponent(it.url), tu = encodeURIComponent(it.text + "\n" + it.url);
+    return [
+      ["WhatsApp", `https://wa.me/?text=${tu}`, "wa", '<path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2m5.4 14.1c-.2.6-1.3 1.2-1.8 1.3-.5 0-1 .2-3.3-.7-2.8-1.1-4.5-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2.1 1-2.4c.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .6l-.4.6-.4.4c-.1.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.2.5.1.6 0l.9-1c.2-.3.4-.2.6-.1l1.9.9c.3.1.5.2.5.3.1.1.1.7-.1 1.3"/>'],
+      ["Telegram", `https://t.me/share/url?url=${u}&text=${t}`, "tg", '<path d="M21.9 4.4 18.8 19c-.2 1-.8 1.3-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.8 8.8-7.9c.4-.3-.1-.5-.6-.2L6.8 13l-4.7-1.5c-1-.3-1-1 .2-1.5L20.6 3c.9-.3 1.6.2 1.3 1.4"/>'],
+      ["Facebook", `https://www.facebook.com/sharer/sharer.php?u=${u}`, "fb", '<path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.2c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.3v7A10 10 0 0 0 22 12"/>'],
+      ["SMS", `sms:${isIOSDev ? "&" : "?"}body=${tu}`, "sms", '<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2M8 11H6V9h2zm5 0h-2V9h2zm5 0h-2V9h2z"/>'],
+      ["E-mail", `mailto:?subject=${encodeURIComponent("Écrin : " + it.title)}&body=${tu}`, "mail", '<path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2m0 4-8 5-8-5V6l8 5 8-5z"/>'],
+      ["X", `https://twitter.com/intent/tweet?text=${t}&url=${u}`, "x", '<path d="M17.8 3h3.1l-6.8 7.7L22 21h-6.2l-4.9-6.4L5.3 21H2.2l7.2-8.3L1.8 3h6.4l4.4 5.8zm-1.1 16.2h1.7L7.4 4.7H5.6z"/>'],
+    ];
+  }
+  let qrLoaded = null;
+  function drawQR(canvas, text) {
+    const go = () => {
+      try {
+        const q = qrcode(0, "M"); q.addData(text); q.make();
+        const n = q.getModuleCount(), cell = Math.floor(220 / (n + 8)), size = cell * (n + 8), x = canvas.getContext("2d");
+        canvas.width = canvas.height = size; x.fillStyle = "#fff"; x.fillRect(0, 0, size, size); x.fillStyle = "#070B1C";
+        for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) x.fillRect((c + 4) * cell, (r + 4) * cell, cell, cell);
+      } catch { canvas.hidden = true; }
+    };
+    if (window.qrcode) return go();
+    qrLoaded = qrLoaded || loadScript("vendor/qrcode.js");
+    qrLoaded.then(go, () => { canvas.hidden = true; });
+  }
+
+  // ---------- installation de l'appli ----------
+  let installEvt = null;
+  addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; syncInstall(); });
+  addEventListener("appinstalled", () => { installEvt = null; toast("Écrin est installé sur ton appareil 🎉"); syncInstall(); });
+  const isInstalled = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const isInApp = () => /FBAN|FBAV|Instagram|WhatsApp|Snapchat|Line\/|TikTok|; wv\)/i.test(navigator.userAgent) || (isIOSDev && !/Safari\//.test(navigator.userAgent) && !isInstalled());
+  function syncInstall() { document.querySelectorAll("[data-install]").forEach(b => b.hidden = isInstalled()); }
+  async function installApp() {
+    if (isInstalled()) { toast("Écrin est déjà installé sur cet appareil"); return; }
+    if (installEvt) { installEvt.prompt(); const r = await installEvt.userChoice.catch(() => null); if (r && r.outcome === "accepted") installEvt = null; return; }
+    openSheet("install");
+  }
+
   // ---------- dédicaces (tout tient dans le lien : rien n'est stocké) ----------
   const b64 = { enc: o => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
     dec: s => { try { return JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, "+").replace(/_/g, "/"))))); } catch { return null; } } };
@@ -1079,9 +1162,7 @@
     store.set("myname", f);
     const u = new URL(location.href); u.search = "?t=" + d.id + "&d=" + b64.enc({ f, to, m }); u.hash = "";
     const url = u.toString(), text = `🎁 ${f} te dédicace « ${d.title} » de ${d.artist} sur Écrin`;
-    closeSheet();
-    if (navigator.share) { navigator.share({ title: text, text, url }).catch(() => {}); return; }
-    navigator.clipboard.writeText(text + " : " + url).then(() => toast("Dédicace copiée : colle-la dans WhatsApp ou ailleurs"), () => toast(url));
+    openShare({ kind: "dédicace", title: `ta dédicace pour ${to}`, text, url, cover: coverOf(d) });
   }
   function showDedic(d) {
     const c = $("np-dedic"); if (!d || !d.f) { c.hidden = true; return; }

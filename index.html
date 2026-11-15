@@ -12,10 +12,14 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="logo-64.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Écrin">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=3.4.1">
+<link rel="stylesheet" href="style.css?v=3.5.0">
 </head>
 <body>
 <div class="shell">
@@ -30,9 +34,13 @@
       <a href="#bibliotheque" data-nav="bibliotheque"><svg viewBox="0 0 24 24"><path d="M4 4h2v16H4zm4 0h2v16H8zm4.2.6 1.9-.6 5.4 15.2-1.9.7z"/></svg><span>Bibliothèque</span></a>
       <a href="#publier" data-nav="publier" class="nav-cta"><svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg><span>Publier</span></a>
     </nav>
+    <div class="side-actions">
+      <button class="btn btn-gold" type="button" data-install><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5zM19 9h-4V3H9v6H5l7 7z"/></svg>Installer l'appli</button>
+      <button class="btn" type="button" data-share-app><svg viewBox="0 0 24 24"><path d="M18 16a3 3 0 0 0-2 .8L8.9 12.7a3 3 0 0 0 0-1.4L16 7.2A3 3 0 1 0 15 5l.1.7L8 9.8a3 3 0 1 0 0 4.4l7.1 4.2-.1.6a3 3 0 1 0 3-3"/></svg>Partager Écrin</button>
+    </div>
     <div class="side-note">
       <strong>Gratuit. Sans pub.</strong>
-      <span class="ver">Version 3.4.1</span>
+      <span class="ver">Version 3.5.0</span>
       <span>Ouvert à tous : talents en herbe, artistes confirmés et créateurs IA. Ici, chacun a sa chance d'être écouté.</span>
     </div>
   </aside>
@@ -163,8 +171,8 @@
     if (v && !v.children.length) v.innerHTML = '<div class="empty"><strong>Écrin n\'a pas pu démarrer.</strong><span>Une ancienne version est peut-être restée en mémoire.</span><button class="btn btn-gold" type="button" onclick="location.reload()">Recharger</button></div>';
   }, 50); });
 </script>
-<script src="config.js?v=3.4.1"></script>
+<script src="config.js?v=3.5.0"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="app.js?v=3.4.1"></script>
+<script src="app.js?v=3.5.0"></script>
 </body>
 </html>
