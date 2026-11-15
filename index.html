@@ -19,17 +19,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=4.0.0">
+<link rel="stylesheet" href="style.css?v=4.1.0">
 </head>
 <body>
-<div id="intro" class="intro" hidden><div class="intro-stage"><img src="brand/banniere-doze.jpg" alt="DOZE"><span class="intro-shine"></span></div><p>Chaque talent mérite d'être entendu</p></div>
+<div id="intro" class="intro" hidden><div class="intro-stage"><img src="brand/logo-doze.webp" alt="DOZE"></div><p>Chaque talent mérite d'être entendu</p></div>
 <canvas id="bg3d" class="bg3d" aria-hidden="true"></canvas>
 <div class="shell">
   <aside class="side" aria-label="Navigation">
-    <a class="brand" href="#accueil" aria-label="DOZE, accueil">
-      <img src="logo-64.png" alt="" width="40" height="40">
-      <span class="word">DOZE</span>
-    </a>
+    <a class="brand" href="#accueil" aria-label="DOZE, accueil"><img class="brand-logo" src="brand/logo-doze.webp" alt="DOZE" width="200" height="102"></a>
     <nav class="nav">
       <a href="#accueil" data-nav="accueil"><svg viewBox="0 0 24 24"><path d="M12 3 3 10v11h6v-6h6v6h6V10z"/></svg><span>Accueil</span></a>
       <a href="#rechercher" data-nav="rechercher"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.8l-.3-.3A6.5 6.5 0 1 0 9.5 16a6.5 6.5 0 0 0 4.2-1.6l.3.3v.8l5 5 1.5-1.5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9"/></svg><span>Rechercher</span></a>
@@ -42,7 +39,7 @@
     </div>
     <div class="side-note">
       <strong>Gratuit. Sans pub.</strong>
-      <span class="ver">Version 4.0.0</span>
+      <span class="ver">Version 4.1.0</span>
       <span>Ouvert à tous : talents en herbe, artistes confirmés et créateurs IA. Ici, chacun a sa chance d'être écouté.</span>
     </div>
   </aside>
@@ -173,8 +170,8 @@
     if (v && !v.children.length) v.innerHTML = '<div class="empty"><strong>DOZE n\'a pas pu démarrer.</strong><span>Une ancienne version est peut-être restée en mémoire.</span><button class="btn btn-gold" type="button" onclick="location.reload()">Recharger</button></div>';
   }, 50); });
 </script>
-<script src="config.js?v=4.0.0"></script>
+<script src="config.js?v=4.1.0"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="app.js?v=4.0.0"></script>
+<script src="app.js?v=4.1.0"></script>
 </body>
 </html>

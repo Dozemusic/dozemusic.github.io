@@ -1,5 +1,5 @@
-/* DOZE 4.0.0 */
-  const VERSION = "4.0.0";
+/* DOZE 4.1.0 */
+  const VERSION = "4.1.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -299,7 +299,7 @@
         </span></li>`;
     }).join("")}</ol>`;
   }
-  const mobileBrand = `<div class="mobile-brand"><a class="brand" href="#accueil"><img src="logo-64.png" alt=""><span class="word">DOZE</span></a><span class="mb-actions"><button class="ic" type="button" data-install title="Installer l'appli" aria-label="Installer l'appli"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5zM19 9h-4V3H9v6H5l7 7z"/></svg></button><button class="ic" type="button" data-share-app title="Partager DOZE" aria-label="Partager DOZE"><svg viewBox="0 0 24 24"><path d="M18 16a3 3 0 0 0-2 .8L8.9 12.7a3 3 0 0 0 0-1.4L16 7.2A3 3 0 1 0 15 5l.1.7L8 9.8a3 3 0 1 0 0 4.4l7.1 4.2-.1.6a3 3 0 1 0 3-3"/></svg></button><span class="ver">v${VERSION}</span></span></div>`;
+  const mobileBrand = `<div class="mobile-brand"><a class="brand" href="#accueil"><img class="brand-logo" src="brand/logo-doze.webp" alt="DOZE"></a><span class="mb-actions"><button class="ic" type="button" data-install title="Installer l'appli" aria-label="Installer l'appli"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5zM19 9h-4V3H9v6H5l7 7z"/></svg></button><button class="ic" type="button" data-share-app title="Partager DOZE" aria-label="Partager DOZE"><svg viewBox="0 0 24 24"><path d="M18 16a3 3 0 0 0-2 .8L8.9 12.7a3 3 0 0 0 0-1.4L16 7.2A3 3 0 1 0 15 5l.1.7L8 9.8a3 3 0 1 0 0 4.4l7.1 4.2-.1.6a3 3 0 1 0 3-3"/></svg></button><span class="ver">v${VERSION}</span></span></div>`;
   const playIcon = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
   const shuffleIcon = '<svg viewBox="0 0 24 24"><path d="M10.6 9.2 5.4 4 4 5.4l5.2 5.2zM14.5 4l2 2L4 18.6 5.4 20 18 7.5l2 2V4zm.3 9.4-1.4 1.4 3.1 3.1-2 2H20v-5.5l-2 2z"/></svg>';
   function greeting() { const h = new Date().getHours(); return h < 5 ? "Bonne nuit" : h < 12 ? "Bonjour" : h < 18 ? "Bon après-midi" : "Bonsoir"; }

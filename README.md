@@ -2,7 +2,7 @@
 
 La musique des créateurs Suno, gratuite pour tout le monde. Les artistes publient leurs chansons (lien Suno ou fichier MP3) et tout le monde peut les écouter en boucle ou en aléatoire.
 
-Version 4.0.0
+Version 4.1.0
 
 ## Fonctions
 - **Accueil** façon plateforme de streaming : titre à la une, rayons « Écoutés récemment », « Nouveautés », « Pépites à découvrir » (titres peu écoutés mis en avant à tour de rôle), « Les plus écoutées », artistes et genres.
@@ -45,7 +45,7 @@ Dans Supabase › **Table Editor** › `tracks` :
 
 ## Identité
 - **Nom** : DOZE. **Slogan** : « Chaque talent mérite d'être entendu ».
-- **Logo** : l'enseigne DOZE (casque en cuivre formant le « O », ondes cuivrées), `brand/banniere-doze.jpg` ; icônes recadrées dans `icon-*.png`.
+- **Logo** : DOZE sculpté (lettres bleu nuit et cuivre, casque formant le « O », ondes cuivrées) sur fond transparent : `brand/logo-doze.webp` / `.png` ; icônes `icon-*.png`, bannière de partage `brand/banniere-doze.jpg`.
 - **Couleurs** : noir bleuté, bleu nuit, cuivre et ivoire, reprises du logo.
 - **Typographies** : Montserrat (titres), Inter (texte).
 
