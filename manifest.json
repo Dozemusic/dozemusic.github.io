@@ -1,7 +1,7 @@
 {
-  "name": "ÉCRIN.AI",
+  "name": "Écrin",
   "short_name": "Écrin",
-  "description": "L’IA compose, vos oreilles savourent. La musique des créateurs IA, gratuite pour tout le monde.",
+  "description": "Chaque talent mérite d'être entendu. La plateforme gratuite des artistes en herbe, confirmés et créateurs IA.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

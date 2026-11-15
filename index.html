@@ -4,25 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Écrin</title>
-<meta name="description" content="Écrin : l'IA compose, vos oreilles savourent. La musique des créateurs IA, gratuite et sans pub pour tout le monde.">
+<meta name="description" content="Écrin : chaque talent mérite d'être entendu. La plateforme gratuite et sans pub des artistes en herbe, confirmés et créateurs IA.">
 <meta name="theme-color" content="#070B1C">
-<meta property="og:title" content="ÉCRIN.AI">
-<meta property="og:description" content="L'IA compose, vos oreilles savourent.">
-<meta property="og:image" content="brand/banniere-ecrin-ai.png">
+<meta property="og:title" content="Écrin">
+<meta property="og:description" content="Chaque talent mérite d'être entendu.">
+<meta property="og:image" content="brand/banniere-ecrin.png">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="logo-64.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=2.3.1">
+<link rel="stylesheet" href="style.css?v=3.0.0">
 </head>
 <body>
 <div class="shell">
   <aside class="side" aria-label="Navigation">
     <a class="brand" href="#accueil" aria-label="Écrin, accueil">
       <img src="logo-64.png" alt="" width="40" height="40">
-      <span class="word">ÉCRIN<em>.AI</em></span>
+      <span class="word">ÉCRIN</span>
     </a>
     <nav class="nav">
       <a href="#accueil" data-nav="accueil"><svg viewBox="0 0 24 24"><path d="M12 3 3 10v11h6v-6h6v6h6V10z"/></svg><span>Accueil</span></a>
@@ -32,8 +32,8 @@
     </nav>
     <div class="side-note">
       <strong>Gratuit. Sans pub.</strong>
-      <span class="ver">Version 2.3.1</span>
-      <span>Des créations 100 % IA, signalées comme telles. Ici, tout le monde a sa chance d'être écouté.</span>
+      <span class="ver">Version 3.0.0</span>
+      <span>Ouvert à tous : talents en herbe, artistes confirmés et créateurs IA. Ici, chacun a sa chance d'être écouté.</span>
     </div>
   </aside>
 
@@ -49,7 +49,7 @@
   <div class="p-inner">
     <button class="p-track" id="p-open" type="button" aria-label="Ouvrir le lecteur en plein écran">
       <img id="p-cover" alt="" hidden>
-      <span class="p-meta"><strong id="p-title">Choisis une chanson</strong><span id="p-artist">ÉCRIN.AI</span></span>
+      <span class="p-meta"><strong id="p-title">Choisis une chanson</strong><span id="p-artist">Écrin</span></span>
     </button>
     <button id="b-like" class="ic like" type="button" aria-pressed="false" title="Ajouter à mes coups de cœur" disabled>
       <svg viewBox="0 0 24 24"><path d="M12 21 10.6 19.7C5.4 15 2 11.9 2 8.1 2 5 4.4 2.6 7.5 2.6c1.7 0 3.4.8 4.5 2.1a6 6 0 0 1 4.5-2.1C19.6 2.6 22 5 22 8.1c0 3.8-3.4 6.9-8.6 11.6z"/></svg>
@@ -92,12 +92,16 @@
   <div class="np-inner">
     <header class="np-top">
       <button id="np-close" class="ic" type="button" aria-label="Réduire le lecteur"><svg viewBox="0 0 24 24"><path d="m7.4 8.6 4.6 4.6 4.6-4.6L18 10l-6 6-6-6z"/></svg></button>
-      <span class="np-label"><small id="np-ctx-type">Lecture en cours</small><strong id="np-ctx-name">ÉCRIN.AI</strong></span>
+      <span class="np-label"><small id="np-ctx-type">Lecture en cours</small><strong id="np-ctx-name">Écrin</strong></span>
       <button id="np-more" class="ic" type="button" aria-label="Plus d'options"><svg viewBox="0 0 24 24"><path d="M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4m6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4m6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4"/></svg></button>
     </header>
     <div class="np-body">
-      <div class="np-art"><canvas id="halo" aria-hidden="true"></canvas><img id="np-cover" alt=""></div>
+      <div class="np-art"><canvas id="halo" aria-hidden="true"></canvas><img id="np-cover" alt="">
+        <div id="lyr" class="lyr" hidden><div id="lyr-lines" class="lyr-lines"></div><span id="lyr-note" class="lyr-note"></span></div>
+        <button id="lyr-pill" class="lyr-pill" type="button" aria-pressed="true" hidden><svg viewBox="0 0 24 24"><path d="M3 5h18v2H3zm0 4h12v2H3zm0 4h18v2H3zm0 4h12v2H3z"/></svg>Paroles</button>
+      </div>
       <div class="np-side">
+        <div id="np-dedic" class="dedic" hidden></div>
         <div class="np-meta">
           <div>
             <h2 id="np-title">—</h2>
@@ -133,6 +137,7 @@
   </div>
 </section>
 
+<div id="ext-host" class="ext-host docked" hidden></div>
 <div id="sheet-wrap" class="sheet-wrap" hidden>
   <div class="sheet-backdrop" data-close-sheet></div>
   <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
@@ -150,8 +155,8 @@
     if (v && !v.children.length) v.innerHTML = '<div class="empty"><strong>Écrin n\'a pas pu démarrer.</strong><span>Une ancienne version est peut-être restée en mémoire.</span><button class="btn btn-gold" type="button" onclick="location.reload()">Recharger</button></div>';
   }, 50); });
 </script>
-<script src="config.js?v=2.3.1"></script>
+<script src="config.js?v=3.0.0"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="app.js?v=2.3.1"></script>
+<script src="app.js?v=3.0.0"></script>
 </body>
 </html>

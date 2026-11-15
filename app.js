@@ -1,5 +1,5 @@
-/* Écrin 2.3.1 */
-  const VERSION = "2.3.1";
+/* Écrin 3.0.0 */
+  const VERSION = "3.0.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -38,7 +38,97 @@
     counted: false,
     sleepAt: 0, sleepEnd: false
   };
-  const audio = $("audio");
+  // Un seul lecteur pour toutes les sources : fichier ou Suno (élément <audio>), SoundCloud et YouTube
+  // (leurs lecteurs officiels, affichés à l'écran comme l'exigent leurs conditions).
+  const media = $("audio");
+  const EXT_SC = /^https:\/\/soundcloud\.com\//, EXT_YT = /^https:\/\/www\.youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})/;
+  const corsOk = u => /^https:\/\/(cdn\d?\.suno\.ai|[a-z0-9]+\.supabase\.co)\//.test(u);
+  const loadScript = src => new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = src; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+  let scApi, ytApi;
+  const scReady = () => scApi || (scApi = loadScript("https://w.soundcloud.com/player/api.js"));
+  const ytReady = () => ytApi || (ytApi = new Promise((res, rej) => { if (window.YT && YT.Player) return res(); window.onYouTubeIframeAPIReady = res; loadScript("https://www.youtube.com/iframe_api").catch(rej); }));
+  class Player extends EventTarget {
+    constructor(el) { super(); this.el = el; this.ext = null; for (const ev of ["play", "pause", "timeupdate", "ended", "loadedmetadata", "error"]) el.addEventListener(ev, () => { if (!this.ext) this.emit(ev); }); }
+    emit(ev) { this.dispatchEvent(new Event(ev)); }
+    get paused() { return this.ext ? this.ext.paused : this.el.paused; }
+    get currentTime() { return this.ext ? this.ext.time : this.el.currentTime; }
+    set currentTime(v) { if (this.ext) this.ext.seek(v); else this.el.currentTime = v; }
+    get duration() { return this.ext ? this.ext.dur : this.el.duration; }
+    get error() { return this.ext ? this.ext.err : this.el.error; }
+    get src() { return this.ext ? this.ext.url : (this.el.getAttribute("src") || ""); }
+    set src(u) { this.load(u); }
+    get loop() { return this.el.loop; } set loop(v) { this.el.loop = v; }
+    get volume() { return this.el.volume; } set volume(v) { this.el.volume = v; if (this.ext) this.ext.setVolume(v); }
+    get playbackRate() { return this.el.playbackRate; } set playbackRate(v) { this.el.playbackRate = v; }
+    get webkitShowPlaybackTargetPicker() { return this.ext || !this.el.webkitShowPlaybackTargetPicker ? undefined : this.el.webkitShowPlaybackTargetPicker.bind(this.el); }
+    get remote() { return this.ext ? undefined : this.el.remote; }
+    get isExternal() { return !!this.ext; }
+    play() { if (this.ext) { this.ext.play(); return Promise.resolve(); } return this.el.play(); }
+    pause() { if (this.ext) this.ext.pause(); else this.el.pause(); }
+    removeAttribute(a) { if (a === "src") { this.dropExt(); this.el.removeAttribute("src"); this.el.load(); } }
+    dropExt() { if (this.ext) { this.ext.destroy(); this.ext = null; } }
+    load(u) {
+      this.dropExt();
+      if (EXT_SC.test(u) || EXT_YT.test(u)) { this.el.pause(); this.el.removeAttribute("src"); this.el.load(); this.ext = (EXT_SC.test(u) ? makeSC : makeYT)(u, this); return; }
+      if (corsOk(u)) this.el.crossOrigin = "anonymous"; else this.el.removeAttribute("crossorigin");
+      this.el.src = u;
+    }
+  }
+  function extHost() { const h = $("ext-host"); h.innerHTML = ""; h.hidden = false; placeExt(); return h; }
+  function makeSC(url, P) {
+    const host = extHost(), ifr = document.createElement("iframe");
+    ifr.allow = "autoplay; encrypted-media"; ifr.title = "Lecteur SoundCloud";
+    ifr.src = `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&auto_play=false&visual=true&show_comments=false&hide_related=true&show_teaser=false&show_reposts=false`;
+    host.appendChild(ifr); host.dataset.kind = "sc";
+    const x = { url, paused: true, time: 0, dur: NaN, err: null, w: null, pending: false,
+      play() { x.pending = true; if (x.w) x.w.play(); }, pause() { x.pending = false; if (x.w) x.w.pause(); },
+      seek(sec) { if (x.w) x.w.seekTo(sec * 1000); }, setVolume(v) { if (x.w) x.w.setVolume(Math.round(v * 100)); },
+      destroy() { x.dead = true; host.innerHTML = ""; host.hidden = true; } };
+    scReady().then(() => {
+      if (x.dead) return;
+      const w = SC.Widget(ifr), E = SC.Widget.Events; x.w = w;
+      w.bind(E.READY, () => { w.getDuration(d => { x.dur = d / 1000; P.emit("loadedmetadata"); }); w.setVolume(Math.round(P.volume * 100)); if (x.pending) w.play(); });
+      w.bind(E.PLAY, () => { x.paused = false; P.emit("play"); });
+      w.bind(E.PAUSE, () => { x.paused = true; P.emit("pause"); });
+      w.bind(E.FINISH, () => { x.paused = true; P.emit("pause"); P.emit("ended"); });
+      w.bind(E.PLAY_PROGRESS, e => { x.time = e.currentPosition / 1000; P.emit("timeupdate"); });
+      w.bind(E.ERROR, () => { x.err = { code: 4 }; P.emit("error"); });
+    }).catch(() => { x.err = { code: 4 }; P.emit("error"); });
+    return x;
+  }
+  function makeYT(url, P) {
+    const id = EXT_YT.exec(url)[1], host = extHost(), div = document.createElement("div");
+    host.appendChild(div); host.dataset.kind = "yt";
+    const x = { url, paused: true, time: 0, dur: NaN, err: null, p: null, pending: false, timer: 0,
+      play() { x.pending = true; if (x.p && x.p.playVideo) x.p.playVideo(); }, pause() { x.pending = false; if (x.p && x.p.pauseVideo) x.p.pauseVideo(); },
+      seek(sec) { if (x.p && x.p.seekTo) x.p.seekTo(sec, true); }, setVolume(v) { if (x.p && x.p.setVolume) x.p.setVolume(Math.round(v * 100)); },
+      destroy() { x.dead = true; clearInterval(x.timer); try { if (x.p) x.p.destroy(); } catch {} host.innerHTML = ""; host.hidden = true; } };
+    ytReady().then(() => {
+      if (x.dead) return;
+      x.p = new YT.Player(div, { videoId: id, width: "100%", height: "100%", playerVars: { playsinline: 1, rel: 0, modestbranding: 1 }, events: {
+        onReady: () => { x.dur = x.p.getDuration() || NaN; P.emit("loadedmetadata"); x.p.setVolume(Math.round(P.volume * 100)); if (x.pending) x.p.playVideo(); },
+        onStateChange: e => {
+          if (e.data === 1) { x.paused = false; if (!(x.dur > 0)) { x.dur = x.p.getDuration(); P.emit("loadedmetadata"); } P.emit("play"); }
+          else if (e.data === 2) { x.paused = true; P.emit("pause"); }
+          else if (e.data === 0) { x.paused = true; P.emit("pause"); P.emit("ended"); }
+        },
+        onError: () => { x.err = { code: 4 }; P.emit("error"); } } });
+      x.timer = setInterval(() => { if (x.p && x.p.getCurrentTime && !x.paused) { x.time = x.p.getCurrentTime(); P.emit("timeupdate"); } }, 250);
+    }).catch(() => { x.err = { code: 4 }; P.emit("error"); });
+    return x;
+  }
+  // Le lecteur SoundCloud / YouTube se place sur la pochette en plein écran, sinon dans une petite fenêtre.
+  function placeExt() {
+    const h = $("ext-host"); if (!h || h.hidden) return;
+    const npOpen = !$("np").hidden;
+    if (npOpen) {
+      const r = document.querySelector(".np-art").getBoundingClientRect();
+      Object.assign(h.style, { left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px" });
+      h.classList.remove("docked");
+    } else { h.removeAttribute("style"); h.classList.add("docked"); }
+  }
+  addEventListener("resize", placeExt);
+  const audio = new Player(media);
   audio.volume = store.get("vol", 1);
   $("vol").value = audio.volume;
 
@@ -72,7 +162,7 @@
   function shareUrl(t) { const u = new URL(location.href); u.search = "?t=" + t.id; u.hash = ""; return u.toString(); }
   async function share(t) {
     const url = shareUrl(t);
-    if (navigator.share) { try { await navigator.share({ title: t.title + " · " + t.artist + " | ÉCRIN.AI", url }); return; } catch (e) { if (e.name === "AbortError") return; } }
+    if (navigator.share) { try { await navigator.share({ title: t.title + " · " + t.artist + " | Écrin", url }); return; } catch (e) { if (e.name === "AbortError") return; } }
     try { await navigator.clipboard.writeText(url); toast("Lien copié, il ne reste qu'à le coller"); } catch { toast(url); }
   }
   function shuffled(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
@@ -104,8 +194,10 @@
   async function load() {
     if (!sb) { S.loaded = true; render(); return; }
     const cols = "id,title,artist,genre,source,suno_id,audio_url,cover_url,plays,likes,created_at";
-    let { data, error } = await sb.from("tracks").select(cols).order("created_at", { ascending: false }).limit(1000);
-    S.hasV2 = !error;
+    let { data, error } = await sb.from("tracks").select(cols + ",ai,made_with").order("created_at", { ascending: false }).limit(1000);
+    S.hasV3 = !error;
+    if (error) ({ data, error } = await sb.from("tracks").select(cols).order("created_at", { ascending: false }).limit(1000));
+    S.hasV2 = S.hasV3 || !error;
     if (error) ({ data, error } = await sb.from("tracks").select("*").order("created_at", { ascending: false }).limit(1000));
     S.loaded = true;
     if (error) { S.error = true; render(); return; }
@@ -144,7 +236,7 @@
   function card(t, ctx, i) {
     const cur = current();
     return `<div class="card${cur && cur.id === t.id ? " is-current" : ""}" data-ctx="${ctx}" data-i="${i}" role="button" tabindex="0" aria-label="Écouter ${esc(t.title)} de ${esc(t.artist)}">
-      <div class="art">${imgTag(t)}<span class="ai-tag">IA</span>
+      <div class="art">${imgTag(t)}${t.ai ? '<span class="ai-tag">IA</span>' : ""}
         <button class="fab" type="button" tabindex="-1" aria-hidden="true">${cur && cur.id === t.id && !audio.paused ? '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'}</button></div>
       <strong>${esc(t.title)}</strong><span class="sub">${esc(t.artist)}</span></div>`;
   }
@@ -156,7 +248,7 @@
   }
   function artistShelf(list) {
     if (!list.length) return "";
-    return `<section><div class="sec-head"><div><h2>Artistes</h2><p>Les créateurs IA d'Écrin</p></div></div>
+    return `<section><div class="sec-head"><div><h2>Artistes</h2><p>Les talents d'Écrin, connus ou en herbe</p></div></div>
       <div class="shelf">${list.slice(0, 20).map(a => `<div class="card artist" data-artist="${esc(a.name)}" role="button" tabindex="0">
         <div class="art">${imgTag(a.tracks[0])}</div><strong>${esc(a.name)}</strong><span class="sub">${plural(a.tracks.length, "titre")}</span></div>`).join("")}</div></section>`;
   }
@@ -169,7 +261,7 @@
       return `<li class="row-t${playing ? " is-current" : ""}" data-ctx="${ctx}" data-i="${i}" tabindex="0">
         <span class="t-num">${playing ? `<span class="eq${audio.paused ? " paused" : ""}"><i></i><i></i><i></i></span>` : i + 1}</span>
         ${imgTag(t, "t-cover")}
-        <span class="t-text"><span class="t-title">${esc(t.title)}</span><span class="t-sub">${opts.noArtist ? (t.genre ? esc(t.genre) : "Création IA") : `<button type="button" data-artist="${esc(t.artist)}">${esc(t.artist)}</button>`}</span></span>
+        <span class="t-text"><span class="t-title">${esc(t.title)}</span><span class="t-sub">${opts.noArtist ? (t.genre ? esc(t.genre) : "Single") : `<button type="button" data-artist="${esc(t.artist)}">${esc(t.artist)}</button>`}</span></span>
         <span class="t-genre">${t.genre ? esc(t.genre) : ""}</span>
         <span class="t-plays">${plural(t.plays, "écoute")}${t.likes ? ` · ${nf.format(t.likes)} ♥` : ""}</span>
         <span class="t-acts">
@@ -179,7 +271,7 @@
         </span></li>`;
     }).join("")}</ol>`;
   }
-  const mobileBrand = `<div class="mobile-brand"><a class="brand" href="#accueil"><img src="logo-64.png" alt=""><span class="word">ÉCRIN<em>.AI</em></span></a><span class="ver">v${VERSION}</span></div>`;
+  const mobileBrand = `<div class="mobile-brand"><a class="brand" href="#accueil"><img src="logo-64.png" alt=""><span class="word">ÉCRIN</span></a><span class="ver">v${VERSION}</span></div>`;
   const playIcon = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
   const shuffleIcon = '<svg viewBox="0 0 24 24"><path d="M10.6 9.2 5.4 4 4 5.4l5.2 5.2zM14.5 4l2 2L4 18.6 5.4 20 18 7.5l2 2V4zm.3 9.4-1.4 1.4 3.1 3.1-2 2H20v-5.5l-2 2z"/></svg>';
   function greeting() { const h = new Date().getHours(); return h < 5 ? "Bonne nuit" : h < 12 ? "Bonjour" : h < 18 ? "Bon après-midi" : "Bonsoir"; }
@@ -201,7 +293,7 @@
             <span class="eyebrow">À la une · le plus écouté</span>
             <h1>${esc(top.title)}</h1>
             <span class="by">${esc(top.artist)}${top.genre ? " · " + esc(top.genre) : ""}</span>
-            <div class="stats"><span>${plural(top.plays, "écoute")}</span><span>Création IA</span></div>
+            <div class="stats"><span>${plural(top.plays, "écoute")}</span>${top.likes ? `<span>${nf.format(top.likes)} ♥</span>` : ""}</div>
             <div class="hero-actions">
               <button class="btn btn-gold" type="button" data-ctx="hero" data-i="0">${playIcon} Écouter</button>
               <button class="btn" type="button" data-shuffle-all>${shuffleIcon} Tout en aléatoire</button>
@@ -265,7 +357,7 @@
       const [a, b] = genreColors(name);
       return mobileBrand + `<div class="page-head"><div class="ph-bg" style="background:linear-gradient(135deg, ${a}, #0B1129 80%)"></div>
           ${imgTag(list[0], "ph-art")}
-          <div class="ph-text"><span class="eyebrow">Artiste IA</span><h1>${esc(name)}</h1><span class="stats">${plural(list.length, "titre")} · ${plural(plays, "écoute")}</span></div></div>
+          <div class="ph-text"><span class="eyebrow">Artiste</span><h1>${esc(name)}</h1><span class="stats">${plural(list.length, "titre")} · ${plural(plays, "écoute")}</span></div></div>
         <div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="artist">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="artist">${shuffleIcon} Aléatoire</button></div>
         ${rows(list.sort((x, y) => y.plays - x.plays), "artist", { noArtist: true })}
         <section class="stats-box" id="stats" aria-live="polite"></section>`;
@@ -278,13 +370,15 @@
         ${list.length ? `<div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="genre">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="genre">${shuffleIcon} Aléatoire</button></div>${rows(list, "genre")}` : `<div class="empty">Aucun titre dans ce genre pour l'instant.</div>`}`;
     },
     publier() {
+      const tools = ["Suno", "Udio", "BandLab", "FL Studio", "GarageBand", "Logic Pro", "Ableton Live", "Mureka", "Enregistrement maison", "Studio"];
       return mobileBrand + `<div class="publish">
         <div>
-          <div class="publish-head"><span class="eyebrow">Gratuit · sans compte</span><h1>Publie ta chanson</h1>
-            <p>Ta création rejoint Écrin et devient écoutable par tout le monde, en boucle ou en aléatoire. Elle apparaît aussi dans « Pépites à découvrir » pour trouver ses premiers auditeurs.</p></div>
-          <div class="seg" role="group" aria-label="Méthode">
-            <button id="mode-link" class="${pubMode === "link" ? "is-on" : ""}" data-mode="link" type="button">Lien Suno</button>
-            <button id="mode-file" class="${pubMode === "file" ? "is-on" : ""}" data-mode="file" type="button">Fichier MP3</button>
+          <div class="publish-head"><span class="eyebrow">Gratuit · sans compte · ouvert à tous</span><h1>Publie ta chanson</h1>
+            <p>Talent en herbe, artiste confirmé ou créateur IA : ta musique rejoint Écrin et devient écoutable par tout le monde. Les nouveaux titres passent dans « Pépites à découvrir » pour trouver leurs premiers auditeurs.</p></div>
+          <div class="seg seg3" role="group" aria-label="Méthode">
+            <button class="${pubMode === "link" ? "is-on" : ""}" data-mode="link" type="button">Suno</button>
+            <button class="${pubMode === "file" ? "is-on" : ""}" data-mode="file" type="button">Fichier audio</button>
+            <button class="${pubMode === "ext" ? "is-on" : ""}" data-mode="ext" type="button">SoundCloud · YouTube</button>
           </div>
           <form id="add-form" novalidate>
             <div class="suno-steps" data-for="link" ${pubMode === "link" ? "" : "hidden"}>
@@ -294,37 +388,56 @@
                 <li>Attends une à deux minutes que Suno prépare la version publique.</li>
                 <li>Touche <b>⋯ › Partager › Copier le lien</b>, puis colle-le ci-dessous.</li>
               </ol>
-              <span>Une chanson privée n'a pas de son pour les autres : Écrin la refusera. Tu peux aussi choisir « Fichier MP3 ».</span>
+              <span>Une chanson privée n'a pas de son pour les autres : Écrin la refusera. Tu peux aussi choisir « Fichier audio ».</span>
             </div>
             <div class="field" data-for="link" ${pubMode === "link" ? "" : "hidden"}>
               <label for="f-link">Lien de la chanson sur Suno</label>
               <input id="f-link" type="url" inputmode="url" placeholder="https://suno.com/song/…" autocomplete="off">
               <small>Format attendu : https://suno.com/song/…</small>
             </div>
+            <div class="suno-steps" data-for="file" ${pubMode === "file" ? "" : "hidden"}>
+              <strong>Depuis n'importe quelle appli ou ton studio</strong>
+              <span>Udio, BandLab, FL Studio, GarageBand, Mureka, un enregistrement au téléphone… Exporte ta chanson en <b>MP3</b>, <b>M4A</b> ou <b>WAV</b> (15 Mo max), puis choisis le fichier ci-dessous.</span>
+            </div>
             <div class="field" data-for="file" ${pubMode === "file" ? "" : "hidden"}>
-              <label for="f-audio">Fichier audio (MP3, WAV ou M4A, 15 Mo max)</label>
+              <label for="f-audio">Fichier audio</label>
               <input id="f-audio" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/mp4,audio/x-m4a,.mp3,.wav,.m4a">
             </div>
             <div class="field" data-for="file" ${pubMode === "file" ? "" : "hidden"}>
               <label for="f-cover">Pochette (facultatif, JPG ou PNG)</label>
               <input id="f-cover" type="file" accept="image/jpeg,image/png,image/webp">
             </div>
+            <div class="suno-steps" data-for="ext" ${pubMode === "ext" ? "" : "hidden"}>
+              <strong>Ta chanson est déjà sur SoundCloud ou YouTube ?</strong>
+              <span>Colle son lien : elle sera lue sur Écrin avec le lecteur officiel de SoundCloud ou YouTube, qui s'affiche sur la pochette. La chanson doit être publique et autoriser l'intégration.</span>
+            </div>
+            <div class="field" data-for="ext" ${pubMode === "ext" ? "" : "hidden"}>
+              <label for="f-ext">Lien SoundCloud ou YouTube</label>
+              <input id="f-ext" type="url" inputmode="url" placeholder="https://soundcloud.com/… ou https://youtu.be/…" autocomplete="off">
+              <small>Exemples : soundcloud.com/artiste/titre · youtube.com/watch?v=… · youtu.be/…</small>
+            </div>
             <div class="two">
               <div class="field"><label for="f-title">Titre</label><input id="f-title" maxlength="120" required autocomplete="off"></div>
               <div class="field"><label for="f-artist">Nom d'artiste</label><input id="f-artist" maxlength="80" required autocomplete="nickname" value="${esc(store.get("artist", ""))}"></div>
             </div>
-            <div class="field"><label for="f-genre">Genre (facultatif)</label><input id="f-genre" maxlength="40" list="genres-list" autocomplete="off">
-              <datalist id="genres-list">${["Afrobeat", "Coupé-décalé", "Zouglou", "Rap", "R&B", "Pop", "Gospel", "Reggae", "Électro", "Rock", "Jazz", "Classique", ...genres().map(g => g.name)].filter((v, i, a) => a.indexOf(v) === i).map(g => `<option>${esc(g)}</option>`).join("")}</datalist></div>
-            <div class="field"><label for="f-lyrics">Paroles (facultatif)</label><textarea id="f-lyrics" rows="6" maxlength="8000" placeholder="Colle ici les paroles de ta chanson (sur Suno : onglet Lyrics)"></textarea><small>Elles s'afficheront pendant l'écoute.</small></div>
-            <label class="check"><input id="f-rights" type="checkbox" required><span>J'ai créé cette chanson avec mon propre compte (Suno ou autre outil IA) et j'accepte qu'elle soit écoutée gratuitement par tous.</span></label>
+            <div class="two">
+              <div class="field"><label for="f-genre">Genre (facultatif)</label><input id="f-genre" maxlength="40" list="genres-list" autocomplete="off">
+                <datalist id="genres-list">${["Afrobeat", "Coupé-décalé", "Zouglou", "Rap", "R&B", "Pop", "Gospel", "Reggae", "Électro", "Rock", "Jazz", "Classique", ...genres().map(g => g.name)].filter((v, i, a) => a.indexOf(v) === i).map(g => `<option>${esc(g)}</option>`).join("")}</datalist></div>
+              <div class="field"><label for="f-made">Créé avec (facultatif)</label><input id="f-made" maxlength="40" list="tools-list" autocomplete="off" ${pubMode === "link" ? 'value="Suno"' : ""}>
+                <datalist id="tools-list">${tools.map(x => `<option>${x}</option>`).join("")}</datalist></div>
+            </div>
+            <label class="check"><input id="f-ai" type="checkbox" ${pubMode === "link" ? "checked disabled" : ""}><span>Cette chanson a été créée avec l'aide de l'IA. <small>Les auditeurs voient une petite mention « IA » : la transparence rassure.</small></span></label>
+            <div class="field"><label for="f-lyrics">Paroles (facultatif)</label><textarea id="f-lyrics" rows="6" maxlength="8000" placeholder="Colle ici les paroles. Elles défileront sur la pochette pendant l'écoute."></textarea>
+              <small>Astuce : au format LRC (<code>[01:23.45] ma ligne</code>), elles seront parfaitement synchronisées. Sinon, Écrin estime le rythme.</small></div>
+            <label class="check"><input id="f-rights" type="checkbox" required><span>Je suis l'auteur de cette chanson (ou j'ai le droit de la diffuser) et j'accepte qu'elle soit écoutée gratuitement par tous.</span></label>
             <p id="form-msg" class="form-msg" role="status"></p>
             <div><button id="submit" class="btn btn-gold" type="submit">Publier</button></div>
           </form>
-          <ul class="perks"><li>Aucun compte à créer, aucune pub, aucun frais.</li><li>Chaque titre est signalé comme création IA : les auditeurs savent ce qu'ils écoutent.</li><li>Les nouveaux titres sont mis en avant, pas seulement les plus écoutés.</li></ul>
+          <ul class="perks"><li>Aucun compte à créer, aucune pub, aucun frais.</li><li>Ouvert à tous : débutants, artistes confirmés et créateurs IA.</li><li>Les nouveaux titres sont mis en avant, pas seulement les plus écoutés.</li></ul>
         </div>
         <aside class="preview-card" id="preview" aria-live="polite">
           <div class="art"><img id="pv-cover" alt="" hidden></div>
-          <strong id="pv-title">Aperçu</strong><span class="t-sub" id="pv-artist">Colle ton lien pour voir ta pochette</span>
+          <strong id="pv-title">Aperçu</strong><span class="t-sub" id="pv-artist">Ta pochette et ton son apparaîtront ici</span>
           <audio id="pv-audio" controls preload="none" hidden></audio>
           <p class="hint">Vérifie que le son se lance avant de publier.</p>
         </aside></div>`;
@@ -422,7 +535,7 @@
     closeMenu();
     menuEl = document.createElement("div");
     menuEl.className = "menu";
-    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button><div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>`;
+    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="dedic">🎁 Dédicacer ce son</button><button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button><div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>`;
     document.body.appendChild(menuEl);
     const r = btn.getBoundingClientRect(), mh = menuEl.offsetHeight;
     const top = r.bottom + 6 + mh > innerHeight ? r.top - mh - 6 : r.bottom + 6;
@@ -434,6 +547,7 @@
       if (a === "share") share(t);
       if (a === "artist") go("artiste", t.artist);
       if (a === "next") playNext(t);
+      if (a === "dedic") { S.dedTrack = t; closeMenu(); openSheet("dedic"); return; }
       if (a === "addlist") { const own = myLists.filter(x => x.key); closeMenu(); openMenu(btn, t, own.map(x => `<button type="button" data-a="to:${esc(x.id)}">${esc(x.name)}</button>`).join("") + (own.length ? '<div class="sep"></div>' : "") + '<button type="button" data-a="tonew">+ Nouvelle playlist…</button>'); return; }
       if (a && a.startsWith("to:")) editList(a.slice(3), ids => ids.includes(t.id) ? ids : [...ids, t.id], null, "Ajouté à « %s »");
       if (a === "tonew") newList([t.id]);
@@ -446,13 +560,67 @@
       closeMenu();
     };
   }
-  document.addEventListener("click", e => { if (menuEl && e.target.isConnected && !menuEl.contains(e.target) && !e.target.closest("[data-menu], #b-sleep")) closeMenu(); });
+  document.addEventListener("click", e => { if (menuEl && e.target.isConnected && !menuEl.contains(e.target) && !e.target.closest("[data-menu], #b-sleep, #np-more")) closeMenu(); });
 
   // ---------- étiquettes, paroles ----------
   function renderTags(t) {
-    $("np-tags").innerHTML = `<span class="ai">Création IA</span>${t.genre ? `<span>${esc(t.genre)}</span>` : ""}<span>${plural(t.plays, "écoute")}</span>${t.likes ? `<span>${nf.format(t.likes)} ♥</span>` : ""}`;
+    $("np-tags").innerHTML = `${t.ai ? `<span class="ai">Créé avec l'IA${t.made_with ? " · " + esc(t.made_with) : ""}</span>` : t.made_with ? `<span>${esc(t.made_with)}</span>` : ""}${t.genre ? `<span>${esc(t.genre)}</span>` : ""}<span>${plural(t.plays, "écoute")}</span>${t.likes ? `<span>${nf.format(t.likes)} ♥</span>` : ""}`;
   }
   S.npTab = "queue";
+  S.showLyr = store.get("showLyr", true);
+  // Paroles : format LRC ([01:23.45] ligne) si l'artiste l'a fourni, sinon synchronisation estimée sur la durée.
+  function parseLyrics(text) {
+    const timed = [], plain = [];
+    for (const raw of String(text || "").split(/\r?\n/)) {
+      const tags = [...raw.matchAll(/\[(\d{1,2}):(\d{1,2}(?:[.,]\d{1,3})?)\]/g)];
+      const line = raw.replace(/\[[^\]]*\]/g, "").trim();
+      if (tags.length) { for (const m of tags) timed.push({ t: +m[1] * 60 + parseFloat(m[2].replace(",", ".")), text: line }); continue; }
+      if (!line || /^\(.*\)$/.test(line)) continue;
+      plain.push({ text: line });
+    }
+    if (timed.length >= 3) return { lines: timed.filter(l => l.text).sort((a, b) => a.t - b.t), timed: true };
+    return { lines: plain, timed: false };
+  }
+  function estimateTimes(L, dur) {
+    if (L.timed || !(dur > 0) || !L.lines.length) return;
+    const start = Math.min(14, dur * .07), end = dur * .94, w = L.lines.map(l => l.text.length + 14), tot = w.reduce((a, b) => a + b, 0);
+    let acc = start; L.lines.forEach((l, i) => { l.t = acc; acc += (end - start) * w[i] / tot; });
+    L.estimated = true;
+  }
+  async function loadLyr(t) {
+    S.lyr = { id: t.id, lines: [], timed: false, loading: true }; renderLyr(true);
+    let text = null;
+    if (sb && S.hasV2) { const r = await sb.from("tracks").select("lyrics").eq("id", t.id).maybeSingle(); text = r.data && r.data.lyrics; }
+    if (!current() || current().id !== t.id) return;
+    S.lyr = { id: t.id, ...parseLyrics(text) }; estimateTimes(S.lyr, audio.duration); S.lyrIdx = -1; renderLyr(true);
+  }
+  function renderLyr(full) {
+    const L = S.lyr, box = $("lyr"), pill = $("lyr-pill");
+    const has = !!(L && L.lines && L.lines.length);
+    pill.hidden = !has; pill.setAttribute("aria-pressed", S.showLyr);
+    box.hidden = !(has && S.showLyr);
+    if (!has || !S.showLyr) return;
+    if (full) {
+      $("lyr-lines").innerHTML = L.lines.map((l, i) => `<p data-l="${i}">${esc(l.text)}</p>`).join("");
+      $("lyr-note").textContent = L.timed ? "Paroles synchronisées" : "Synchronisation estimée";
+      S.lyrIdx = -1;
+    }
+    syncLyr();
+  }
+  function syncLyr() {
+    const L = S.lyr; if (!L || !L.lines.length || $("lyr").hidden || $("np").hidden) return;
+    if (!L.timed && !L.estimated) estimateTimes(L, audio.duration);
+    const tt = audio.currentTime; let i = -1;
+    for (let k = 0; k < L.lines.length; k++) { if (L.lines[k].t <= tt + .15) i = k; else break; }
+    if (i === S.lyrIdx) return;
+    S.lyrIdx = i;
+    const ps = $("lyr-lines").children;
+    for (let k = 0; k < ps.length; k++) { ps[k].classList.toggle("on", k === i); ps[k].classList.toggle("past", k < i); }
+    const cur = ps[Math.max(0, i)];
+    if (cur) { const box = $("lyr-lines"); box.scrollTo({ top: cur.offsetTop - box.clientHeight * .38, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }
+  }
+  $("lyr-pill").onclick = () => { S.showLyr = !S.showLyr; store.set("showLyr", S.showLyr); renderLyr(true); };
+  $("lyr-lines").addEventListener("click", e => { const p = e.target.closest("[data-l]"); if (p && S.lyr && S.lyr.lines[+p.dataset.l].t != null) { audio.currentTime = S.lyr.lines[+p.dataset.l].t; if (audio.paused) audio.play(); } });
   async function loadLyrics() {
     const t = current(), box = $("np-lyrics"); if (!t) return;
     if (S.lyricsFor === t.id) return;
@@ -541,7 +709,7 @@
   function shareList(pl) {
     const u = new URL(location.href); u.search = "?p=" + pl.id; u.hash = "";
     const url = u.toString();
-    if (navigator.share) { navigator.share({ title: pl.name + " | ÉCRIN.AI", url }).catch(() => {}); return; }
+    if (navigator.share) { navigator.share({ title: pl.name + " | Écrin", url }).catch(() => {}); return; }
     navigator.clipboard.writeText(url).then(() => toast("Lien de la playlist copié"), () => toast(url));
   }
 
@@ -557,7 +725,7 @@
     try {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
       FX.ctx = new AC();
-      const src = FX.ctx.createMediaElementSource(audio);
+      const src = FX.ctx.createMediaElementSource(media);
       FX.filters = BANDS.map(([f, type]) => { const b = FX.ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = 1; b.gain.value = 0; return b; });
       FX.gain = FX.ctx.createGain();
       FX.analyser = FX.ctx.createAnalyser(); FX.analyser.fftSize = 256; FX.analyser.smoothingTimeConstant = .8;
@@ -575,7 +743,7 @@
   function applyEq() { if (!FX.ctx) return; const g = FX.enabled ? currentGains() : [0, 0, 0, 0, 0]; FX.filters.forEach((f, i) => f.gain.setTargetAtTime(g[i], FX.ctx.currentTime, .05)); }
   function applyAutoEq() { applyEq(); }
   function setOutVolume(v) { if (FX.gain) FX.gain.gain.setTargetAtTime(Math.max(0, v), FX.ctx.currentTime, .1); else audio.volume = Math.max(0, Math.min(1, v * (+$("vol").value))); }
-  function qualityLabel(t) { return t.source === "upload" ? "Fichier d'origine de l'artiste" : "Qualité d'origine Suno · AAC"; }
+  function qualityLabel(t) { return { upload: "Fichier d'origine de l'artiste", soundcloud: "Lecteur officiel SoundCloud", youtube: "Lecteur officiel YouTube" }[t.source] || "Qualité d'origine Suno · AAC"; }
 
   // Couleur dominante de la pochette pour teinter le lecteur plein écran
   function tintFrom(t) {
@@ -659,6 +827,16 @@
         ${FX.preset === "auto" ? `<p class="sheet-note">Innovation Écrin : le réglage s'adapte à chaque chanson. Pour ${t ? `« ${esc(t.title)} »${t.genre ? ` (${esc(t.genre)})` : ""}` : "ce titre"}, il applique <b>${autoName}</b>.</p>` : ""}
         <div class="eq-bands">${BANDS.map(([f, , n], i) => `<label class="band"><span class="db">${g[i] > 0 ? "+" : ""}${g[i]} dB</span><input type="range" min="-12" max="12" step="1" value="${g[i]}" data-band="${i}" aria-label="${n}" ${FX.enabled ? "" : "disabled"}><span class="hz">${f >= 1000 ? f / 1000 + " k" : f} Hz</span><small>${n}</small></label>`).join("")}</div>`;
     }
+    if (view === "dedic") {
+      const d = S.dedTrack || current();
+      $("sheet-title").textContent = "Dédicacer ce son";
+      body.innerHTML = `<div class="ded-track">${d ? imgTag(d) : ""}<span><b>${esc(d ? d.title : "")}</b><i>${esc(d ? d.artist : "")}</i></span></div>
+        <p class="sheet-note">Comme à la radio : envoie cette chanson à quelqu'un avec un petit mot. Il le verra en l'ouvrant, juste avant d'écouter.</p>
+        <div class="two"><div class="field"><label for="d-from">De la part de</label><input id="d-from" maxlength="40" value="${esc(store.get("myname", ""))}" placeholder="Ton prénom"></div>
+        <div class="field"><label for="d-to">Pour</label><input id="d-to" maxlength="40" placeholder="Son prénom"></div></div>
+        <div class="field"><label for="d-msg">Ton message</label><textarea id="d-msg" rows="3" maxlength="160" placeholder="Celle-là, c'est pour toi…"></textarea></div>
+        <button class="btn btn-gold" type="button" data-send-dedic>Envoyer la dédicace</button>`;
+    }
     if (view === "settings") {
       $("sheet-title").textContent = "Réglages audio";
       body.innerHTML = `<label class="set-row"><span><b>Effets audio</b><small>Égaliseur et halo vivant.${isIOS ? " Sur iPhone, la musique peut s'arrêter quand l'écran se verrouille si cette option est active." : ""}</small></span><input type="checkbox" class="switch" data-set="fx" ${FX.enabled ? "checked" : ""}></label>
@@ -676,6 +854,7 @@
     const pr = e.target.closest("[data-preset]"); if (pr) { FX.preset = pr.dataset.preset; store.set("eq", FX.preset); applyEq(); renderSheet(); return; }
     const rt = e.target.closest("[data-rate]"); if (rt) { audio.playbackRate = +rt.dataset.rate; S.rate = audio.playbackRate; renderSheet(); return; }
     if (e.target.closest("[data-sleepmenu]")) { $("b-sleep").click(); return; }
+    if (e.target.closest("[data-send-dedic]")) { sendDedic(); return; }
   });
   $("sheet-wrap").addEventListener("input", e => {
     const b = e.target.closest("[data-band]");
@@ -695,6 +874,26 @@
   $("np-more").onclick = e => { const t = current(); if (t) openMenu(e.currentTarget, t); };
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("sheet-wrap").hidden) { e.stopPropagation(); closeSheet(); } }, true);
 
+  // ---------- dédicaces (tout tient dans le lien : rien n'est stocké) ----------
+  const b64 = { enc: o => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
+    dec: s => { try { return JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, "+").replace(/_/g, "/"))))); } catch { return null; } } };
+  function sendDedic() {
+    const d = S.dedTrack || current(); if (!d) return;
+    const f = $("d-from").value.trim().slice(0, 40), to = $("d-to").value.trim().slice(0, 40), m = $("d-msg").value.trim().slice(0, 160);
+    if (!f || !to) { toast("Indique ton prénom et celui de la personne."); return; }
+    store.set("myname", f);
+    const u = new URL(location.href); u.search = "?t=" + d.id + "&d=" + b64.enc({ f, to, m }); u.hash = "";
+    const url = u.toString(), text = `🎁 ${f} te dédicace « ${d.title} » de ${d.artist} sur Écrin`;
+    closeSheet();
+    if (navigator.share) { navigator.share({ title: text, text, url }).catch(() => {}); return; }
+    navigator.clipboard.writeText(text + " : " + url).then(() => toast("Dédicace copiée : colle-la dans WhatsApp ou ailleurs"), () => toast(url));
+  }
+  function showDedic(d) {
+    const c = $("np-dedic"); if (!d || !d.f) { c.hidden = true; return; }
+    c.innerHTML = `<span class="ded-ic">🎁</span><span><b>Dédicace de ${esc(d.f)} pour ${esc(d.to || "toi")}</b>${d.m ? `<q>${esc(d.m)}</q>` : ""}</span><button class="ic" type="button" aria-label="Masquer la dédicace" onclick="this.parentElement.hidden=true"><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button>`;
+    c.hidden = false;
+  }
+
   // ---------- file de lecture ----------
   function buildOrder(startIdx) {
     const n = S.queue.length;
@@ -708,11 +907,11 @@
     if (key === "artist") return ["Artiste", S.param || ""];
     if (key === "genre") return ["Genre", S.param || ""];
     if (key === "pl") return ["Playlist", (S.list && S.list.name) || ""];
-    return CTX_LABEL[key] || ["Lecture en cours", "ÉCRIN.AI"];
+    return CTX_LABEL[key] || ["Lecture en cours", "Écrin"];
   }
   function startQueue(list, idx, autoplay = true, label) {
     if (!list || !list.length) return;
-    S.label = label || ["Lecture en cours", "ÉCRIN.AI"];
+    S.label = label || ["Lecture en cours", "Écrin"];
     $("np-ctx-type").textContent = S.label[0]; $("np-ctx-name").textContent = S.label[1];
     S.queue = list.slice(); buildOrder(idx); playCurrent(autoplay);
   }
@@ -730,10 +929,13 @@
     const img = $("p-cover"); img.src = coverOf(t); img.dataset.fb = t.id; delete img.dataset.failed; img.hidden = false;
     $("np-cover").src = coverOf(t); $("np-cover").dataset.fb = t.id; delete $("np-cover").dataset.failed;
     tintFrom(t); $("np-quality").textContent = qualityLabel(t); applyAutoEq(t);
+    document.querySelector(".np-art").classList.toggle("is-ext", audio.isExternal);
+    if (audio.isExternal && autoplay) { openNP(); toast(t.source === "youtube" ? "Lecture avec le lecteur YouTube. Touche ▶ sur la vidéo si elle ne démarre pas." : "Lecture avec le lecteur SoundCloud. Touche ▶ s'il ne démarre pas."); }
+    loadLyr(t);
     $("np-title").textContent = t.title; $("np-artist").textContent = t.artist;
     renderTags(t); S.lyricsFor = null; if (!$("np").hidden && S.npTab === "lyrics") loadLyrics();
     document.title = t.title + " · " + t.artist + " | Écrin";
-    if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: "ÉCRIN.AI", artwork: [{ src: coverOf(t), sizes: "512x512" }] });
+    if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: "Écrin", artwork: [{ src: coverOf(t), sizes: "512x512" }] });
     history = [t.id, ...history.filter(x => x !== t.id)].slice(0, 50); store.set("history", history);
     syncLike(); refreshCurrent(); renderQueue();
   }
@@ -785,8 +987,9 @@
   $("np-artist").onclick = () => { const t = current(); if (t) go("artiste", t.artist); };
 
   // ---------- plein écran ----------
-  function openNP() { if (!current()) return; $("np").hidden = false; renderQueue(); startHalo(); }
-  function closeNP() { $("np").hidden = true; closeSheet(); }
+  function openNP() { if (!current()) return; $("np").hidden = false; renderQueue(); startHalo(); requestAnimationFrame(placeExt); renderLyr(true); }
+  function closeNP() { $("np").hidden = true; closeSheet(); placeExt(); }
+  $("np").addEventListener("scroll", placeExt, { passive: true });
   $("p-open").onclick = openNP; $("b-queue").onclick = openNP; $("np-close").onclick = closeNP;
   document.addEventListener("keydown", e => {
     if (e.key === "Escape") { closeNP(); closeMenu(); }
@@ -836,10 +1039,11 @@
       if (t && sb) sb.rpc("count_play", S.hasV2 ? { track: t.id, p_country: myCountry() } : { track: t.id }).then(() => { t.plays++; });
     }
   });
-  audio.addEventListener("loadedmetadata", () => { $("t-dur").textContent = $("np-dur").textContent = fmt(audio.duration); });
+  audio.addEventListener("loadedmetadata", () => { $("t-dur").textContent = $("np-dur").textContent = fmt(audio.duration); if (S.lyr && !S.lyr.timed) { S.lyr.estimated = false; estimateTimes(S.lyr, audio.duration); S.lyrIdx = -1; } });
+  audio.addEventListener("timeupdate", syncLyr);
   function syncPlayIcons() { document.querySelectorAll(".i-play").forEach(i => i.toggleAttribute("hidden", !audio.paused)); document.querySelectorAll(".i-pause").forEach(i => i.toggleAttribute("hidden", audio.paused)); document.querySelectorAll("#b-play, [data-act=play]").forEach(b => b.title = audio.paused ? "Lecture" : "Pause"); refreshCurrent(); }
   audio.addEventListener("play", syncPlayIcons); audio.addEventListener("pause", syncPlayIcons);
-  audio.addEventListener("ended", () => next(true));
+  audio.addEventListener("ended", () => { if (audio.isExternal && S.repeat === "one") { audio.currentTime = 0; audio.play(); return; } next(true); });
   audio.addEventListener("error", () => { if (audio.src) { toast("Ce titre n'est pas encore écoutable (son non public chez Suno). Passage au suivant."); setTimeout(() => next(true), 900); } });
   if ("mediaSession" in navigator) {
     const ms = navigator.mediaSession;
@@ -850,6 +1054,29 @@
 
   // ---------- publication ----------
   let pubMode = "link", pvUrl;
+  // Liens SoundCloud / YouTube : normalisation vers une forme unique
+  function parseExt(input) {
+    const raw = String(input || "").trim(); let u; try { u = new URL(raw); } catch { return null; }
+    const h = u.hostname.replace(/^(www\.|m\.|music\.)/, "");
+    if (h === "youtu.be") { const id = u.pathname.slice(1, 12); return /^[\w-]{11}$/.test(id) ? { kind: "youtube", id, url: "https://www.youtube.com/watch?v=" + id } : null; }
+    if (h === "youtube.com") {
+      const id = u.searchParams.get("v") || (u.pathname.match(/^\/(?:shorts|embed|live)\/([\w-]{11})/) || [])[1];
+      return id && /^[\w-]{11}$/.test(id) ? { kind: "youtube", id, url: "https://www.youtube.com/watch?v=" + id } : null;
+    }
+    if (h === "on.soundcloud.com") return { short: true };
+    if (h === "soundcloud.com") {
+      const parts = u.pathname.split("/").filter(Boolean);
+      if (parts.length < 2 || parts.length > 3 || ["sets", "likes", "reposts", "tracks", "albums"].includes(parts[1])) return null;
+      if (!parts.every(p => /^[A-Za-z0-9_-]+$/.test(p))) return null;
+      return { kind: "soundcloud", url: "https://soundcloud.com/" + parts.join("/") };
+    }
+    return null;
+  }
+  async function oembed(p) {
+    const api = p.kind === "youtube" ? `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(p.url)}` : `https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(p.url)}`;
+    try { const r = await fetch(api); if (!r.ok) return null; return await r.json(); } catch { return null; }
+  }
+
   function bindPublish() {
     document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { pubMode = b.dataset.mode; render(); });
     const msg = (text, kind = "") => { const el = $("form-msg"); el.textContent = text; el.className = "form-msg " + kind; };
@@ -870,24 +1097,50 @@
       if (pubMode !== "link") return;
       if (probe.state === "pending") msg("Vérification du son chez Suno…");
       else if (probe.state === "ok") msg("Son vérifié : ta chanson est prête à être publiée.", "ok");
-      else if (probe.state === "fail") msg("Suno ne rend pas encore ce son public. Sur Suno, rends la chanson publique (⋯ › Visibilité › Publique), attends quelques minutes puis recolle le lien. Sinon, choisis « Fichier MP3 » et envoie le fichier (Suno : ⋯ › Télécharger › MP3).", "err");
+      else if (probe.state === "fail") msg("Suno ne rend pas encore ce son public. Sur Suno, rends la chanson publique (⋯ › Visibilité › Publique), attends quelques minutes puis recolle le lien. Sinon, choisis « Fichier audio » et envoie le fichier (Suno : ⋯ › Télécharger › MP3).", "err");
     }
-    const update = () => {
+    let extInfo = { url: null, meta: null };
+    async function extPreview(p) {
+      if (extInfo.url === p.url) return;
+      extInfo = { url: p.url, meta: null };
+      msg("Lecture des informations…");
+      const m = await oembed(p);
+      if (extInfo.url !== p.url) return;
+      extInfo.meta = m;
+      const img = $("pv-cover");
+      const thumb = p.kind === "youtube" ? `https://i.ytimg.com/vi/${p.id}/hqdefault.jpg` : m && m.thumbnail_url;
+      if (thumb) { img.src = thumb; img.hidden = false; }
+      if (m) {
+        if (!$("f-title").value && m.title) $("f-title").value = String(m.title).replace(/\s+by\s+.+$/i, "").slice(0, 120);
+        if (!$("f-artist").value && m.author_name) $("f-artist").value = String(m.author_name).slice(0, 80);
+        update();
+      }
+      msg(p.kind === "youtube" ? "Lien YouTube reconnu. La vidéo sera lue avec le lecteur YouTube." : "Lien SoundCloud reconnu. Le titre sera lu avec le lecteur SoundCloud.", "ok");
+    }
+    function update() {
       const a = $("pv-audio"), img = $("pv-cover");
       if (pvUrl) { URL.revokeObjectURL(pvUrl); pvUrl = null; }
       $("pv-title").textContent = $("f-title").value.trim() || "Aperçu";
-      $("pv-artist").textContent = $("f-artist").value.trim() || (pubMode === "link" ? "Colle ton lien pour voir ta pochette" : "Choisis ton fichier audio");
+      $("pv-artist").textContent = $("f-artist").value.trim() || "Ta pochette et ton son apparaîtront ici";
       if (pubMode === "link") {
         const p = parseSuno($("f-link").value);
         if (p && p.id) { probeSuno(p.id); if (a.dataset.id !== p.id) { a.src = sunoAudio(p.id); a.dataset.id = p.id; } img.src = sunoCover(p.id); img.hidden = false; a.hidden = false; img.onerror = () => { img.src = `https://cdn2.suno.ai/image_${p.id}.jpeg`; img.onerror = null; }; showProbe(); return; }
         if (p && p.short) msg("Ce lien court ne contient pas l'identifiant de la chanson. Ouvre-le dans ton navigateur, puis copie l'adresse complète (suno.com/song/…).", "err");
         img.hidden = true; a.hidden = true; a.removeAttribute("src"); delete a.dataset.id; return;
       }
+      if (pubMode === "ext") {
+        a.hidden = true;
+        const p = parseExt($("f-ext").value);
+        if (p && p.short) { msg("Ce lien court SoundCloud ne peut pas être lu. Ouvre-le, puis copie l'adresse complète (soundcloud.com/artiste/titre).", "err"); return; }
+        if (p && p.url) { extPreview(p); return; }
+        if ($("f-ext").value.trim()) msg("Ce lien n'est pas reconnu. Colle le lien d'un titre SoundCloud ou d'une vidéo YouTube.", "err");
+        img.hidden = true; return;
+      }
       const f = $("f-audio").files[0];
       if (f) { pvUrl = URL.createObjectURL(f); a.src = pvUrl; a.hidden = false; const c = $("f-cover").files[0]; if (c) { img.src = URL.createObjectURL(c); img.hidden = false; } else img.hidden = true; }
       else { a.hidden = true; img.hidden = true; }
-    };
-    ["f-link", "f-title", "f-artist"].forEach(id => $(id).addEventListener("input", update));
+    }
+    ["f-link", "f-ext", "f-title", "f-artist"].forEach(id => $(id).addEventListener("input", update));
     $("f-audio").addEventListener("change", () => { const f = $("f-audio").files[0]; if (f && !$("f-title").value) $("f-title").value = f.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim().slice(0, 120); update(); });
     $("f-cover").addEventListener("change", update);
     update();
@@ -896,9 +1149,10 @@
       e.preventDefault();
       if (!sb) { msg("L'appli n'est pas encore reliée à sa base de données.", "err"); return; }
       const title = $("f-title").value.trim(), artist = $("f-artist").value.trim(), genre = $("f-genre").value.trim() || null;
-      const lyrics = $("f-lyrics").value.trim() || null;
+      const lyrics = $("f-lyrics").value.trim() || null, made = $("f-made").value.trim().slice(0, 40) || null, ai = pubMode === "link" || $("f-ai").checked;
       if (!title || !artist) { msg("Indique le titre et ton nom d'artiste.", "err"); return; }
-      if (!$("f-rights").checked) { msg("Coche la case pour confirmer que la chanson est la tienne.", "err"); return; }
+      if (!$("f-rights").checked) { msg("Coche la case pour confirmer que tu as le droit de diffuser cette chanson.", "err"); return; }
+      if (pubMode === "ext" && !S.hasV3) { msg("La publication par lien SoundCloud ou YouTube arrive très bientôt (mise à jour de la base en cours).", "err"); return; }
       const btn = $("submit"); btn.disabled = true;
       try {
         let row;
@@ -908,13 +1162,18 @@
           probeSuno(p.id); if (probe.state === "pending") await probe.wait;
           if (probe.state !== "ok") { showProbe(); return; }
           row = { title, artist, genre, source: "suno", suno_id: p.id, audio_url: sunoAudio(p.id), cover_url: sunoCover(p.id) };
-          if (lyrics && S.hasV2) row.lyrics = lyrics;
+        } else if (pubMode === "ext") {
+          const p = parseExt($("f-ext").value);
+          if (!p || !p.url) { msg("Colle le lien d'un titre SoundCloud ou d'une vidéo YouTube.", "err"); return; }
+          const m = extInfo.url === p.url ? extInfo.meta : await oembed(p);
+          const cover = p.kind === "youtube" ? `https://i.ytimg.com/vi/${p.id}/hqdefault.jpg` : (m && m.thumbnail_url) || null;
+          row = { title, artist, genre, source: p.kind, audio_url: p.url, cover_url: cover };
         } else {
           const f = $("f-audio").files[0];
           if (!f) { msg("Choisis le fichier audio de ta chanson.", "err"); return; }
-          if (f.size > 15 * 1024 * 1024) { msg("Le fichier dépasse 15 Mo. Exporte-le en MP3 depuis ton outil.", "err"); return; }
+          if (f.size > 15 * 1024 * 1024) { msg("Le fichier dépasse 15 Mo. Exporte-le en MP3 depuis ton appli.", "err"); return; }
           msg("Envoi du fichier…");
-          const id = crypto.randomUUID();
+          const id = uuid();
           const ext = (f.name.split(".").pop() || "mp3").toLowerCase().slice(0, 4);
           const up = await sb.storage.from("songs").upload(`audio/${id}.${ext}`, f, { contentType: f.type || "audio/mpeg" });
           if (up.error) throw up.error;
@@ -927,11 +1186,12 @@
             if (!cu.error) coverUrl = sb.storage.from("songs").getPublicUrl(`covers/${id}.${cext}`).data.publicUrl;
           }
           row = { title, artist, genre, source: "upload", audio_url: audioUrl, cover_url: coverUrl };
-          if (lyrics && S.hasV2) row.lyrics = lyrics;
         }
+        if (lyrics && S.hasV2) row.lyrics = lyrics;
+        if (S.hasV3) { row.ai = ai; row.made_with = made || (pubMode === "link" ? "Suno" : null); }
         msg("Publication…");
         const { error } = await sb.from("tracks").insert(row);
-        if (error) { if (error.code === "23505") { msg("Cette chanson Suno est déjà sur Écrin.", "err"); return; } throw error; }
+        if (error) { if (error.code === "23505") { msg("Cette chanson est déjà sur Écrin.", "err"); return; } throw error; }
         store.set("artist", artist);
         msg("Publiée ! Ta chanson est maintenant écoutable par tout le monde.", "ok");
         await load();
@@ -955,7 +1215,8 @@
     if (id && sb) {
       let t = byId(id);
       if (!t) { const r = await sb.from("tracks").select("*").eq("id", id).maybeSingle(); t = r.data; }
-      if (t) { startQueue([t, ...S.all.filter(x => x.id !== t.id)], 0, false, ["Partagé avec toi", "ÉCRIN.AI"]); openNP(); toast("Appuie sur lecture pour écouter « " + t.title + " »"); }
+      const ded = b64.dec(new URLSearchParams(location.search).get("d") || "");
+      if (t) { startQueue([t, ...S.all.filter(x => x.id !== t.id)], 0, false, ded ? ["Dédicace", "pour " + (ded.to || "toi")] : ["Partagé avec toi", "Écrin"]); openNP(); showDedic(ded); toast("Appuie sur lecture pour écouter « " + t.title + " »"); }
     }
   })();
   if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
