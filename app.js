@@ -1,5 +1,5 @@
-/* DOZE 4.1.1 */
-  const VERSION = "4.1.1";
+/* DOZE 4.2.0 */
+  const VERSION = "4.2.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -316,6 +316,7 @@
       const recent = history.map(byId).filter(Boolean).slice(0, 12);
       const showInstall = !isInstalled() && matchMedia("(max-width: 860px)").matches && !store.get("noInstallBanner", false);
       return mobileBrand + `${S.offlineMode ? '<div class="offline-banner">📴 Hors connexion : tu écoutes tes titres téléchargés.</div>' : ""}${showInstall ? `<div class="install-banner"><img src="icon-192.png" alt=""><span><b>Installe DOZE</b>Sur ton écran d'accueil, comme une vraie appli, même hors connexion.</span><button class="btn btn-gold" type="button" data-install>Installer</button><button class="ic" type="button" data-hide-install aria-label="Masquer"><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>` : ""}<h1 class="greet">${greeting()}</h1>
+        <a class="discover-cta" href="#decouvrir"><span class="dc-deck"><img src="${esc(coverOf(gems()[0] || top))}" alt=""><img src="${esc(coverOf(gems()[1] || top))}" alt=""><img src="${esc(coverOf(top))}" alt=""></span><span class="dc-text"><b>Mode Découverte</b>15 secondes par titre. ❤ ou suivant. Fais connaître les talents de demain.</span><span class="dc-go">▶</span></a>
         <section class="hero">
           <div class="hero-bg" style="background-image:url('${esc(coverOf(top))}')"></div>
           ${imgTag(top)}
@@ -401,6 +402,16 @@
       return mobileBrand + `<div class="page-head"><div class="ph-bg" style="background:${genreBg(name)}"></div>
           <div class="ph-text"><span class="eyebrow">Genre</span><h1>${esc(name)}</h1><span class="stats">${plural(list.length, "titre")}</span></div></div>
         ${list.length ? `<div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="genre">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="genre">${shuffleIcon} Aléatoire</button></div>${rows(list, "genre")}` : `<div class="empty">Aucun titre dans ce genre pour l'instant.</div>`}`;
+    },
+    decouvrir() {
+      return mobileBrand + `<div class="disc">
+        <div class="disc-head"><span class="eyebrow">Mode Découverte</span><h1>Écoute. Garde. Passe.</h1><p>15 secondes du meilleur passage de chaque titre, en priorité les artistes encore peu écoutés. Glisse à droite pour garder, à gauche pour passer.</p></div>
+        <div class="disc-stage" id="disc-stage"></div>
+        <div class="disc-ctrl" id="disc-ctrl" hidden>
+          <button class="dbtn pass" type="button" data-d="pass" aria-label="Passer"><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button>
+          <button class="dbtn full" type="button" data-d="full" aria-label="Écouter en entier"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+          <button class="dbtn like" type="button" data-d="like" aria-label="Garder en coup de cœur"><svg viewBox="0 0 24 24"><path d="M12 21 10.6 19.7C5.4 15 2 11.9 2 8.1 2 5 4.4 2.6 7.5 2.6c1.7 0 3.4.8 4.5 2.1a6 6 0 0 1 4.5-2.1C19.6 2.6 22 5 22 8.1c0 3.8-3.4 6.9-8.6 11.6z"/></svg></button>
+        </div></div>`;
     },
     publier() {
       const tools = ["Suno", "Udio", "BandLab", "FL Studio", "GarageBand", "Logic Pro", "Ableton Live", "Mureka", "Enregistrement maison", "Studio"];
@@ -496,6 +507,7 @@
     document.querySelectorAll("[data-nav]").forEach(a => a.classList.toggle("is-on", a.dataset.nav === (v === "artiste" || v === "genre" ? "rechercher" : v === "playlist" ? "bibliotheque" : v)));
     syncInstall();
     if (v === "publier") bindPublish();
+    if (v === "decouvrir") discInit(); else discStop();
     if (v === "artiste") loadStats(S.param);
     if (v === "rechercher") { const q = $("q"); q.oninput = e => { clearTimeout(qTimer); qTimer = setTimeout(() => { S.q = e.target.value; const pos = q.selectionStart; render(); const nq = $("q"); nq.focus(); nq.setSelectionRange(pos, pos); }, 250); }; }
   }
@@ -513,7 +525,7 @@
   }
 
   // ---------- navigation ----------
-  const ROUTES = ["accueil", "rechercher", "bibliotheque", "publier"];
+  const ROUTES = ["accueil", "decouvrir", "rechercher", "bibliotheque", "publier"];
   function go(view, param) {
     S.view = view; S.param = param ?? null;
     if (ROUTES.includes(view) && location.hash !== "#" + view) location.hash = view;
@@ -586,7 +598,7 @@
     closeMenu();
     menuEl = document.createElement("div");
     menuEl.className = "menu";
-    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="dedic">🎁 Dédicacer ce son</button>${t && canOffline(t) ? (offline[t.id] ? '<button type="button" data-a="undl">✓ Retirer des téléchargements</button>' : '<button type="button" data-a="dl">⬇ Télécharger (hors ligne)</button>') : ""}<button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button>${t && editKey(t) && S.hasV4 ? '<button type="button" data-a="lyredit">✎ Paroles et synchro</button>' : ""}<div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>${t && adminKey && S.hasV4 ? '<button type="button" data-a="admdel" class="danger">🗑 Supprimer ce titre (admin)</button>' : ""}`;
+    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="dedic">🎁 Dédicacer ce son</button>${t && !t.source.match(/soundcloud|youtube/) ? '<button type="button" data-a="moment">✂ Partager un moment</button>' : ""}${t && canOffline(t) ? (offline[t.id] ? '<button type="button" data-a="undl">✓ Retirer des téléchargements</button>' : '<button type="button" data-a="dl">⬇ Télécharger (hors ligne)</button>') : ""}<button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button>${t && editKey(t) && S.hasV4 ? '<button type="button" data-a="lyredit">✎ Paroles et synchro</button>' : ""}<div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>${t && adminKey && S.hasV4 ? '<button type="button" data-a="admdel" class="danger">🗑 Supprimer ce titre (admin)</button>' : ""}`;
     document.body.appendChild(menuEl);
     const r = btn.getBoundingClientRect(), mh = menuEl.offsetHeight;
     const top = r.bottom + 6 + mh > innerHeight ? r.top - mh - 6 : r.bottom + 6;
@@ -606,6 +618,7 @@
         toast(r.data === true ? "Titre supprimé" : "Suppression impossible"); if (r.data === true) { if (offline[t.id]) removeOffline(t.id); await load(); }
       }
       if (a === "undl") removeOffline(t.id);
+      if (a === "moment") { S.momTrack = t; closeMenu(); if (!current() || current().id !== t.id) startQueue([t], 0, false, ["Moment", "DOZE"]); openSheet("moment"); return; }
       if (a === "dedic") { S.dedTrack = t; closeMenu(); openSheet("dedic"); return; }
       if (a === "addlist") { const own = myLists.filter(x => x.key); closeMenu(); openMenu(btn, t, own.map(x => `<button type="button" data-a="to:${esc(x.id)}">${esc(x.name)}</button>`).join("") + (own.length ? '<div class="sep"></div>' : "") + '<button type="button" data-a="tonew">+ Nouvelle playlist…</button>'); return; }
       if (a && a.startsWith("to:")) editList(a.slice(3), ids => ids.includes(t.id) ? ids : [...ids, t.id], null, "Ajouté à « %s »");
@@ -957,6 +970,19 @@
         ${FX.preset === "auto" ? `<p class="sheet-note">Innovation DOZE : le réglage s'adapte à chaque chanson. Pour ${t ? `« ${esc(t.title)} »${t.genre ? ` (${esc(t.genre)})` : ""}` : "ce titre"}, il applique <b>${autoName}</b>.</p>` : ""}
         <div class="eq-bands">${BANDS.map(([f, , n], i) => `<label class="band"><span class="db">${g[i] > 0 ? "+" : ""}${g[i]} dB</span><input type="range" min="-12" max="12" step="1" value="${g[i]}" data-band="${i}" aria-label="${n}" ${FX.enabled ? "" : "disabled"}><span class="hz">${f >= 1000 ? f / 1000 + " k" : f} Hz</span><small>${n}</small></label>`).join("")}</div>`;
     }
+    if (view === "moment") {
+      const t = S.momTrack || current(); const dur = isFinite(audio.duration) ? audio.duration : 240;
+      const a0 = Math.max(0, Math.floor(isFinite(audio.currentTime) ? audio.currentTime : 0)), b0 = Math.min(Math.floor(dur), a0 + 30);
+      S.mom = { a: a0, b: b0 };
+      $("sheet-title").textContent = "Partager un moment";
+      body.innerHTML = `<div class="share-head">${imgTag(t)}<span><b>${esc(t.title)}</b><i>${esc(t.artist)}</i></span></div>
+        <p class="sheet-note">Choisis le passage à partager (5 à 60 secondes). Ton ami ouvrira la chanson pile à cet endroit.</p>
+        <div class="mom-range"><div class="mom-row"><label for="m-a">Début</label><input id="m-a" type="range" min="0" max="${Math.floor(dur)}" value="${a0}"><b id="m-a-v">${fmtS(a0)}</b></div>
+          <div class="mom-row"><label for="m-b">Fin</label><input id="m-b" type="range" min="0" max="${Math.floor(dur)}" value="${b0}"><b id="m-b-v">${fmtS(b0)}</b></div>
+          <div class="mom-len" id="m-len">${b0 - a0} secondes</div></div>
+        <div class="sheet-btns"><button class="btn" type="button" data-mom="preview">▶ Écouter le moment</button><button class="btn btn-gold" type="button" data-mom="share">Partager</button></div>
+        <button class="btn" type="button" data-mom="story" style="justify-content:center">📸 Créer l'image pour ma story</button>`;
+    }
     if (view === "share") {
       const it = S.shareItem || { title: "DOZE", text: "", url: appUrl() };
       $("sheet-title").textContent = it.kind === "appli" ? "Partager DOZE" : "Partager " + (it.kind === "dédicace" ? "la dédicace" : it.kind === "playlist" ? "la playlist" : "ce titre");
@@ -1025,6 +1051,24 @@
     const rt = e.target.closest("[data-rate]"); if (rt) { audio.playbackRate = +rt.dataset.rate; S.rate = audio.playbackRate; renderSheet(); return; }
     if (e.target.closest("[data-sleepmenu]")) { $("b-sleep").click(); return; }
     if (e.target.closest("[data-send-dedic]")) { sendDedic(); return; }
+    const mb = e.target.closest("[data-mom]");
+    if (mb) {
+      const t = S.momTrack || current(), { a, b } = S.mom;
+      if (mb.dataset.mom === "preview") { if (!current() || current().id !== t.id) startQueue([t], 0, false); audio.currentTime = a; audio.play().catch(() => {}); clearTimeout(S.momT); S.momT = setTimeout(() => audio.pause(), (b - a) * 1000); }
+      if (mb.dataset.mom === "share") openShare({ kind: "moment", title: `un moment de « ${t.title} » (${fmtS(a)} – ${fmtS(b)})`, text: `✂ Écoute ce moment de « ${t.title} » de ${t.artist} (${fmtS(a)} – ${fmtS(b)}) sur DOZE`, url: momentUrl(t, a, b), cover: coverOf(t) });
+      if (mb.dataset.mom === "story") {
+        mb.disabled = true; mb.textContent = "Création de l'image…";
+        momentImage(t, a, b).then(async bl => {
+          mb.disabled = false; mb.textContent = "📸 Créer l'image pour ma story";
+          if (!bl) { toast("Image impossible pour ce titre (pochette protégée)."); return; }
+          const file = new File([bl], "doze-moment.png", { type: "image/png" });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], text: `✂ ${t.title} · ${t.artist} sur DOZE\n${momentUrl(t, a, b)}` }).catch(() => {}); return; }
+          const u = URL.createObjectURL(bl), dl = document.createElement("a"); dl.href = u; dl.download = "doze-moment.png"; document.body.appendChild(dl); dl.click(); dl.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000);
+          toast("Image enregistrée : ajoute-la à ta story avec le lien");
+        });
+      }
+      return;
+    }
     if (e.target.closest("[data-native-share]")) { const it = S.shareItem; navigator.share({ title: "DOZE", text: it.text, url: it.url }).catch(() => {}); return; }
     if (e.target.closest("[data-copy-link]")) { const it = S.shareItem; navigator.clipboard.writeText(it.text + "\n" + it.url).then(() => toast("Lien copié : colle-le où tu veux"), () => toast(it.url)); return; }
     if (e.target.closest("[data-copy-app]")) { navigator.clipboard.writeText(appUrl()).then(() => toast("Lien copié : colle-le dans " + (isIOSDev ? "Safari" : "Chrome")), () => toast(appUrl())); return; }
@@ -1041,6 +1085,14 @@
     }
   });
   $("sheet-wrap").addEventListener("input", e => {
+    if (e.target.id === "m-a" || e.target.id === "m-b") {
+      let a = +$("m-a").value, b = +$("m-b").value, max = +$("m-a").max;
+      if (e.target.id === "m-a") { if (b - a < 5) b = Math.min(max, a + 5); if (b - a > 60) b = a + 60; }
+      else { if (b - a < 5) a = Math.max(0, b - 5); if (b - a > 60) a = b - 60; }
+      $("m-a").value = a; $("m-b").value = b; S.mom = { a, b };
+      $("m-a-v").textContent = fmtS(a); $("m-b-v").textContent = fmtS(b); $("m-len").textContent = (b - a) + " secondes";
+      return;
+    }
     const b = e.target.closest("[data-band]");
     if (b) { if (FX.preset !== "perso") { FX.custom = currentGains().slice(); FX.preset = "perso"; store.set("eq", "perso"); document.querySelectorAll("[data-preset]").forEach(c => c.classList.toggle("is-on", c.dataset.preset === "perso")); }
       FX.custom[+b.dataset.band] = +b.value; store.set("eqCustom", FX.custom); applyEq(); b.parentElement.querySelector(".db").textContent = (b.value > 0 ? "+" : "") + b.value + " dB"; }
@@ -1153,6 +1205,7 @@
     openSheet("install");
   }
 
+  // (le panneau « share » sert aussi aux moments)
   // ---------- dédicaces (tout tient dans le lien : rien n'est stocké) ----------
   const b64 = { enc: o => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
     dec: s => { try { return JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, "+").replace(/_/g, "/"))))); } catch { return null; } } };
@@ -1228,7 +1281,163 @@
     el.addEventListener("click", close); setTimeout(close, 2300);
   })();
 
-  // ---------- file de lecture ----------
+  // ---------- 2. Mode Découverte ----------
+  const D = { deck: [], i: 0, timer: 0, active: false, started: false };
+  let swiped = new Set(store.get("swiped", []));
+  function discDeck() {
+    let pool = S.all.filter(t => canOffline(t) && !favs.has(t.id) && !swiped.has(t.id));
+    if (!pool.length) { swiped = new Set(); store.set("swiped", []); pool = S.all.filter(t => canOffline(t) && !favs.has(t.id)); }
+    // les titres peu écoutés d'abord, mélangés par tranches pour varier
+    pool.sort((a, b) => a.plays - b.plays);
+    const out = []; for (let k = 0; k < pool.length; k += 6) out.push(...shuffled(pool.slice(k, k + 6)));
+    return out;
+  }
+  function discInit() {
+    D.deck = discDeck(); D.i = 0; D.active = true; D.started = false;
+    discRender();
+  }
+  function discStop() { if (!D.active) return; D.active = false; clearTimeout(D.timer); if (D.playing) { audio.pause(); D.playing = false; } }
+  function discCard(t, cls) {
+    return `<div class="dcard ${cls}" data-id="${t.id}"><div class="dcard-art">${imgTag(t)}<span class="stamp keep">GARDER</span><span class="stamp skip">SUIVANT</span></div>
+      <div class="dcard-meta"><b>${esc(t.title)}</b><span>${esc(t.artist)}${t.genre ? " · " + esc(t.genre) : ""}</span><span class="dcard-tags">${t.plays < 10 ? '<i class="new">Pépite</i>' : ""}${t.ai ? "<i>IA</i>" : ""}</span></div>
+      <div class="dcard-bar"><i></i></div></div>`;
+  }
+  function discRender() {
+    const st = $("disc-stage"); if (!st) return;
+    const t = D.deck[D.i], n2 = D.deck[D.i + 1];
+    if (!t) { $("disc-ctrl").hidden = true; st.innerHTML = `<div class="empty"><strong>Tu as tout découvert 🎉</strong><span>Reviens plus tard : de nouveaux talents publient chaque jour.</span><button class="btn btn-gold" type="button" data-d="restart">Recommencer</button></div>`; return; }
+    st.innerHTML = (n2 ? discCard(n2, "next") : "") + discCard(t, "top") + (D.started ? "" : `<button class="disc-start" type="button" data-d="start"><span>▶</span>Commencer la découverte</button>`);
+    $("disc-ctrl").hidden = !D.started;
+    if (D.started) discPlay(t);
+    bindCardDrag(st.querySelector(".dcard.top"));
+  }
+  function discPlay(t) {
+    clearTimeout(D.timer);
+    const start = () => {
+      const dur = audio.duration;
+      if (isFinite(dur) && dur > 40) audio.currentTime = Math.max(20, dur * .32);     // le passage le plus fort est souvent vers le premier refrain
+      audio.play().catch(() => {}); D.playing = true;
+      const bar = document.querySelector(".dcard.top .dcard-bar i"); if (bar) { bar.style.transition = "none"; bar.style.width = "0"; requestAnimationFrame(() => { bar.style.transition = "width 15s linear"; bar.style.width = "100%"; }); }
+      D.timer = setTimeout(() => discNext("pass", true), 15000);
+    };
+    S.queue = [t]; S.order = [0]; S.pos = 0; S.label = ["Découverte", "DOZE"];
+    audio.src = playable(t.audio_url);
+    $("p-title").textContent = t.title; $("p-artist").textContent = t.artist; const img = $("p-cover"); img.src = coverOf(t); img.hidden = false;
+    syncLike(); refreshCurrent();
+    audio.addEventListener("loadedmetadata", start, { once: true });
+  }
+  function discNext(act, auto) {
+    const t = D.deck[D.i]; if (!t) return;
+    clearTimeout(D.timer);
+    if (act === "like" && !favs.has(t.id)) toggleFav(t.id);
+    swiped.add(t.id); store.set("swiped", [...swiped].slice(-500));
+    const card = document.querySelector(".dcard.top");
+    if (card && !auto) { card.classList.add(act === "like" ? "out-right" : "out-left"); setTimeout(() => { D.i++; discRender(); }, 260); }
+    else { D.i++; discRender(); }
+  }
+  function bindCardDrag(card) {
+    if (!card) return;
+    let x0 = 0, y0 = 0, dx = 0, on = false;
+    card.addEventListener("pointerdown", e => { if (!D.started) return; on = true; x0 = e.clientX; y0 = e.clientY; dx = 0; card.setPointerCapture(e.pointerId); card.style.transition = "none"; });
+    card.addEventListener("pointermove", e => {
+      if (!on) return; dx = e.clientX - x0; const dy = e.clientY - y0;
+      card.style.transform = `translate(${dx}px, ${dy * .2}px) rotate(${dx / 18}deg)`;
+      card.classList.toggle("lean-right", dx > 40); card.classList.toggle("lean-left", dx < -40);
+    });
+    const end = () => {
+      if (!on) return; on = false; card.style.transition = "";
+      if (dx > 90) discNext("like"); else if (dx < -90) discNext("pass");
+      else { card.style.transform = ""; card.classList.remove("lean-right", "lean-left"); }
+    };
+    card.addEventListener("pointerup", end); card.addEventListener("pointercancel", end);
+  }
+  $("view").addEventListener("click", e => {
+    const b = e.target.closest("[data-d]"); if (!b || S.view !== "decouvrir") return;
+    const d = b.dataset.d, t = D.deck[D.i];
+    if (d === "start") { D.started = true; discRender(); }
+    else if (d === "restart") discInit();
+    else if (d === "like" || d === "pass") discNext(d);
+    else if (d === "full" && t) { clearTimeout(D.timer); D.active = false; startQueue([t, ...D.deck.slice(D.i + 1)], 0, true, ["Découverte", "Écoute complète"]); audio.addEventListener("loadedmetadata", () => { audio.currentTime = 0; }, { once: true }); openNP(); }
+  });
+
+  // ---------- 1. Gestes ----------
+  (function gestures() {
+    const np = $("np"), art = document.querySelector(".np-art");
+    let sx = 0, sy = 0, mode = null, t0 = 0;
+    np.addEventListener("touchstart", e => {
+      if (e.touches.length !== 1 || e.target.closest(".lyr-lines, .lyr-tools, .lyr-tapbar, input, .np-queue, .sheet-wrap")) { mode = "none"; return; }
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY; mode = null; t0 = Date.now();
+    }, { passive: true });
+    np.addEventListener("touchmove", e => {
+      if (mode === "none") return;
+      const dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
+      if (!mode) {
+        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+        if (Math.abs(dx) > Math.abs(dy) && e.target.closest(".np-art") && !audio.isExternal) mode = "h";
+        else if (dy > 0 && np.scrollTop <= 0 && Math.abs(dy) > Math.abs(dx)) mode = "v";
+        else { mode = "none"; return; }
+      }
+      e.preventDefault();
+      if (mode === "h") { art.style.transition = "none"; art.style.transform = `translateX(${dx}px) rotate(${dx / 40}deg)`; art.style.opacity = String(1 - Math.min(.5, Math.abs(dx) / 600)); }
+      if (mode === "v") { np.style.transition = "none"; np.style.transform = `translateY(${Math.max(0, dy)}px)`; np.style.borderRadius = Math.min(28, dy / 6) + "px"; }
+    }, { passive: false });
+    np.addEventListener("touchend", e => {
+      const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy, fast = Date.now() - t0 < 250;
+      if (mode === "h") {
+        art.style.transition = "transform .3s cubic-bezier(.2,.8,.2,1), opacity .3s";
+        if (Math.abs(dx) > 90 || (fast && Math.abs(dx) > 40)) {
+          art.style.transform = `translateX(${dx > 0 ? 120 : -120}%) rotate(${dx > 0 ? 8 : -8}deg)`; art.style.opacity = "0";
+          setTimeout(() => { dx > 0 ? prev() : next(false); art.style.transition = "none"; art.style.transform = `translateX(${dx > 0 ? -60 : 60}%)`; art.style.opacity = "0";
+            requestAnimationFrame(() => { art.style.transition = "transform .35s cubic-bezier(.2,.8,.2,1), opacity .35s"; art.style.transform = ""; art.style.opacity = ""; }); }, 220);
+        } else { art.style.transform = ""; art.style.opacity = ""; }
+      }
+      if (mode === "v") {
+        np.style.transition = "transform .3s cubic-bezier(.2,.8,.2,1), border-radius .3s";
+        if (dy > 140 || (fast && dy > 60)) { np.style.transform = "translateY(100%)"; setTimeout(() => { closeNP(); np.style.transition = "none"; np.style.transform = ""; np.style.borderRadius = ""; }, 280); }
+        else { np.style.transform = ""; np.style.borderRadius = ""; }
+      }
+      mode = null;
+    });
+    // Mini-lecteur : glisser vers le haut pour ouvrir, à gauche ou à droite pour changer de titre
+    const mini = $("player"); let mx = 0, my = 0, mt = 0;
+    mini.addEventListener("touchstart", e => { mx = e.touches[0].clientX; my = e.touches[0].clientY; mt = Date.now(); }, { passive: true });
+    mini.addEventListener("touchend", e => {
+      const dx = e.changedTouches[0].clientX - mx, dy = e.changedTouches[0].clientY - my;
+      if (Date.now() - mt > 600) return;
+      if (dy < -40 && Math.abs(dy) > Math.abs(dx)) { openNP(); return; }
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5 && current()) { dx < 0 ? next(false) : prev(); }
+    }, { passive: true });
+  })();
+
+  // ---------- 3. Moments ----------
+  const fmtS = sec => Math.floor(sec / 60) + ":" + String(Math.floor(sec % 60)).padStart(2, "0");
+  function momentLines(t, a, b) {
+    const L = S.lyr; if (!L || L.id !== t.id || !L.lines.length || L.lines[0].t == null) return [];
+    const off = lyrOff[L.id] || 0;
+    return L.lines.filter(l => l.t - off >= a - 1 && l.t - off <= b).map(l => l.text).slice(0, 4);
+  }
+  async function momentImage(t, a, b) {
+    const W = 1080, H = 1920, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+    const tint = getComputedStyle($("np")).getPropertyValue("--tint-rgb").trim() || "46,72,140";
+    const g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, `rgb(${tint})`); g.addColorStop(.55, "#11141E"); g.addColorStop(1, "#07080D");
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    const load = src => new Promise(res => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
+    const [cov, logo] = await Promise.all([load(coverOf(t)), load("brand/logo-doze.png")]);
+    const S0 = 760, cx = (W - S0) / 2, cy = 300;
+    x.save(); x.shadowColor = "rgba(0,0,0,.6)"; x.shadowBlur = 80; x.shadowOffsetY = 30;
+    x.beginPath(); x.roundRect ? x.roundRect(cx, cy, S0, S0, 40) : x.rect(cx, cy, S0, S0); x.fillStyle = "#222"; x.fill(); x.restore();
+    if (cov) { x.save(); x.beginPath(); x.roundRect ? x.roundRect(cx, cy, S0, S0, 40) : x.rect(cx, cy, S0, S0); x.clip(); x.drawImage(cov, cx, cy, S0, S0); x.restore(); }
+    x.textAlign = "center"; x.fillStyle = "#F4EEE6";
+    x.font = "800 66px Montserrat, Inter, sans-serif"; x.fillText(t.title.slice(0, 26), W / 2, 1160);
+    x.font = "600 42px Inter, sans-serif"; x.fillStyle = "rgba(244,238,230,.75)"; x.fillText(t.artist.slice(0, 32), W / 2, 1225);
+    x.fillStyle = "#DA9A68"; x.font = "700 40px Montserrat, Inter, sans-serif"; x.fillText(`✂  MOMENT  ${fmtS(a)} – ${fmtS(b)}`, W / 2, 1320);
+    const lines = momentLines(t, a, b); x.fillStyle = "#F4EEE6"; x.font = "italic 600 44px Inter, sans-serif";
+    lines.forEach((l, k) => x.fillText("« " + l.slice(0, 38) + " »".slice(0, 2), W / 2, 1420 + k * 64));
+    if (logo) { const lw = 420, lh = lw * logo.height / logo.width; x.drawImage(logo, (W - lw) / 2, H - lh - 150, lw, lh); }
+    x.fillStyle = "rgba(244,238,230,.7)"; x.font = "600 34px Inter, sans-serif"; x.fillText("Écoute ce moment sur DOZE", W / 2, H - 90);
+    return new Promise(res => { try { c.toBlob(bl => res(bl), "image/png"); } catch { res(null); } });
+  }
+  function momentUrl(t, a, b) { const u = new URL(location.href); u.search = `?t=${t.id}&at=${Math.floor(a)}&to=${Math.floor(b)}`; u.hash = ""; return u.toString(); }
   function buildOrder(startIdx) {
     const n = S.queue.length;
     let order = [...Array(n).keys()];
@@ -1682,7 +1891,12 @@
       let t = byId(id);
       if (!t) { const r = await sb.from("tracks").select("id,title,artist,genre,source,suno_id,audio_url,cover_url,plays,likes,created_at").eq("id", id).maybeSingle(); t = r.data; }
       const ded = b64.dec(new URLSearchParams(location.search).get("d") || "");
-      if (t) { startQueue([t, ...S.all.filter(x => x.id !== t.id)], 0, false, ded ? ["Dédicace", "pour " + (ded.to || "toi")] : ["Partagé avec toi", "DOZE"]); openNP(); showDedic(ded); toast("Appuie sur lecture pour écouter « " + t.title + " »"); }
+      const qs = new URLSearchParams(location.search), at = +qs.get("at"), to = +qs.get("to");
+      if (t) {
+        startQueue([t, ...S.all.filter(x => x.id !== t.id)], 0, false, ded ? ["Dédicace", "pour " + (ded.to || "toi")] : at >= 0 && qs.has("at") ? ["Moment partagé", fmtS(at) + " – " + fmtS(to || at + 30)] : ["Partagé avec toi", "DOZE"]);
+        if (qs.has("at")) audio.addEventListener("loadedmetadata", () => { audio.currentTime = Math.min(at, (audio.duration || at + 1) - 1); }, { once: true });
+        openNP(); showDedic(ded); toast(qs.has("at") ? `Moment de « ${t.title} » : appuie sur lecture` : "Appuie sur lecture pour écouter « " + t.title + " »");
+      }
     }
   })();
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
