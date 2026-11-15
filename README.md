@@ -1,8 +1,8 @@
-# Écrin
+# DOZE
 
 La musique des créateurs Suno, gratuite pour tout le monde. Les artistes publient leurs chansons (lien Suno ou fichier MP3) et tout le monde peut les écouter en boucle ou en aléatoire.
 
-Version 3.5.1
+Version 4.0.0
 
 ## Fonctions
 - **Accueil** façon plateforme de streaming : titre à la une, rayons « Écoutés récemment », « Nouveautés », « Pépites à découvrir » (titres peu écoutés mis en avant à tour de rôle), « Les plus écoutées », artistes et genres.
@@ -44,10 +44,10 @@ Dans Supabase › **Table Editor** › `tracks` :
 - `sw.js`, `manifest.json`, `icon.svg` : installation sur téléphone
 
 ## Identité
-- **Nom** : Écrin, la boîte de velours où l'on garde les bijoux. Ici, chaque chanson en est un.
-- **Logo** (`icon.svg`) : le bâton de Moïse, droit avec sa crosse de berger, forme la colonne de la harpe de David. La crosse se prolonge en console, les cordes sont tendues jusqu'à la caisse, et une pierre précieuse brille au sommet. Or sur velours bordeaux.
-- **Couleurs** : velours `#140A10`, or `#D9B36A` (thème sombre) ; ivoire `#FBF7F2`, or bruni `#9C6B1E` (thème clair).
-- **Typographies** : Marcellus (titres, inspirée des inscriptions gravées antiques), Inter (texte).
+- **Nom** : DOZE. **Slogan** : « Chaque talent mérite d'être entendu ».
+- **Logo** : l'enseigne DOZE (casque en cuivre formant le « O », ondes cuivrées), `brand/banniere-doze.jpg` ; icônes recadrées dans `icon-*.png`.
+- **Couleurs** : noir bleuté, bleu nuit, cuivre et ivoire, reprises du logo.
+- **Typographies** : Montserrat (titres), Inter (texte).
 
 ## Relais Suno (import de playlist)
 Le navigateur ne peut pas lire les pages de Suno. Le relais `supabase/functions/suno-import/index.ts`

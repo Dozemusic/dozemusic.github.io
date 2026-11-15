@@ -1,5 +1,5 @@
-/* Écrin 3.5.1 */
-  const VERSION = "3.5.1";
+/* DOZE 4.0.0 */
+  const VERSION = "4.0.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -181,11 +181,11 @@
   function toast(msg) { const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, Math.max(2800, msg.length * 55)); }
   function shareUrl(t) { const u = new URL(location.href); u.search = "?t=" + t.id; u.hash = ""; return u.toString(); }
   function share(t) {
-    openShare({ kind: "titre", title: `« ${t.title} » de ${t.artist}`, text: `🎧 Écoute « ${t.title} » de ${t.artist} sur Écrin`, url: shareUrl(t), cover: coverOf(t) });
+    openShare({ kind: "titre", title: `« ${t.title} » de ${t.artist}`, text: `🎧 Écoute « ${t.title} » de ${t.artist} sur DOZE`, url: shareUrl(t), cover: coverOf(t) });
   }
   const appUrl = () => { const u = new URL(location.href); u.search = ""; u.hash = ""; return u.toString(); };
   function shareApp() {
-    openShare({ kind: "appli", title: "Écrin", text: "🎧 Découvre Écrin : la musique des talents en herbe, des artistes et des créateurs IA. Gratuit et sans pub. Chaque talent mérite d'être entendu.", url: appUrl(), cover: "icon-192.png" });
+    openShare({ kind: "appli", title: "DOZE", text: "🎧 Découvre DOZE : la musique des talents en herbe, des artistes et des créateurs IA. Gratuit et sans pub. Chaque talent mérite d'être entendu.", url: appUrl(), cover: "icon-192.png" });
   }
   function shuffled(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
@@ -263,7 +263,7 @@
   // ---------- rendu : composants ----------
   function card(t, ctx, i) {
     const cur = current();
-    return `<div class="card${cur && cur.id === t.id ? " is-current" : ""}" data-ctx="${ctx}" data-i="${i}" role="button" tabindex="0" aria-label="Écouter ${esc(t.title)} de ${esc(t.artist)}">
+    return `<div class="card${cur && cur.id === t.id ? " is-current" : ""}" style="--i:${Math.min(i, 12)}" data-ctx="${ctx}" data-i="${i}" role="button" tabindex="0" aria-label="Écouter ${esc(t.title)} de ${esc(t.artist)}">
       <div class="art">${imgTag(t)}${t.ai ? '<span class="ai-tag">IA</span>' : ""}
         <button class="fab" type="button" tabindex="-1" aria-hidden="true">${cur && cur.id === t.id && !audio.paused ? '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'}</button></div>
       <strong>${esc(t.title)}</strong><span class="sub">${esc(t.artist)}</span></div>`;
@@ -276,7 +276,7 @@
   }
   function artistShelf(list) {
     if (!list.length) return "";
-    return `<section><div class="sec-head"><div><h2>Artistes</h2><p>Les talents d'Écrin, connus ou en herbe</p></div></div>
+    return `<section><div class="sec-head"><div><h2>Artistes</h2><p>Les talents de DOZE, connus ou en herbe</p></div></div>
       <div class="shelf">${list.slice(0, 20).map(a => `<div class="card artist" data-artist="${esc(a.name)}" role="button" tabindex="0">
         <div class="art">${imgTag(a.tracks[0])}</div><strong>${esc(a.name)}</strong><span class="sub">${plural(a.tracks.length, "titre")}</span></div>`).join("")}</div></section>`;
   }
@@ -299,7 +299,7 @@
         </span></li>`;
     }).join("")}</ol>`;
   }
-  const mobileBrand = `<div class="mobile-brand"><a class="brand" href="#accueil"><img src="logo-64.png" alt=""><span class="word">ÉCRIN</span></a><span class="mb-actions"><button class="ic" type="button" data-install title="Installer l'appli" aria-label="Installer l'appli"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5zM19 9h-4V3H9v6H5l7 7z"/></svg></button><button class="ic" type="button" data-share-app title="Partager Écrin" aria-label="Partager Écrin"><svg viewBox="0 0 24 24"><path d="M18 16a3 3 0 0 0-2 .8L8.9 12.7a3 3 0 0 0 0-1.4L16 7.2A3 3 0 1 0 15 5l.1.7L8 9.8a3 3 0 1 0 0 4.4l7.1 4.2-.1.6a3 3 0 1 0 3-3"/></svg></button><span class="ver">v${VERSION}</span></span></div>`;
+  const mobileBrand = `<div class="mobile-brand"><a class="brand" href="#accueil"><img src="logo-64.png" alt=""><span class="word">DOZE</span></a><span class="mb-actions"><button class="ic" type="button" data-install title="Installer l'appli" aria-label="Installer l'appli"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5zM19 9h-4V3H9v6H5l7 7z"/></svg></button><button class="ic" type="button" data-share-app title="Partager DOZE" aria-label="Partager DOZE"><svg viewBox="0 0 24 24"><path d="M18 16a3 3 0 0 0-2 .8L8.9 12.7a3 3 0 0 0 0-1.4L16 7.2A3 3 0 1 0 15 5l.1.7L8 9.8a3 3 0 1 0 0 4.4l7.1 4.2-.1.6a3 3 0 1 0 3-3"/></svg></button><span class="ver">v${VERSION}</span></span></div>`;
   const playIcon = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
   const shuffleIcon = '<svg viewBox="0 0 24 24"><path d="M10.6 9.2 5.4 4 4 5.4l5.2 5.2zM14.5 4l2 2L4 18.6 5.4 20 18 7.5l2 2V4zm.3 9.4-1.4 1.4 3.1 3.1-2 2H20v-5.5l-2 2z"/></svg>';
   function greeting() { const h = new Date().getHours(); return h < 5 ? "Bonne nuit" : h < 12 ? "Bonjour" : h < 18 ? "Bon après-midi" : "Bonsoir"; }
@@ -310,12 +310,12 @@
       if (!S.loaded) return mobileBrand + `<h1 class="greet">${greeting()}</h1><div class="empty">Chargement des créations…</div>`;
       if (S.offlineMode && !S.all.length) return mobileBrand + `<div class="empty">Pas de connexion et aucun titre téléchargé.</div>`;
       if (S.error) return mobileBrand + `<div class="empty">Impossible de charger les chansons. Vérifie ta connexion, puis recharge la page.</div>`;
-      if (!S.all.length) return mobileBrand + `<h1 class="greet">${greeting()}</h1><div class="empty"><strong>Écrin attend sa première chanson.</strong><span>Publie la tienne : elle sera la première que le monde entendra ici.</span><a class="btn btn-gold" href="#publier">Publier ma chanson</a></div>`;
+      if (!S.all.length) return mobileBrand + `<h1 class="greet">${greeting()}</h1><div class="empty"><strong>DOZE attend sa première chanson.</strong><span>Publie la tienne : elle sera la première que le monde entendra ici.</span><a class="btn btn-gold" href="#publier">Publier ma chanson</a></div>`;
       const top = popular()[0];
       S.ctx.hero = [top];
       const recent = history.map(byId).filter(Boolean).slice(0, 12);
       const showInstall = !isInstalled() && matchMedia("(max-width: 860px)").matches && !store.get("noInstallBanner", false);
-      return mobileBrand + `${S.offlineMode ? '<div class="offline-banner">📴 Hors connexion : tu écoutes tes titres téléchargés.</div>' : ""}${showInstall ? `<div class="install-banner"><img src="icon-192.png" alt=""><span><b>Installe Écrin</b>Sur ton écran d'accueil, comme une vraie appli, même hors connexion.</span><button class="btn btn-gold" type="button" data-install>Installer</button><button class="ic" type="button" data-hide-install aria-label="Masquer"><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>` : ""}<h1 class="greet">${greeting()}</h1>
+      return mobileBrand + `${S.offlineMode ? '<div class="offline-banner">📴 Hors connexion : tu écoutes tes titres téléchargés.</div>' : ""}${showInstall ? `<div class="install-banner"><img src="icon-192.png" alt=""><span><b>Installe DOZE</b>Sur ton écran d'accueil, comme une vraie appli, même hors connexion.</span><button class="btn btn-gold" type="button" data-install>Installer</button><button class="ic" type="button" data-hide-install aria-label="Masquer"><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>` : ""}<h1 class="greet">${greeting()}</h1>
         <section class="hero">
           <div class="hero-bg" style="background-image:url('${esc(coverOf(top))}')"></div>
           ${imgTag(top)}
@@ -353,7 +353,7 @@
     bibliotheque() {
       const f = [...favs].map(byId).filter(Boolean);
       const h = history.map(byId).filter(Boolean);
-      return mobileBrand + `<div class="page-head"><div class="ph-bg" style="background:linear-gradient(135deg,#4B2BC9,#0B1129 75%)"></div>
+      return mobileBrand + `<div class="page-head"><div class="ph-bg" style="background:linear-gradient(135deg,#2E4A8C,#0F121B 75%)"></div>
           <div class="ph-text"><span class="eyebrow">Ma bibliothèque</span><h1>Coups de cœur</h1><span class="stats">${plural(f.length, "titre")} · gardés sur cet appareil, sans compte</span></div></div>
         ${f.length ? `<div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="favs">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="favs">${shuffleIcon} Aléatoire</button></div>${rows(f, "favs")}`
           : `<div class="empty">Touche le cœur à côté d'une chanson pour la retrouver ici.</div>`}
@@ -372,7 +372,7 @@
       const mine = myLists.find(x => x.id === pl.id);
       const owner = !!(mine && mine.key);
       const list = pl.tracks.map(byId).filter(Boolean);
-      return mobileBrand + `<div class="page-head"><div class="ph-bg" style="background:linear-gradient(135deg, ${genreColors(pl.name)[0]}, #0B1129 80%)"></div>
+      return mobileBrand + `<div class="page-head"><div class="ph-bg" style="background:linear-gradient(135deg, ${genreColors(pl.name)[0]}, #0F121B 80%)"></div>
           <div class="ph-art square playlist-art" style="background:${genreBg(pl.name)}"><svg viewBox="0 0 24 24"><path d="M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-2V8h2v6.2a3 3 0 1 1-2 2.8z"/></svg></div>
           <div class="ph-text"><span class="eyebrow">Playlist</span><h1>${esc(pl.name)}</h1><span class="stats">${plural(list.length, "titre")}</span></div></div>
         <div class="page-actions">
@@ -385,10 +385,10 @@
     artiste() {
       const name = S.param || "";
       const list = S.all.filter(t => norm(t.artist) === norm(name));
-      if (!list.length) return mobileBrand + `<div class="empty">Cet artiste n'a pas encore de chanson sur Écrin.</div>`;
+      if (!list.length) return mobileBrand + `<div class="empty">Cet artiste n'a pas encore de chanson sur DOZE.</div>`;
       const plays = list.reduce((s, t) => s + t.plays, 0);
       const [a, b] = genreColors(name);
-      return mobileBrand + `<div class="page-head"><div class="ph-bg" style="background:linear-gradient(135deg, ${a}, #0B1129 80%)"></div>
+      return mobileBrand + `<div class="page-head"><div class="ph-bg" style="background:linear-gradient(135deg, ${a}, #0F121B 80%)"></div>
           ${imgTag(list[0], "ph-art")}
           <div class="ph-text"><span class="eyebrow">Artiste</span><h1>${esc(name)}</h1><span class="stats">${plural(list.length, "titre")} · ${plural(plays, "écoute")}</span></div></div>
         <div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="artist">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="artist">${shuffleIcon} Aléatoire</button></div>
@@ -407,7 +407,7 @@
       return mobileBrand + `<div class="publish">
         <div>
           <div class="publish-head"><span class="eyebrow">Gratuit · sans compte · ouvert à tous</span><h1>Publie ta chanson</h1>
-            <p>Talent en herbe, artiste confirmé ou créateur IA : ta musique rejoint Écrin et devient écoutable par tout le monde. Les nouveaux titres passent dans « Pépites à découvrir » pour trouver leurs premiers auditeurs.</p></div>
+            <p>Talent en herbe, artiste confirmé ou créateur IA : ta musique rejoint DOZE et devient écoutable par tout le monde. Les nouveaux titres passent dans « Pépites à découvrir » pour trouver leurs premiers auditeurs.</p></div>
           <div class="seg seg4" role="group" aria-label="Méthode">
             <button class="${pubMode === "link" ? "is-on" : ""}" data-mode="link" type="button">Suno</button>
             <button class="${pubMode === "pl" ? "is-on" : ""}" data-mode="pl" type="button">Playlist · profil Suno</button>
@@ -422,7 +422,7 @@
                 <li>Attends une à deux minutes que Suno prépare la version publique.</li>
                 <li>Touche <b>⋯ › Partager › Copier le lien</b>, puis colle-le ci-dessous.</li>
               </ol>
-              <span>Une chanson privée n'a pas de son pour les autres : Écrin la refusera. Tu peux aussi choisir « Fichier audio ».</span>
+              <span>Une chanson privée n'a pas de son pour les autres : DOZE la refusera. Tu peux aussi choisir « Fichier audio ».</span>
             </div>
             <div class="field" data-for="link" ${pubMode === "link" ? "" : "hidden"}>
               <label for="f-link">Lien de la chanson sur Suno</label>
@@ -443,7 +443,7 @@
             </div>
             <div class="suno-steps" data-for="pl" ${pubMode === "pl" ? "" : "hidden"}>
               <strong>Importe une playlist ou tout ton profil Suno en une fois</strong>
-              <span>Colle le lien d'une <b>playlist</b> (⋯ › Partager › Copier le lien) ou de ton <b>profil</b> (suno.com/@ton-pseudo) : Écrin liste tes chansons, tu coches et tu importes. Seules les chansons <b>publiques</b> sur Suno peuvent être importées. Ta liste « J'aime » n'est pas accessible : elle n'est visible que connecté à ton compte.</span>
+              <span>Colle le lien d'une <b>playlist</b> (⋯ › Partager › Copier le lien) ou de ton <b>profil</b> (suno.com/@ton-pseudo) : DOZE liste tes chansons, tu coches et tu importes. Seules les chansons <b>publiques</b> sur Suno peuvent être importées. Ta liste « J'aime » n'est pas accessible : elle n'est visible que connecté à ton compte.</span>
             </div>
             <div class="field" data-for="pl" ${pubMode === "pl" ? "" : "hidden"}>
               <label for="f-pl">Lien de la playlist ou de ton profil Suno</label>
@@ -452,7 +452,7 @@
             <div id="pl-box" class="pl-box" data-for="pl" ${pubMode === "pl" ? "" : "hidden"}></div>
             <div class="suno-steps" data-for="ext" ${pubMode === "ext" ? "" : "hidden"}>
               <strong>Ta chanson est déjà sur SoundCloud ou YouTube ?</strong>
-              <span>Colle son lien : elle sera lue sur Écrin avec le lecteur officiel de SoundCloud ou YouTube, qui s'affiche sur la pochette. La chanson doit être publique et autoriser l'intégration.</span>
+              <span>Colle son lien : elle sera lue sur DOZE avec le lecteur officiel de SoundCloud ou YouTube, qui s'affiche sur la pochette. La chanson doit être publique et autoriser l'intégration.</span>
             </div>
             <div class="field" data-for="ext" ${pubMode === "ext" ? "" : "hidden"}>
               <label for="f-ext">Lien SoundCloud ou YouTube</label>
@@ -471,7 +471,7 @@
             </div>
             <label class="check" ${pubMode === "pl" ? "hidden" : ""}><input id="f-ai" type="checkbox" ${pubMode === "link" ? "checked disabled" : ""}><span>Cette chanson a été créée avec l'aide de l'IA. <small>Les auditeurs voient une petite mention « IA » : la transparence rassure.</small></span></label>
             <div class="field" ${pubMode === "pl" ? "hidden" : ""}><label for="f-lyrics">Paroles (facultatif)</label><textarea id="f-lyrics" rows="6" maxlength="8000" placeholder="Colle ici les paroles. Elles défileront sur la pochette pendant l'écoute."></textarea>
-              <small>Astuce : au format LRC (<code>[01:23.45] ma ligne</code>), elles seront parfaitement synchronisées. Sinon, Écrin estime le rythme.</small></div>
+              <small>Astuce : au format LRC (<code>[01:23.45] ma ligne</code>), elles seront parfaitement synchronisées. Sinon, DOZE estime le rythme.</small></div>
             <label class="check"><input id="f-rights" type="checkbox" required><span>Je suis l'auteur de cette chanson (ou j'ai le droit de la diffuser) et j'accepte qu'elle soit écoutée gratuitement par tous.</span></label>
             <p id="form-msg" class="form-msg" role="status"></p>
             <div><button id="submit" class="btn btn-gold" type="submit">Publier</button></div>
@@ -544,7 +544,7 @@
     const chip = e.target.closest("[data-chip]"); if (chip) { S.genre = chip.dataset.chip || null; render(); return; }
     const pc = e.target.closest("[data-play-ctx]"); if (pc) { const l = S.ctx[pc.dataset.playCtx]; if (l) { setShuffle(false); startQueue(l, 0, true, ctxLabel(pc.dataset.playCtx)); } return; }
     const sc = e.target.closest("[data-shuffle-ctx]"); if (sc) { const l = S.ctx[sc.dataset.shuffleCtx]; if (l) { setShuffle(true); startQueue(l, Math.floor(Math.random() * l.length), true, ctxLabel(sc.dataset.shuffleCtx)); } return; }
-    if (e.target.closest("[data-shuffle-all]")) { setShuffle(true); startQueue(S.all, Math.floor(Math.random() * S.all.length), true, ["Aléatoire", "Tout Écrin"]); return; }
+    if (e.target.closest("[data-shuffle-all]")) { setShuffle(true); startQueue(S.all, Math.floor(Math.random() * S.all.length), true, ["Aléatoire", "Tout DOZE"]); return; }
     const item = e.target.closest("[data-ctx]");
     if (item) {
       const list = S.ctx[item.dataset.ctx]; const i = +item.dataset.i; const t = list && list[i]; if (!t) return;
@@ -826,7 +826,7 @@
   }
   function shareList(pl) {
     const u = new URL(location.href); u.search = "?p=" + pl.id; u.hash = "";
-    openShare({ kind: "playlist", title: `la playlist « ${pl.name} »`, text: `🎧 Écoute ma playlist « ${pl.name} » sur Écrin`, url: u.toString(), cover: "icon-192.png" });
+    openShare({ kind: "playlist", title: `la playlist « ${pl.name} »`, text: `🎧 Écoute ma playlist « ${pl.name} » sur DOZE`, url: u.toString(), cover: "icon-192.png" });
   }
 
   // ---------- effets audio : égaliseur, halo, volume ----------
@@ -885,9 +885,9 @@
         r /= w; g /= w; b /= w;
         const m = Math.max(r, g, b) || 1, f = Math.min(1.4, 150 / m);              // éclaircit les pochettes sombres, borne les claires
         setTint(Math.round(r * f), Math.round(g * f), Math.round(b * f));
-      } catch { setTint(76, 63, 180); }
+      } catch { setTint(46, 72, 140); }
     };
-    img.onerror = () => setTint(76, 63, 180);
+    img.onerror = () => setTint(46, 72, 140);
     img.src = coverOf(t);
   }
   function setTint(r, g, b) { const np = $("np"); np.style.setProperty("--tint", `rgb(${r},${g},${b})`); np.style.setProperty("--tint-rgb", `${r},${g},${b}`); }
@@ -905,7 +905,7 @@
     const live = FX.halo && FX.analyser && !audio.paused && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     let bass = 0;
     if (live) { FX.analyser.getByteFrequencyData(FX.bins); for (let i = 1; i < 8; i++) bass += FX.bins[i]; bass = bass / 7 / 255; }
-    const rgb = getComputedStyle($("np")).getPropertyValue("--tint-rgb").trim() || "76,63,180";
+    const rgb = getComputedStyle($("np")).getPropertyValue("--tint-rgb").trim() || "46,72,140";
     const cx = W / 2, cy = H / 2, base = box.width / 2;
     const glow = x.createRadialGradient(cx, cy, base * .6, cx, cy, base * (1.05 + bass * .25));
     glow.addColorStop(0, `rgba(${rgb},${.55 + bass * .4})`); glow.addColorStop(1, `rgba(${rgb},0)`);
@@ -916,10 +916,11 @@
       for (let i = 0; i < n; i++) {
         const v = FX.bins[Math.floor(4 + (i < n / 2 ? i : n - i) * 1.4)] / 255;
         const a = (i / n) * Math.PI * 2 - Math.PI / 2, len = base * .02 + v * base * .16;
-        x.strokeStyle = `rgba(242,199,102,${.25 + v * .7})`;
+        x.strokeStyle = `rgba(218,154,104,${.25 + v * .7})`;
         x.beginPath(); x.moveTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); x.lineTo(cx + Math.cos(a) * (R + len), cy + Math.sin(a) * (R + len)); x.stroke();
       }
-      art.style.transform = `scale(${1 + bass * .025})`;
+      const tt = performance.now() / 1000;
+      art.style.transform = `perspective(900px) rotateY(${Math.sin(tt * .7) * 5}deg) rotateX(${Math.cos(tt * .5) * 3}deg) scale(${1 + bass * .03})`;
     } else art.style.transform = "";
     haloRaf = requestAnimationFrame(drawHalo);
   }
@@ -944,7 +945,7 @@
           <span><b><span class="eqmini" aria-hidden="true"><i></i><i></i><i></i></span> Cet appareil</b><i>${esc(t ? qualityLabel(t) : "Qualité d'origine")}${net ? " · " + net : ""}</i></span></div>
         ${airplay ? `<button class="sheet-row" type="button" data-out="airplay"><svg viewBox="0 0 24 24"><path d="M6 22h12l-6-6zM21 3H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4v-2H3V5h18v12h-4v2h4a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2"/></svg><span>AirPlay</span></button>` : ""}
         ${remote ? `<button class="sheet-row" type="button" data-out="cast"><svg viewBox="0 0 24 24"><path d="M1 18v3h3a3 3 0 0 0-3-3m0-4v2a5 5 0 0 1 5 5h2a7 7 0 0 0-7-7m0-4v2a9 9 0 0 1 9 9h2A11 11 0 0 0 1 10m20-7H3a2 2 0 0 0-2 2v3h2V5h18v14h-7v2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2"/></svg><span>Diffuser sur un appareil (Chromecast, TV…)</span></button>` : ""}
-        <div class="sheet-row info"><svg viewBox="0 0 24 24"><path d="M17.7 7.7 12 2h-1v7.6L6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l4.6-4.6V22h1l5.7-5.7-4.3-4.3zM13 5.8l1.9 1.9L13 9.6zm1.9 10.5L13 18.2v-3.8z"/></svg><span>Bluetooth<small>Connecte ton casque ou ton enceinte dans les réglages Bluetooth du téléphone : Écrin passe dessus automatiquement.</small></span></div>
+        <div class="sheet-row info"><svg viewBox="0 0 24 24"><path d="M17.7 7.7 12 2h-1v7.6L6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l4.6-4.6V22h1l5.7-5.7-4.3-4.3zM13 5.8l1.9 1.9L13 9.6zm1.9 10.5L13 18.2v-3.8z"/></svg><span>Bluetooth<small>Connecte ton casque ou ton enceinte dans les réglages Bluetooth du téléphone : DOZE passe dessus automatiquement.</small></span></div>
         <div class="sheet-btns"><button class="btn" type="button" data-sheet="settings">Réglages audio</button><button class="btn" type="button" data-sheet="eq">Égaliseur</button></div>`;
     }
     if (view === "eq") {
@@ -953,12 +954,12 @@
       const autoName = t ? PRESETS[GENRE_PRESET[norm(t.genre)] || "plat"][0] : "Plat";
       body.innerHTML = `${!FX.enabled ? `<div class="sheet-note">Les effets audio sont désactivés. <button class="link" type="button" data-sheet="settings">Les activer</button></div>` : ""}
         <div class="chips">${[["auto", "Auto · selon le genre"], ...Object.entries(PRESETS).map(([k, v]) => [k, v[0]]), ["perso", "Personnalisé"]].map(([k, n]) => `<button class="chip${FX.preset === k ? " is-on" : ""}" type="button" data-preset="${k}">${n}</button>`).join("")}</div>
-        ${FX.preset === "auto" ? `<p class="sheet-note">Innovation Écrin : le réglage s'adapte à chaque chanson. Pour ${t ? `« ${esc(t.title)} »${t.genre ? ` (${esc(t.genre)})` : ""}` : "ce titre"}, il applique <b>${autoName}</b>.</p>` : ""}
+        ${FX.preset === "auto" ? `<p class="sheet-note">Innovation DOZE : le réglage s'adapte à chaque chanson. Pour ${t ? `« ${esc(t.title)} »${t.genre ? ` (${esc(t.genre)})` : ""}` : "ce titre"}, il applique <b>${autoName}</b>.</p>` : ""}
         <div class="eq-bands">${BANDS.map(([f, , n], i) => `<label class="band"><span class="db">${g[i] > 0 ? "+" : ""}${g[i]} dB</span><input type="range" min="-12" max="12" step="1" value="${g[i]}" data-band="${i}" aria-label="${n}" ${FX.enabled ? "" : "disabled"}><span class="hz">${f >= 1000 ? f / 1000 + " k" : f} Hz</span><small>${n}</small></label>`).join("")}</div>`;
     }
     if (view === "share") {
-      const it = S.shareItem || { title: "Écrin", text: "", url: appUrl() };
-      $("sheet-title").textContent = it.kind === "appli" ? "Partager Écrin" : "Partager " + (it.kind === "dédicace" ? "la dédicace" : it.kind === "playlist" ? "la playlist" : "ce titre");
+      const it = S.shareItem || { title: "DOZE", text: "", url: appUrl() };
+      $("sheet-title").textContent = it.kind === "appli" ? "Partager DOZE" : "Partager " + (it.kind === "dédicace" ? "la dédicace" : it.kind === "playlist" ? "la playlist" : "ce titre");
       body.innerHTML = `<div class="share-head">${it.cover ? `<img src="${esc(it.cover)}" alt="">` : ""}<span><b>${esc(it.title)}</b><i>${esc(it.url.replace(/^https?:\/\//, ""))}</i></span></div>
         ${navigator.share ? `<button class="btn btn-gold share-main" type="button" data-native-share><svg viewBox="0 0 24 24"><path d="M18 16a3 3 0 0 0-2 .8L8.9 12.7a3 3 0 0 0 0-1.4L16 7.2A3 3 0 1 0 15 5l.1.7L8 9.8a3 3 0 1 0 0 4.4l7.1 4.2-.1.6a3 3 0 1 0 3-3"/></svg> Partager avec mes applis…</button>` : ""}
         <div class="share-grid">${shareLinks(it).map(([n, href, cls, path]) => `<a class="share-app ${cls}" href="${href}" target="_blank" rel="noopener"><span><svg viewBox="0 0 24 24">${path}</svg></span>${n}</a>`).join("")}
@@ -968,23 +969,23 @@
       drawQR($("qr"), it.url);
     }
     if (view === "install") {
-      $("sheet-title").textContent = "Installer Écrin";
+      $("sheet-title").textContent = "Installer DOZE";
       const android = /Android/i.test(navigator.userAgent);
       let steps;
-      if (isInstalled()) steps = `<p class="sheet-note">Écrin est déjà installé sur cet appareil. Retrouve-le sur ton écran d'accueil.</p>`;
-      else if (isInApp()) steps = `<p class="sheet-note">Tu as ouvert Écrin depuis une autre appli (WhatsApp, Instagram, Claude…). Pour l'installer, ouvre ce lien dans <b>${isIOSDev ? "Safari" : "Chrome"}</b> :</p>
+      if (isInstalled()) steps = `<p class="sheet-note">DOZE est déjà installé sur cet appareil. Retrouve-le sur ton écran d'accueil.</p>`;
+      else if (isInApp()) steps = `<p class="sheet-note">Tu as ouvert DOZE depuis une autre appli (WhatsApp, Instagram, Claude…). Pour l'installer, ouvre ce lien dans <b>${isIOSDev ? "Safari" : "Chrome"}</b> :</p>
           <ol class="steps"><li>Touche <b>Copier le lien</b> ci-dessous.</li><li>Ouvre <b>${isIOSDev ? "Safari" : "Chrome"}</b> et colle le lien dans la barre d'adresse.</li><li>Rouvre ce panneau avec le bouton <b>Installer</b>.</li></ol>
-          <button class="btn btn-gold" type="button" data-copy-app>Copier le lien d'Écrin</button>`;
+          <button class="btn btn-gold" type="button" data-copy-app>Copier le lien de DOZE</button>`;
       else if (isIOSDev) steps = `<ol class="steps big">
             <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 2 7.5 6.5l1.4 1.4L11 5.8V16h2V5.8l2.1 2.1 1.4-1.4zM5 10v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V10h-2v10H7V10z"/></svg></span><span>Touche le bouton <b>Partager</b> de Safari (en bas de l'écran, ou en haut sur iPad).</span></li>
             <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4z"/></svg></span><span>Fais défiler et choisis <b>Sur l'écran d'accueil</b>.</span></li>
-            <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></span><span>Touche <b>Ajouter</b> : l'icône Écrin apparaît sur ton écran d'accueil.</span></li></ol>
-          <p class="sheet-note">Apple n'autorise pas les sites à s'installer en un seul bouton : ces 3 gestes sont nécessaires. Une fois installé, Écrin s'ouvre en plein écran et garde tes titres téléchargés.</p>`;
+            <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></span><span>Touche <b>Ajouter</b> : l'icône DOZE apparaît sur ton écran d'accueil.</span></li></ol>
+          <p class="sheet-note">Apple n'autorise pas les sites à s'installer en un seul bouton : ces 3 gestes sont nécessaires. Une fois installé, DOZE s'ouvre en plein écran et garde tes titres téléchargés.</p>`;
       else if (android) steps = `<ol class="steps big"><li><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4m0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4m0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4"/></svg></span><span>Dans Chrome, touche le menu <b>⋮</b> en haut à droite.</span></li>
             <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5zM19 9h-4V3H9v6H5l7 7z"/></svg></span><span>Choisis <b>Installer l'application</b> (ou <b>Ajouter à l'écran d'accueil</b>).</span></li>
-            <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></span><span>Confirme : Écrin apparaît avec tes applis.</span></li></ol>`;
+            <li><span class="ico"><svg viewBox="0 0 24 24"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></span><span>Confirme : DOZE apparaît avec tes applis.</span></li></ol>`;
       else steps = `<p class="sheet-note">Sur ordinateur, avec Chrome ou Edge : clique sur l'icône d'installation (un écran avec une flèche) à droite de la barre d'adresse, puis sur <b>Installer</b>.</p>`;
-      body.innerHTML = `<div class="share-head"><img src="icon-192.png" alt=""><span><b>Écrin</b><i>Gratuit · sans pub · fonctionne hors connexion</i></span></div>${steps}`;
+      body.innerHTML = `<div class="share-head"><img src="icon-192.png" alt=""><span><b>DOZE</b><i>Gratuit · sans pub · fonctionne hors connexion</i></span></div>${steps}`;
     }
     if (view === "lyredit") {
       const d = S.editTrack || current();
@@ -1024,7 +1025,7 @@
     const rt = e.target.closest("[data-rate]"); if (rt) { audio.playbackRate = +rt.dataset.rate; S.rate = audio.playbackRate; renderSheet(); return; }
     if (e.target.closest("[data-sleepmenu]")) { $("b-sleep").click(); return; }
     if (e.target.closest("[data-send-dedic]")) { sendDedic(); return; }
-    if (e.target.closest("[data-native-share]")) { const it = S.shareItem; navigator.share({ title: "Écrin", text: it.text, url: it.url }).catch(() => {}); return; }
+    if (e.target.closest("[data-native-share]")) { const it = S.shareItem; navigator.share({ title: "DOZE", text: it.text, url: it.url }).catch(() => {}); return; }
     if (e.target.closest("[data-copy-link]")) { const it = S.shareItem; navigator.clipboard.writeText(it.text + "\n" + it.url).then(() => toast("Lien copié : colle-le où tu veux"), () => toast(it.url)); return; }
     if (e.target.closest("[data-copy-app]")) { navigator.clipboard.writeText(appUrl()).then(() => toast("Lien copié : colle-le dans " + (isIOSDev ? "Safari" : "Chrome")), () => toast(appUrl())); return; }
     if (e.target.closest("[data-save-lyr]")) {
@@ -1063,7 +1064,7 @@
   const fmtSize = b => b >= 1e9 ? (b / 1e9).toFixed(1).replace(".", ",") + " Go" : Math.max(1, Math.round(b / 1e6)) + " Mo";
   S.dl = {};
   async function downloadTrack(t, quiet) {
-    if (!("caches" in window) || !("serviceWorker" in navigator)) { toast("Ce navigateur ne permet pas l'écoute hors ligne. Ouvre Écrin dans Safari ou Chrome."); return; }
+    if (!("caches" in window) || !("serviceWorker" in navigator)) { toast("Ce navigateur ne permet pas l'écoute hors ligne. Ouvre DOZE dans Safari ou Chrome."); return; }
     if (!canOffline(t)) { toast("Les titres SoundCloud et YouTube ne peuvent pas être téléchargés."); return; }
     if (offline[t.id] || S.dl[t.id] != null) return;
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch {}
@@ -1120,7 +1121,7 @@
       ["Telegram", `https://t.me/share/url?url=${u}&text=${t}`, "tg", '<path d="M21.9 4.4 18.8 19c-.2 1-.8 1.3-1.7.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.3-4.8 8.8-7.9c.4-.3-.1-.5-.6-.2L6.8 13l-4.7-1.5c-1-.3-1-1 .2-1.5L20.6 3c.9-.3 1.6.2 1.3 1.4"/>'],
       ["Facebook", `https://www.facebook.com/sharer/sharer.php?u=${u}`, "fb", '<path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.2c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.3v7A10 10 0 0 0 22 12"/>'],
       ["SMS", `sms:${isIOSDev ? "&" : "?"}body=${tu}`, "sms", '<path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2M8 11H6V9h2zm5 0h-2V9h2zm5 0h-2V9h2z"/>'],
-      ["E-mail", `mailto:?subject=${encodeURIComponent("Écrin : " + it.title)}&body=${tu}`, "mail", '<path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2m0 4-8 5-8-5V6l8 5 8-5z"/>'],
+      ["E-mail", `mailto:?subject=${encodeURIComponent("DOZE : " + it.title)}&body=${tu}`, "mail", '<path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2m0 4-8 5-8-5V6l8 5 8-5z"/>'],
       ["X", `https://twitter.com/intent/tweet?text=${t}&url=${u}`, "x", '<path d="M17.8 3h3.1l-6.8 7.7L22 21h-6.2l-4.9-6.4L5.3 21H2.2l7.2-8.3L1.8 3h6.4l4.4 5.8zm-1.1 16.2h1.7L7.4 4.7H5.6z"/>'],
     ];
   }
@@ -1142,12 +1143,12 @@
   // ---------- installation de l'appli ----------
   let installEvt = null;
   addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; syncInstall(); });
-  addEventListener("appinstalled", () => { installEvt = null; toast("Écrin est installé sur ton appareil 🎉"); syncInstall(); });
+  addEventListener("appinstalled", () => { installEvt = null; toast("DOZE est installé sur ton appareil 🎉"); syncInstall(); });
   const isInstalled = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
   const isInApp = () => /FBAN|FBAV|Instagram|WhatsApp|Snapchat|Line\/|TikTok|; wv\)/i.test(navigator.userAgent) || (isIOSDev && !/Safari\//.test(navigator.userAgent) && !isInstalled());
   function syncInstall() { document.querySelectorAll("[data-install]").forEach(b => b.hidden = isInstalled()); }
   async function installApp() {
-    if (isInstalled()) { toast("Écrin est déjà installé sur cet appareil"); return; }
+    if (isInstalled()) { toast("DOZE est déjà installé sur cet appareil"); return; }
     if (installEvt) { installEvt.prompt(); const r = await installEvt.userChoice.catch(() => null); if (r && r.outcome === "accepted") installEvt = null; return; }
     openSheet("install");
   }
@@ -1161,7 +1162,7 @@
     if (!f || !to) { toast("Indique ton prénom et celui de la personne."); return; }
     store.set("myname", f);
     const u = new URL(location.href); u.search = "?t=" + d.id + "&d=" + b64.enc({ f, to, m }); u.hash = "";
-    const url = u.toString(), text = `🎁 ${f} te dédicace « ${d.title} » de ${d.artist} sur Écrin`;
+    const url = u.toString(), text = `🎁 ${f} te dédicace « ${d.title} » de ${d.artist} sur DOZE`;
     openShare({ kind: "dédicace", title: `ta dédicace pour ${to}`, text, url, cover: coverOf(d) });
   }
   function showDedic(d) {
@@ -1169,6 +1170,62 @@
     c.innerHTML = `<span class="ded-ic">🎁</span><span><b>Dédicace de ${esc(d.f)} pour ${esc(d.to || "toi")}</b>${d.m ? `<q>${esc(d.m)}</q>` : ""}</span><button class="ic" type="button" aria-label="Masquer la dédicace" onclick="this.parentElement.hidden=true"><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button>`;
     c.hidden = false;
   }
+
+  // ---------- effets 3D ----------
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Pochettes qui s'inclinent sous le doigt ou la souris, avec un reflet qui glisse.
+  const TILT = ".card .art, .hero > img, .page-head .ph-art, .np-art img";
+  function tiltMove(e) {
+    const el = e.target.closest && e.target.closest(TILT); if (!el || calm) return;
+    const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+    el.style.setProperty("--rx", ((.5 - y) * 16).toFixed(2) + "deg"); el.style.setProperty("--ry", ((x - .5) * 18).toFixed(2) + "deg");
+    el.style.setProperty("--gx", (x * 100).toFixed(1) + "%"); el.style.setProperty("--gy", (y * 100).toFixed(1) + "%");
+    el.classList.add("tilting");
+  }
+  function tiltEnd(e) { const el = e.target.closest && e.target.closest(TILT); if (el) { el.classList.remove("tilting"); el.style.removeProperty("--rx"); el.style.removeProperty("--ry"); } }
+  document.addEventListener("pointermove", tiltMove, { passive: true });
+  document.addEventListener("pointerout", tiltEnd, { passive: true });
+  document.addEventListener("pointerup", tiltEnd, { passive: true });
+
+  // Fond vivant : des ondes cuivrées en perspective, comme sur le logo.
+  (function waves() {
+    const cv = $("bg3d"); if (!cv) return;
+    const x = cv.getContext("2d"); let W = 0, H = 0, raf = 0, last = 0;
+    const size = () => { const d = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; cv.width = W * d; cv.height = H * d; x.setTransform(d, 0, 0, d, 0, 0); };
+    size(); addEventListener("resize", size);
+    function frame(ts) {
+      raf = requestAnimationFrame(frame);
+      if (document.hidden || !$("np").hidden) return;
+      if (ts - last < 33) return; last = ts;                       // ~30 images/s, léger pour la batterie
+      const t = calm ? 0 : ts / 1000;
+      x.clearRect(0, 0, W, H);
+      const lines = 14, base = H * .30, amp = Math.min(70, H * .08);
+      for (let k = 0; k < lines; k++) {
+        const depth = k / (lines - 1), y0 = base + depth * H * .34, a = amp * (0.4 + depth * .9);
+        const g = x.createLinearGradient(0, 0, W, 0);
+        g.addColorStop(0, "rgba(218,154,104,0)"); g.addColorStop(.25, `rgba(218,154,104,${.05 + depth * .16})`);
+        g.addColorStop(.75, `rgba(240,190,146,${.05 + depth * .16})`); g.addColorStop(1, "rgba(218,154,104,0)");
+        x.strokeStyle = g; x.lineWidth = .6 + depth * 1.4; x.beginPath();
+        for (let px = 0; px <= W; px += 8) {
+          const u = px / W;
+          const y = y0 + Math.sin(u * 9 + t * (.6 + depth * .5) + k * .45) * a * Math.sin(u * Math.PI) + Math.cos(u * 4 - t * .4 + k) * a * .25;
+          px ? x.lineTo(px, y) : x.moveTo(px, y);
+        }
+        x.stroke();
+      }
+    }
+    raf = requestAnimationFrame(frame);
+  })();
+
+  // Ouverture : le logo DOZE apparaît en relief (une fois par visite).
+  (function intro() {
+    const el = $("intro"); if (!el) return;
+    let seen = false; try { seen = sessionStorage.getItem("doze.intro") === "1"; sessionStorage.setItem("doze.intro", "1"); } catch {}
+    if (seen || calm) { el.remove(); return; }
+    el.hidden = false;
+    const close = () => { el.classList.add("out"); setTimeout(() => el.remove(), 700); };
+    el.addEventListener("click", close); setTimeout(close, 2300);
+  })();
 
   // ---------- file de lecture ----------
   function buildOrder(startIdx) {
@@ -1183,11 +1240,11 @@
     if (key === "artist") return ["Artiste", S.param || ""];
     if (key === "genre") return ["Genre", S.param || ""];
     if (key === "pl") return ["Playlist", (S.list && S.list.name) || ""];
-    return CTX_LABEL[key] || ["Lecture en cours", "Écrin"];
+    return CTX_LABEL[key] || ["Lecture en cours", "DOZE"];
   }
   function startQueue(list, idx, autoplay = true, label) {
     if (!list || !list.length) return;
-    S.label = label || ["Lecture en cours", "Écrin"];
+    S.label = label || ["Lecture en cours", "DOZE"];
     $("np-ctx-type").textContent = S.label[0]; $("np-ctx-name").textContent = S.label[1];
     S.queue = list.slice(); buildOrder(idx); playCurrent(autoplay);
   }
@@ -1210,11 +1267,11 @@
     loadLyr(t); syncDl();
     $("np-title").textContent = t.title; $("np-artist").textContent = t.artist;
     renderTags(t); S.lyricsFor = null; if (!$("np").hidden && S.npTab === "lyrics") loadLyrics();
-    document.title = t.title + " · " + t.artist + " | Écrin";
+    document.title = t.title + " · " + t.artist + " | DOZE";
     if ("mediaSession" in navigator) {
       // Infos affichées sur l'écran verrouillé, la montre, CarPlay et l'écran de la voiture (Bluetooth).
       const art = coverOf(t), abs = art.startsWith("data:") ? art : new URL(art, location.href).href;
-      navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: t.genre ? "Écrin · " + t.genre : "Écrin",
+      navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: t.genre ? "DOZE · " + t.genre : "DOZE",
         artwork: [96, 192, 256, 512].map(n => ({ src: abs, sizes: n + "x" + n, type: abs.endsWith(".png") ? "image/png" : "image/jpeg" })) });
     }
     history = [t.id, ...history.filter(x => x !== t.id)].slice(0, 50); store.set("history", history);
@@ -1497,14 +1554,14 @@
       box.innerHTML = `<p class="form-msg">${m ? "Lecture de la playlist" : "Lecture du profil"} chez Suno…</p>`;
       const r = m ? await relay("playlist", key) : await relay("profile", "", "&handle=" + encodeURIComponent(hm[1]));
       if (!PL || PL.id !== key) return;
-      if (!r || r.error || !r.songs) { box.innerHTML = `<p class="form-msg err">${r && r.error === 404 ? "Le relais Écrin n'est pas encore installé sur Supabase." : r && r.error === 400 && !m ? "Le relais doit être mis à jour pour lire les profils (voir le guide)." : "Impossible de lire ce lien. Vérifie qu'il est public sur Suno, puis réessaie."}</p>`; PL = null; return; }
+      if (!r || r.error || !r.songs) { box.innerHTML = `<p class="form-msg err">${r && r.error === 404 ? "Le relais DOZE n'est pas encore installé sur Supabase." : r && r.error === 400 && !m ? "Le relais doit être mis à jour pour lire les profils (voir le guide)." : "Impossible de lire ce lien. Vérifie qu'il est public sur Suno, puis réessaie."}</p>`; PL = null; return; }
       if (!r.songs.length) { box.innerHTML = `<p class="form-msg err">${m ? "Cette playlist ne contient aucune chanson lisible." : "Aucune chanson publique trouvée sur ce profil, ou le relais doit être mis à jour pour lire les profils."}</p>`; PL = null; return; }
       PL.title = r.title; PL.songs = r.songs;
       const have = new Set(S.all.map(t => t.suno_id).filter(Boolean));
       if (!$("f-artist").value && r.songs[0] && r.songs[0].artist) $("f-artist").value = r.songs[0].artist;
       box.innerHTML = `<div class="pl-head"><strong>${esc(r.title || "Playlist")}</strong><span>${plural(r.songs.length, "chanson")} · ${r.songs.filter(x => x.isPublic && !have.has(x.id)).length} à importer</span></div>
         <ul class="pl-list">${r.songs.map(x => { const ok = x.isPublic && !have.has(x.id);
-          return `<li class="${ok ? "" : "off"}"><label><input type="checkbox" data-pl="${x.id}" ${ok ? "checked" : "disabled"}>${x.cover ? `<img src="${esc(x.cover)}" alt="" loading="lazy">` : ""}<span><b>${esc(x.title || "Sans titre")}</b><i>${have.has(x.id) ? "Déjà sur Écrin" : x.isPublic ? (x.duration ? fmt(x.duration) : "") + (x.lyrics ? " · paroles incluses" : "") : "Privée sur Suno : rends-la publique pour l'importer"}</i></span></label></li>`; }).join("")}</ul>`;
+          return `<li class="${ok ? "" : "off"}"><label><input type="checkbox" data-pl="${x.id}" ${ok ? "checked" : "disabled"}>${x.cover ? `<img src="${esc(x.cover)}" alt="" loading="lazy">` : ""}<span><b>${esc(x.title || "Sans titre")}</b><i>${have.has(x.id) ? "Déjà sur DOZE" : x.isPublic ? (x.duration ? fmt(x.duration) : "") + (x.lyrics ? " · paroles incluses" : "") : "Privée sur Suno : rends-la publique pour l'importer"}</i></span></label></li>`; }).join("")}</ul>`;
       const priv = r.songs.filter(x => !x.isPublic).length;
       if (priv) box.insertAdjacentHTML("beforeend", `<p class="sheet-note pl-note">${priv === r.songs.length ? "Toutes les chansons sont privées." : plural(priv, "chanson") + " privée" + (priv > 1 ? "s" : "") + "."} Attention : sur Suno, rendre la <b>playlist</b> publique ne rend pas ses <b>chansons</b> publiques. Pour chaque chanson, touche le <b>⋯</b> à sa droite puis <b>Make public</b>, attends quelques minutes et recolle le lien.</p>`);
       $("submit").textContent = "Importer la sélection";
@@ -1529,7 +1586,7 @@
         if (S.hasV3) { row.ai = true; row.made_with = made; }
         const key = uuid(); if (S.hasV4) row.edit_key = key;
         const { data: ins, error } = await sb.from("tracks").insert(row).select("id");
-        if (error) { fails.push(x.title + (error.code === "23505" ? " (déjà sur Écrin)" : "")); continue; }
+        if (error) { fails.push(x.title + (error.code === "23505" ? " (déjà sur DOZE)" : "")); continue; }
         if (S.hasV4 && ins && ins[0]) { owned[ins[0].id] = key; store.set("owned", owned); }
         okN++;
       }
@@ -1592,7 +1649,7 @@
         const key = uuid();
         if (S.hasV4) row.edit_key = key;
         const { data: ins, error } = await sb.from("tracks").insert(row).select("id");
-        if (error) { if (error.code === "23505") { msg("Cette chanson est déjà sur Écrin.", "err"); return; } throw error; }
+        if (error) { if (error.code === "23505") { msg("Cette chanson est déjà sur DOZE.", "err"); return; } throw error; }
         store.set("artist", artist);
         if (S.hasV4 && ins && ins[0]) { owned[ins[0].id] = key; store.set("owned", owned); }
         msg("Publiée ! Ta chanson est maintenant écoutable par tout le monde.", "ok"); toast("Publiée ! Ta chanson est maintenant écoutable par tout le monde.");
@@ -1624,7 +1681,7 @@
       let t = byId(id);
       if (!t) { const r = await sb.from("tracks").select("id,title,artist,genre,source,suno_id,audio_url,cover_url,plays,likes,created_at").eq("id", id).maybeSingle(); t = r.data; }
       const ded = b64.dec(new URLSearchParams(location.search).get("d") || "");
-      if (t) { startQueue([t, ...S.all.filter(x => x.id !== t.id)], 0, false, ded ? ["Dédicace", "pour " + (ded.to || "toi")] : ["Partagé avec toi", "Écrin"]); openNP(); showDedic(ded); toast("Appuie sur lecture pour écouter « " + t.title + " »"); }
+      if (t) { startQueue([t, ...S.all.filter(x => x.id !== t.id)], 0, false, ded ? ["Dédicace", "pour " + (ded.to || "toi")] : ["Partagé avec toi", "DOZE"]); openNP(); showDedic(ded); toast("Appuie sur lecture pour écouter « " + t.title + " »"); }
     }
   })();
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});

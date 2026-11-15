@@ -1,12 +1,12 @@
 {
-  "name": "Écrin",
-  "short_name": "Écrin",
+  "name": "DOZE",
+  "short_name": "DOZE",
   "description": "Chaque talent mérite d'être entendu. La plateforme gratuite des artistes en herbe, confirmés et créateurs IA.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#070B1C",
-  "theme_color": "#070B1C",
+  "background_color": "#0A0C12",
+  "theme_color": "#0A0C12",
   "icons": [
     {
       "src": "icon-192.png",

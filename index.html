@@ -3,30 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Écrin</title>
-<meta name="description" content="Écrin : chaque talent mérite d'être entendu. La plateforme gratuite et sans pub des artistes en herbe, confirmés et créateurs IA.">
-<meta name="theme-color" content="#070B1C">
-<meta property="og:title" content="Écrin">
+<title>DOZE</title>
+<meta name="description" content="DOZE : chaque talent mérite d'être entendu. La plateforme gratuite et sans pub des artistes en herbe, confirmés et créateurs IA.">
+<meta name="theme-color" content="#0A0C12">
+<meta property="og:title" content="DOZE">
 <meta property="og:description" content="Chaque talent mérite d'être entendu.">
-<meta property="og:image" content="brand/banniere-ecrin.png">
+<meta property="og:image" content="brand/banniere-doze.jpg">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="logo-64.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Écrin">
+<meta name="apple-mobile-web-app-title" content="DOZE">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=3.5.1">
+<link rel="stylesheet" href="style.css?v=4.0.0">
 </head>
 <body>
+<div id="intro" class="intro" hidden><div class="intro-stage"><img src="brand/banniere-doze.jpg" alt="DOZE"><span class="intro-shine"></span></div><p>Chaque talent mérite d'être entendu</p></div>
+<canvas id="bg3d" class="bg3d" aria-hidden="true"></canvas>
 <div class="shell">
   <aside class="side" aria-label="Navigation">
-    <a class="brand" href="#accueil" aria-label="Écrin, accueil">
+    <a class="brand" href="#accueil" aria-label="DOZE, accueil">
       <img src="logo-64.png" alt="" width="40" height="40">
-      <span class="word">ÉCRIN</span>
+      <span class="word">DOZE</span>
     </a>
     <nav class="nav">
       <a href="#accueil" data-nav="accueil"><svg viewBox="0 0 24 24"><path d="M12 3 3 10v11h6v-6h6v6h6V10z"/></svg><span>Accueil</span></a>
@@ -36,11 +38,11 @@
     </nav>
     <div class="side-actions">
       <button class="btn btn-gold" type="button" data-install><svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5zM19 9h-4V3H9v6H5l7 7z"/></svg>Installer l'appli</button>
-      <button class="btn" type="button" data-share-app><svg viewBox="0 0 24 24"><path d="M18 16a3 3 0 0 0-2 .8L8.9 12.7a3 3 0 0 0 0-1.4L16 7.2A3 3 0 1 0 15 5l.1.7L8 9.8a3 3 0 1 0 0 4.4l7.1 4.2-.1.6a3 3 0 1 0 3-3"/></svg>Partager Écrin</button>
+      <button class="btn" type="button" data-share-app><svg viewBox="0 0 24 24"><path d="M18 16a3 3 0 0 0-2 .8L8.9 12.7a3 3 0 0 0 0-1.4L16 7.2A3 3 0 1 0 15 5l.1.7L8 9.8a3 3 0 1 0 0 4.4l7.1 4.2-.1.6a3 3 0 1 0 3-3"/></svg>Partager DOZE</button>
     </div>
     <div class="side-note">
       <strong>Gratuit. Sans pub.</strong>
-      <span class="ver">Version 3.5.1</span>
+      <span class="ver">Version 4.0.0</span>
       <span>Ouvert à tous : talents en herbe, artistes confirmés et créateurs IA. Ici, chacun a sa chance d'être écouté.</span>
     </div>
   </aside>
@@ -57,7 +59,7 @@
   <div class="p-inner">
     <button class="p-track" id="p-open" type="button" aria-label="Ouvrir le lecteur en plein écran">
       <img id="p-cover" alt="" hidden>
-      <span class="p-meta"><strong id="p-title">Choisis une chanson</strong><span id="p-artist">Écrin</span></span>
+      <span class="p-meta"><strong id="p-title">Choisis une chanson</strong><span id="p-artist">DOZE</span></span>
     </button>
     <button id="b-like" class="ic like" type="button" aria-pressed="false" title="Ajouter à mes coups de cœur" disabled>
       <svg viewBox="0 0 24 24"><path d="M12 21 10.6 19.7C5.4 15 2 11.9 2 8.1 2 5 4.4 2.6 7.5 2.6c1.7 0 3.4.8 4.5 2.1a6 6 0 0 1 4.5-2.1C19.6 2.6 22 5 22 8.1c0 3.8-3.4 6.9-8.6 11.6z"/></svg>
@@ -100,7 +102,7 @@
   <div class="np-inner">
     <header class="np-top">
       <button id="np-close" class="ic" type="button" aria-label="Réduire le lecteur"><svg viewBox="0 0 24 24"><path d="m7.4 8.6 4.6 4.6 4.6-4.6L18 10l-6 6-6-6z"/></svg></button>
-      <span class="np-label"><small id="np-ctx-type">Lecture en cours</small><strong id="np-ctx-name">Écrin</strong></span>
+      <span class="np-label"><small id="np-ctx-type">Lecture en cours</small><strong id="np-ctx-name">DOZE</strong></span>
       <button id="np-more" class="ic" type="button" aria-label="Plus d'options"><svg viewBox="0 0 24 24"><path d="M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4m6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4m6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4"/></svg></button>
     </header>
     <div class="np-body">
@@ -168,11 +170,11 @@
 <script>
   window.addEventListener("error", function () { setTimeout(function () {
     var v = document.getElementById("view");
-    if (v && !v.children.length) v.innerHTML = '<div class="empty"><strong>Écrin n\'a pas pu démarrer.</strong><span>Une ancienne version est peut-être restée en mémoire.</span><button class="btn btn-gold" type="button" onclick="location.reload()">Recharger</button></div>';
+    if (v && !v.children.length) v.innerHTML = '<div class="empty"><strong>DOZE n\'a pas pu démarrer.</strong><span>Une ancienne version est peut-être restée en mémoire.</span><button class="btn btn-gold" type="button" onclick="location.reload()">Recharger</button></div>';
   }, 50); });
 </script>
-<script src="config.js?v=3.5.1"></script>
+<script src="config.js?v=4.0.0"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="app.js?v=3.5.1"></script>
+<script src="app.js?v=4.0.0"></script>
 </body>
 </html>
