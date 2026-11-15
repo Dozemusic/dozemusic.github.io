@@ -1,5 +1,5 @@
-/* Écrin 3.0.0 */
-  const VERSION = "3.0.0";
+/* Écrin 3.1.0 */
+  const VERSION = "3.1.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -13,7 +13,8 @@
     set(k, v) { try { localStorage.setItem("ecrin." + k, JSON.stringify(v)); } catch {} }
   };
   const favs = new Set(store.get("favs", []));
-  let myLists = store.get("playlists", []);          // [{ id, key, name }] (key nulle = playlist d'un autre, enregistrée)
+  let myLists = store.get("playlists", []);
+  const offline = store.get("offline", {});            // { id: { t: titre, lyrics, size, at } } : chansons téléchargées          // [{ id, key, name }] (key nulle = playlist d'un autre, enregistrée)
   const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)));
   let device = store.get("device", null); if (!device) { device = uuid(); store.set("device", device); }
   // Pays approximatif de l'auditeur, déduit du fuseau horaire puis de la langue (aucune donnée personnelle envoyée).
@@ -192,7 +193,7 @@
 
   // ---------- données ----------
   async function load() {
-    if (!sb) { S.loaded = true; render(); return; }
+    if (!sb) { S.loaded = true; const off = Object.values(offline); if (off.length) { S.offlineMode = true; S.all = off.map(o => ({ likes: 0, ...o.t })); } render(); return; }
     const cols = "id,title,artist,genre,source,suno_id,audio_url,cover_url,plays,likes,created_at";
     let { data, error } = await sb.from("tracks").select(cols + ",ai,made_with").order("created_at", { ascending: false }).limit(1000);
     S.hasV3 = !error;
@@ -200,7 +201,12 @@
     S.hasV2 = S.hasV3 || !error;
     if (error) ({ data, error } = await sb.from("tracks").select("*").order("created_at", { ascending: false }).limit(1000));
     S.loaded = true;
-    if (error) { S.error = true; render(); return; }
+    if (error) {
+      const off = Object.values(offline);
+      if (off.length) { S.offlineMode = true; S.all = off.map(o => ({ likes: 0, ...o.t })); render(); return; }
+      S.error = true; render(); return;
+    }
+    S.offlineMode = false;
     S.all = (data || []).map(t => ({ likes: 0, ...t }));
     render();
     if (S.hasV2) {
@@ -261,7 +267,7 @@
       return `<li class="row-t${playing ? " is-current" : ""}" data-ctx="${ctx}" data-i="${i}" tabindex="0">
         <span class="t-num">${playing ? `<span class="eq${audio.paused ? " paused" : ""}"><i></i><i></i><i></i></span>` : i + 1}</span>
         ${imgTag(t, "t-cover")}
-        <span class="t-text"><span class="t-title">${esc(t.title)}</span><span class="t-sub">${opts.noArtist ? (t.genre ? esc(t.genre) : "Single") : `<button type="button" data-artist="${esc(t.artist)}">${esc(t.artist)}</button>`}</span></span>
+        <span class="t-text"><span class="t-title">${offline[t.id] ? '<svg class="dl-mark" viewBox="0 0 24 24" aria-label="Téléchargé"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m-1 5h2v6l2.6-2.6L17 11.8 12 16.8l-5-5 1.4-1.4L11 13z"/></svg>' : ""}${esc(t.title)}</span><span class="t-sub">${opts.noArtist ? (t.genre ? esc(t.genre) : "Single") : `<button type="button" data-artist="${esc(t.artist)}">${esc(t.artist)}</button>`}</span></span>
         <span class="t-genre">${t.genre ? esc(t.genre) : ""}</span>
         <span class="t-plays">${plural(t.plays, "écoute")}${t.likes ? ` · ${nf.format(t.likes)} ♥` : ""}</span>
         <span class="t-acts">
@@ -280,12 +286,13 @@
   const views = {
     accueil() {
       if (!S.loaded) return mobileBrand + `<h1 class="greet">${greeting()}</h1><div class="empty">Chargement des créations…</div>`;
+      if (S.offlineMode && !S.all.length) return mobileBrand + `<div class="empty">Pas de connexion et aucun titre téléchargé.</div>`;
       if (S.error) return mobileBrand + `<div class="empty">Impossible de charger les chansons. Vérifie ta connexion, puis recharge la page.</div>`;
       if (!S.all.length) return mobileBrand + `<h1 class="greet">${greeting()}</h1><div class="empty"><strong>Écrin attend sa première chanson.</strong><span>Publie la tienne : elle sera la première que le monde entendra ici.</span><a class="btn btn-gold" href="#publier">Publier ma chanson</a></div>`;
       const top = popular()[0];
       S.ctx.hero = [top];
       const recent = history.map(byId).filter(Boolean).slice(0, 12);
-      return mobileBrand + `<h1 class="greet">${greeting()}</h1>
+      return mobileBrand + `${S.offlineMode ? '<div class="offline-banner">📴 Hors connexion : tu écoutes tes titres téléchargés.</div>' : ""}<h1 class="greet">${greeting()}</h1>
         <section class="hero">
           <div class="hero-bg" style="background-image:url('${esc(coverOf(top))}')"></div>
           ${imgTag(top)}
@@ -327,6 +334,9 @@
           <div class="ph-text"><span class="eyebrow">Ma bibliothèque</span><h1>Coups de cœur</h1><span class="stats">${plural(f.length, "titre")} · gardés sur cet appareil, sans compte</span></div></div>
         ${f.length ? `<div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="favs">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="favs">${shuffleIcon} Aléatoire</button></div>${rows(f, "favs")}`
           : `<div class="empty">Touche le cœur à côté d'une chanson pour la retrouver ici.</div>`}
+        <div class="sec-head"><div><h2>Téléchargés</h2><p>${Object.keys(offline).length ? plural(Object.keys(offline).length, "titre") + " · " + fmtSize(Object.values(offline).reduce((a, o) => a + (o.size || 0), 0)) + " · écoutables sans connexion" : "Écoute tes titres sans connexion, comme sur Deezer"}</p></div>${f.some(x => canOffline(x) && !offline[x.id]) ? `<button class="link" type="button" data-dl-favs>⬇ Télécharger mes coups de cœur</button>` : ""}</div>
+        ${Object.keys(offline).length ? `<div class="page-actions"><button class="btn btn-gold" type="button" data-play-ctx="off">${playIcon} Écouter</button><button class="btn" type="button" data-shuffle-ctx="off">${shuffleIcon} Aléatoire</button></div>${rows(Object.values(offline).sort((a, b) => b.at - a.at).map(o => byId(o.t.id) || o.t), "off")}`
+          : `<div class="empty">Touche ⋮ sur une chanson puis « Télécharger », ou le bouton ⬇ dans le lecteur.</div>`}
         <div class="sec-head"><div><h2>Mes playlists</h2><p>Partage-les avec un simple lien</p></div><button class="link" type="button" data-newlist>+ Nouvelle playlist</button></div>
         ${myLists.length ? `<div class="shelf">${myLists.map(pl => `<div class="card" data-open-list="${esc(pl.id)}" role="button" tabindex="0"><div class="art playlist-art" style="background:${genreBg(pl.name)}"><svg viewBox="0 0 24 24"><path d="M3 6h12v2H3zm0 5h12v2H3zm0 5h8v2H3zm14-2V8h2v6.2a3 3 0 1 1-2 2.8z"/></svg></div><strong>${esc(pl.name)}</strong><span class="sub">${pl.key ? "Ma playlist" : "Enregistrée"}</span></div>`).join("")}</div>`
           : `<div class="empty">Crée une playlist, puis ajoute des titres avec le menu ⋮ d'une chanson.</div>`}
@@ -487,6 +497,7 @@
   $("view").addEventListener("click", e => {
     const like = e.target.closest("[data-like]"); if (like) { toggleFav(like.dataset.like); return; }
     if (e.target.closest("[data-newlist]")) { newList(); return; }
+    if (e.target.closest("[data-dl-favs]")) { (async () => { for (const x of [...favs].map(byId).filter(x => x && canOffline(x) && !offline[x.id])) await downloadTrack(x, true); toast("Tes coups de cœur sont disponibles hors ligne"); })(); return; }
     const ol = e.target.closest("[data-open-list]"); if (ol) { openList(ol.dataset.openList); return; }
     const rm = e.target.closest("[data-remove]"); if (rm) { editList(S.list.id, ids => ids.filter((_, k) => k !== +rm.dataset.remove)); return; }
     if (e.target.closest("[data-share-list]")) { shareList(S.list); return; }
@@ -535,7 +546,7 @@
     closeMenu();
     menuEl = document.createElement("div");
     menuEl.className = "menu";
-    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="dedic">🎁 Dédicacer ce son</button><button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button><div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>`;
+    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="dedic">🎁 Dédicacer ce son</button>${t && canOffline(t) ? (offline[t.id] ? '<button type="button" data-a="undl">✓ Retirer des téléchargements</button>' : '<button type="button" data-a="dl">⬇ Télécharger (hors ligne)</button>') : ""}<button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button><div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>`;
     document.body.appendChild(menuEl);
     const r = btn.getBoundingClientRect(), mh = menuEl.offsetHeight;
     const top = r.bottom + 6 + mh > innerHeight ? r.top - mh - 6 : r.bottom + 6;
@@ -547,6 +558,8 @@
       if (a === "share") share(t);
       if (a === "artist") go("artiste", t.artist);
       if (a === "next") playNext(t);
+      if (a === "dl") downloadTrack(t);
+      if (a === "undl") removeOffline(t.id);
       if (a === "dedic") { S.dedTrack = t; closeMenu(); openSheet("dedic"); return; }
       if (a === "addlist") { const own = myLists.filter(x => x.key); closeMenu(); openMenu(btn, t, own.map(x => `<button type="button" data-a="to:${esc(x.id)}">${esc(x.name)}</button>`).join("") + (own.length ? '<div class="sep"></div>' : "") + '<button type="button" data-a="tonew">+ Nouvelle playlist…</button>'); return; }
       if (a && a.startsWith("to:")) editList(a.slice(3), ids => ids.includes(t.id) ? ids : [...ids, t.id], null, "Ajouté à « %s »");
@@ -590,7 +603,8 @@
   async function loadLyr(t) {
     S.lyr = { id: t.id, lines: [], timed: false, loading: true }; renderLyr(true);
     let text = null;
-    if (sb && S.hasV2) { const r = await sb.from("tracks").select("lyrics").eq("id", t.id).maybeSingle(); text = r.data && r.data.lyrics; }
+    if (offline[t.id] && offline[t.id].lyrics) text = offline[t.id].lyrics;
+    else if (sb && S.hasV2 && !S.offlineMode) { try { const r = await sb.from("tracks").select("lyrics").eq("id", t.id).maybeSingle(); text = r.data && r.data.lyrics; } catch {} }
     if (!current() || current().id !== t.id) return;
     S.lyr = { id: t.id, ...parseLyrics(text) }; estimateTimes(S.lyr, audio.duration); S.lyrIdx = -1; renderLyr(true);
   }
@@ -874,6 +888,59 @@
   $("np-more").onclick = e => { const t = current(); if (t) openMenu(e.currentTarget, t); };
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("sheet-wrap").hidden) { e.stopPropagation(); closeSheet(); } }, true);
 
+  // ---------- écoute hors ligne ----------
+  const OFF_CACHE = "ecrin-offline-v1";
+  const canOffline = t => !!t && (t.source === "suno" || t.source === "upload");
+  const fmtSize = b => b >= 1e9 ? (b / 1e9).toFixed(1).replace(".", ",") + " Go" : Math.max(1, Math.round(b / 1e6)) + " Mo";
+  S.dl = {};
+  async function downloadTrack(t, quiet) {
+    if (!("caches" in window) || !("serviceWorker" in navigator)) { toast("Ce navigateur ne permet pas l'écoute hors ligne. Ouvre Écrin dans Safari ou Chrome."); return; }
+    if (!canOffline(t)) { toast("Les titres SoundCloud et YouTube ne peuvent pas être téléchargés."); return; }
+    if (offline[t.id] || S.dl[t.id] != null) return;
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch {}
+    S.dl[t.id] = 0; syncDl();
+    try {
+      const url = playable(t.audio_url);
+      const res = await fetch(url, { mode: "cors" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const total = +res.headers.get("content-length") || 0, reader = res.body.getReader(), parts = []; let got = 0;
+      for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); got += value.length; if (total) { S.dl[t.id] = got / total; syncDl(); } }
+      const blob = new Blob(parts, { type: res.headers.get("content-type") || "audio/mp4" });
+      const cache = await caches.open(OFF_CACHE);
+      await cache.put(url, new Response(blob, { headers: { "Content-Type": blob.type, "Content-Length": String(blob.size) } }));
+      if (t.cover_url) { try { const c = await fetch(t.cover_url, { mode: "cors" }); if (c.ok) await cache.put(t.cover_url, c); } catch {} }
+      let lyrics = null;
+      if (sb && S.hasV2) { try { const r = await sb.from("tracks").select("lyrics").eq("id", t.id).maybeSingle(); lyrics = r.data && r.data.lyrics; } catch {} }
+      const { lyrics: _drop, ...meta } = t;
+      offline[t.id] = { t: meta, lyrics, size: blob.size, at: Date.now() }; store.set("offline", offline);
+      delete S.dl[t.id]; syncDl();
+      if (!quiet) toast("« " + t.title + " » est disponible hors ligne");
+      if (S.view === "bibliotheque") render(); else refreshMarks();
+    } catch (err) {
+      console.warn(err); delete S.dl[t.id]; syncDl();
+      toast("Téléchargement impossible pour « " + t.title + " ». Vérifie ta connexion.");
+    }
+  }
+  async function removeOffline(id) {
+    const o = offline[id]; if (!o) return;
+    try { const c = await caches.open(OFF_CACHE); await c.delete(playable(o.t.audio_url)); if (o.t.cover_url) await c.delete(o.t.cover_url); } catch {}
+    delete offline[id]; store.set("offline", offline); syncDl();
+    toast("Retiré des téléchargements"); if (S.view === "bibliotheque") render(); else refreshMarks();
+  }
+  function refreshMarks() { if (S.view !== "publier") { const y = $("main").scrollTop; render(); $("main").scrollTop = y; } }
+  function syncDl() {
+    const t = current(), b = $("np-dl"); if (!b) return;
+    b.hidden = !canOffline(t);
+    if (!t) return;
+    const p = S.dl[t.id];
+    b.classList.toggle("is-on", !!offline[t.id]);
+    b.querySelector("span").textContent = p != null ? Math.round(p * 100) + " %" : "";
+    b.setAttribute("aria-label", offline[t.id] ? "Retirer des téléchargements" : "Télécharger pour écouter hors ligne");
+  }
+  $("np-dl").onclick = () => { const t = current(); if (!t) return; if (offline[t.id]) removeOffline(t.id); else downloadTrack(t); };
+  addEventListener("online", () => { if (S.offlineMode) { toast("Connexion retrouvée"); load(); } });
+  addEventListener("offline", () => toast("Hors connexion : tes titres téléchargés restent écoutables"));
+
   // ---------- dédicaces (tout tient dans le lien : rien n'est stocké) ----------
   const b64 = { enc: o => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
     dec: s => { try { return JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, "+").replace(/_/g, "/"))))); } catch { return null; } } };
@@ -902,7 +969,7 @@
     else S.pos = startIdx;
     S.order = order;
   }
-  const CTX_LABEL = { hero: ["Accueil", "À la une"], recent: ["Accueil", "Écoutés récemment"], new: ["Accueil", "Nouveautés"], gems: ["Accueil", "Pépites à découvrir"], top: ["Accueil", "Les plus écoutées"], week: ["Accueil", "Coups de cœur de la semaine"], search: ["Recherche", "Résultats"], favs: ["Playlist", "Coups de cœur"], hist: ["Bibliothèque", "Historique"] };
+  const CTX_LABEL = { off: ["Bibliothèque", "Téléchargés"], hero: ["Accueil", "À la une"], recent: ["Accueil", "Écoutés récemment"], new: ["Accueil", "Nouveautés"], gems: ["Accueil", "Pépites à découvrir"], top: ["Accueil", "Les plus écoutées"], week: ["Accueil", "Coups de cœur de la semaine"], search: ["Recherche", "Résultats"], favs: ["Playlist", "Coups de cœur"], hist: ["Bibliothèque", "Historique"] };
   function ctxLabel(key) {
     if (key === "artist") return ["Artiste", S.param || ""];
     if (key === "genre") return ["Genre", S.param || ""];
@@ -931,7 +998,7 @@
     tintFrom(t); $("np-quality").textContent = qualityLabel(t); applyAutoEq(t);
     document.querySelector(".np-art").classList.toggle("is-ext", audio.isExternal);
     if (audio.isExternal && autoplay) { openNP(); toast(t.source === "youtube" ? "Lecture avec le lecteur YouTube. Touche ▶ sur la vidéo si elle ne démarre pas." : "Lecture avec le lecteur SoundCloud. Touche ▶ s'il ne démarre pas."); }
-    loadLyr(t);
+    loadLyr(t); syncDl();
     $("np-title").textContent = t.title; $("np-artist").textContent = t.artist;
     renderTags(t); S.lyricsFor = null; if (!$("np").hidden && S.npTab === "lyrics") loadLyrics();
     document.title = t.title + " · " + t.artist + " | Écrin";
@@ -1219,5 +1286,5 @@
       if (t) { startQueue([t, ...S.all.filter(x => x.id !== t.id)], 0, false, ded ? ["Dédicace", "pour " + (ded.to || "toi")] : ["Partagé avec toi", "Écrin"]); openNP(); showDedic(ded); toast("Appuie sur lecture pour écouter « " + t.title + " »"); }
     }
   })();
-  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();

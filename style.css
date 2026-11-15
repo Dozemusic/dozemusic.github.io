@@ -445,3 +445,10 @@ code { background: rgba(255, 255, 255, .08); padding: 1px 5px; border-radius: 5p
 .dedic .ded-ic { flex: none; display: block; }
 .dedic > span:not(.ded-ic) { display: grid; gap: 4px; flex: 1; min-width: 0; }
 .lyr-note { top: 14px; bottom: auto; }
+
+/* ---------- 3.1 : écoute hors ligne ---------- */
+.dl-btn { position: relative; }
+.dl-btn.is-on { color: var(--gold); background: rgba(242, 199, 102, .18); }
+.dl-btn span { position: absolute; left: 50%; bottom: -16px; transform: translateX(-50%); font-size: 10px; font-weight: 700; color: var(--gold); white-space: nowrap; }
+.dl-mark { width: 14px; height: 14px; color: var(--gold); vertical-align: -2px; margin-right: 6px; }
+.offline-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: rgba(242, 199, 102, .12); border: 1px solid rgba(242, 199, 102, .4); margin-bottom: 16px; font-size: 14px; }
