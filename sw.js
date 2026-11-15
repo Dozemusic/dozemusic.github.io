@@ -1,6 +1,6 @@
-// Version 1.1.1 : change le nom du cache à chaque version publiée.
-const CACHE = "ecrin-1.1.1";
-const SHELL = ["./", "index.html", "style.css", "app.js", "config.js", "manifest.json", "icon.svg"];
+// Version 2.0.0 : change le nom du cache à chaque version publiée.
+const CACHE = "ecrin-2.0.0";
+const SHELL = ["./", "index.html", "style.css", "app.js", "config.js", "manifest.json", "logo-64.png", "icon-192.png", "icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))));

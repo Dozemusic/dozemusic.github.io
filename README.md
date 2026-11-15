@@ -2,15 +2,16 @@
 
 La musique des créateurs Suno, gratuite pour tout le monde. Les artistes publient leurs chansons (lien Suno ou fichier MP3) et tout le monde peut les écouter en boucle ou en aléatoire.
 
-Version 1.1.1
+Version 2.0.0
 
 ## Fonctions
-- **Écouter** : liste des nouveautés ou des plus écoutées, recherche par titre, artiste ou genre.
-- **Lecteur** : lecture/pause, précédente/suivante, **aléatoire**, **répéter** (toute la liste ou ce titre), barre de progression, volume, contrôles sur l'écran verrouillé du téléphone.
-- **Publier** sans compte :
-  - **Lien Suno** (`suno.com/song/…`) : l'audio et la pochette restent chez Suno, rien n'est stocké chez nous.
-  - **Fichier MP3/WAV/M4A** (15 Mo max) + pochette facultative, stockés dans Supabase.
-- **Partager** un titre (lien direct `?t=…`), **signaler** un abus : une chanson signalée 5 fois est masquée automatiquement.
+- **Accueil** façon plateforme de streaming : titre à la une, rayons « Écoutés récemment », « Nouveautés », « Pépites à découvrir » (titres peu écoutés mis en avant à tour de rôle), « Les plus écoutées », artistes et genres.
+- **Rechercher** par titre, artiste ou genre, avec filtres par genre.
+- **Bibliothèque** sans compte : coups de cœur et historique gardés sur l'appareil.
+- **Pages d'artiste et de genre**, avec lecture et aléatoire.
+- **Lecteur** : aléatoire, répéter (liste ou titre), « écouter juste après », minuteur de sommeil, lecteur plein écran avec file d'attente, contrôles sur l'écran verrouillé.
+- **Publier** sans compte : lien Suno (`suno.com/song/…`) ou fichier MP3/WAV/M4A (15 Mo max) avec pochette.
+- **Transparence** : chaque titre est marqué « IA ». Partage d'un titre par lien direct (`?t=…`), signalement (masquage automatique après 5 signalements).
 - Installable sur téléphone (PWA).
 
 ## Mise en ligne (une seule fois, environ 10 minutes)
