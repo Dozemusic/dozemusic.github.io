@@ -402,3 +402,9 @@ textarea:focus { border-color: var(--gold); outline: none; }
 @media (max-width: 860px) { .np-body { padding-top: 34px; } }
 
 .ver { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.suno-steps { display: grid; gap: 8px; padding: 16px 18px; border-radius: 14px; border: 1px solid rgba(242, 199, 102, .45); background: rgba(242, 199, 102, .08); }
+.suno-steps strong { font-size: 15px; } .suno-steps em { font-style: normal; color: var(--gold); }
+.suno-steps ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 14px; }
+.suno-steps b { color: var(--fg); }
+.suno-steps span { font-size: 13px; color: var(--muted); }

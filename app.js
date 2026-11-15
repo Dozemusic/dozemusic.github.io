@@ -1,5 +1,5 @@
-/* Écrin 2.3.0 */
-  const VERSION = "2.3.0";
+/* Écrin 2.3.1 */
+  const VERSION = "2.3.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -287,10 +287,19 @@
             <button id="mode-file" class="${pubMode === "file" ? "is-on" : ""}" data-mode="file" type="button">Fichier MP3</button>
           </div>
           <form id="add-form" novalidate>
+            <div class="suno-steps" data-for="link" ${pubMode === "link" ? "" : "hidden"}>
+              <strong>Avant de coller ton lien : ta chanson doit être <em>publique</em> sur Suno</strong>
+              <ol>
+                <li>Sur Suno, ouvre ta chanson, touche <b>⋯</b> puis <b>Visibilité › Publique</b>.</li>
+                <li>Attends une à deux minutes que Suno prépare la version publique.</li>
+                <li>Touche <b>⋯ › Partager › Copier le lien</b>, puis colle-le ci-dessous.</li>
+              </ol>
+              <span>Une chanson privée n'a pas de son pour les autres : Écrin la refusera. Tu peux aussi choisir « Fichier MP3 ».</span>
+            </div>
             <div class="field" data-for="link" ${pubMode === "link" ? "" : "hidden"}>
               <label for="f-link">Lien de la chanson sur Suno</label>
               <input id="f-link" type="url" inputmode="url" placeholder="https://suno.com/song/…" autocomplete="off">
-              <small>Sur Suno : ⋯ › Partager › Copier le lien. La chanson doit être publique sur Suno.</small>
+              <small>Format attendu : https://suno.com/song/…</small>
             </div>
             <div class="field" data-for="file" ${pubMode === "file" ? "" : "hidden"}>
               <label for="f-audio">Fichier audio (MP3, WAV ou M4A, 15 Mo max)</label>
