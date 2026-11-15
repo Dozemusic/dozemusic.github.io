@@ -1,5 +1,5 @@
-/* Écrin 3.3.0 */
-  const VERSION = "3.3.0";
+/* Écrin 3.3.1 */
+  const VERSION = "3.3.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1253,7 +1253,13 @@
   async function relay(type, id) {
     if (!cfg.supabaseUrl) return null;
     try {
-      const r = await fetch(`${cfg.supabaseUrl}/functions/v1/suno-import?type=${type}&id=${id}`, { headers: { apikey: cfg.supabaseAnonKey, Authorization: "Bearer " + cfg.supabaseAnonKey } });
+      // Le nom du relais dépend de la façon dont il a été créé sur Supabase (minuscules ou majuscules).
+      const names = [store.get("relay", "suno-import"), "suno-import", "SUNO-IMPORT"].filter((v, i, x) => x.indexOf(v) === i);
+      let r;
+      for (const n of names) {
+        r = await fetch(`${cfg.supabaseUrl}/functions/v1/${n}?type=${type}&id=${id}`, { headers: { apikey: cfg.supabaseAnonKey, Authorization: "Bearer " + cfg.supabaseAnonKey } });
+        if (r.status !== 404) { store.set("relay", n); break; }
+      }
       if (!r.ok) return { error: r.status };
       return await r.json();
     } catch { return { error: "network" }; }
