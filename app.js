@@ -1,5 +1,5 @@
-/* Écrin 3.2.0 */
-  const VERSION = "3.2.0";
+/* Écrin 3.3.0 */
+  const VERSION = "3.3.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -178,7 +178,7 @@
   const playable = url => String(url || "").replace(/^(https:\/\/cdn1\.suno\.ai\/[0-9a-f-]{36})\.mp3$/i, "$1.mp4");
   const current = () => S.queue[S.order[S.pos]];
   let toastTimer;
-  function toast(msg) { const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, 2800); }
+  function toast(msg) { const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, Math.max(2800, msg.length * 55)); }
   function shareUrl(t) { const u = new URL(location.href); u.search = "?t=" + t.id; u.hash = ""; return u.toString(); }
   async function share(t) {
     const url = shareUrl(t);
@@ -405,8 +405,9 @@
         <div>
           <div class="publish-head"><span class="eyebrow">Gratuit · sans compte · ouvert à tous</span><h1>Publie ta chanson</h1>
             <p>Talent en herbe, artiste confirmé ou créateur IA : ta musique rejoint Écrin et devient écoutable par tout le monde. Les nouveaux titres passent dans « Pépites à découvrir » pour trouver leurs premiers auditeurs.</p></div>
-          <div class="seg seg3" role="group" aria-label="Méthode">
+          <div class="seg seg4" role="group" aria-label="Méthode">
             <button class="${pubMode === "link" ? "is-on" : ""}" data-mode="link" type="button">Suno</button>
+            <button class="${pubMode === "pl" ? "is-on" : ""}" data-mode="pl" type="button">Playlist Suno</button>
             <button class="${pubMode === "file" ? "is-on" : ""}" data-mode="file" type="button">Fichier audio</button>
             <button class="${pubMode === "ext" ? "is-on" : ""}" data-mode="ext" type="button">SoundCloud · YouTube</button>
           </div>
@@ -437,6 +438,15 @@
               <label for="f-cover">Pochette (facultatif, JPG ou PNG)</label>
               <input id="f-cover" type="file" accept="image/jpeg,image/png,image/webp">
             </div>
+            <div class="suno-steps" data-for="pl" ${pubMode === "pl" ? "" : "hidden"}>
+              <strong>Importe toute une playlist Suno en une fois</strong>
+              <span>Sur Suno, ouvre ta playlist, touche <b>⋯ › Partager › Copier le lien</b>, puis colle-le ci-dessous. Seules les chansons <b>publiques</b> sur Suno peuvent être importées : rends publiques celles que tu veux partager.</span>
+            </div>
+            <div class="field" data-for="pl" ${pubMode === "pl" ? "" : "hidden"}>
+              <label for="f-pl">Lien de la playlist Suno</label>
+              <input id="f-pl" type="url" inputmode="url" placeholder="https://suno.com/playlist/…" autocomplete="off">
+            </div>
+            <div id="pl-box" class="pl-box" data-for="pl" ${pubMode === "pl" ? "" : "hidden"}></div>
             <div class="suno-steps" data-for="ext" ${pubMode === "ext" ? "" : "hidden"}>
               <strong>Ta chanson est déjà sur SoundCloud ou YouTube ?</strong>
               <span>Colle son lien : elle sera lue sur Écrin avec le lecteur officiel de SoundCloud ou YouTube, qui s'affiche sur la pochette. La chanson doit être publique et autoriser l'intégration.</span>
@@ -447,17 +457,17 @@
               <small>Exemples : soundcloud.com/artiste/titre · youtube.com/watch?v=… · youtu.be/…</small>
             </div>
             <div class="two">
-              <div class="field"><label for="f-title">Titre</label><input id="f-title" maxlength="120" required autocomplete="off"></div>
+              <div class="field" ${pubMode === "pl" ? "hidden" : ""}><label for="f-title">Titre</label><input id="f-title" maxlength="120" required autocomplete="off"></div>
               <div class="field"><label for="f-artist">Nom d'artiste</label><input id="f-artist" maxlength="80" required autocomplete="nickname" value="${esc(store.get("artist", ""))}"></div>
             </div>
             <div class="two">
               <div class="field"><label for="f-genre">Genre (facultatif)</label><input id="f-genre" maxlength="40" list="genres-list" autocomplete="off">
                 <datalist id="genres-list">${["Afrobeat", "Coupé-décalé", "Zouglou", "Rap", "R&B", "Pop", "Gospel", "Reggae", "Électro", "Rock", "Jazz", "Classique", ...genres().map(g => g.name)].filter((v, i, a) => a.indexOf(v) === i).map(g => `<option>${esc(g)}</option>`).join("")}</datalist></div>
-              <div class="field"><label for="f-made">Créé avec (facultatif)</label><input id="f-made" maxlength="40" list="tools-list" autocomplete="off" ${pubMode === "link" ? 'value="Suno"' : ""}>
+              <div class="field"><label for="f-made">Créé avec (facultatif)</label><input id="f-made" maxlength="40" list="tools-list" autocomplete="off" ${pubMode === "link" || pubMode === "pl" ? 'value="Suno"' : ""}>
                 <datalist id="tools-list">${tools.map(x => `<option>${x}</option>`).join("")}</datalist></div>
             </div>
-            <label class="check"><input id="f-ai" type="checkbox" ${pubMode === "link" ? "checked disabled" : ""}><span>Cette chanson a été créée avec l'aide de l'IA. <small>Les auditeurs voient une petite mention « IA » : la transparence rassure.</small></span></label>
-            <div class="field"><label for="f-lyrics">Paroles (facultatif)</label><textarea id="f-lyrics" rows="6" maxlength="8000" placeholder="Colle ici les paroles. Elles défileront sur la pochette pendant l'écoute."></textarea>
+            <label class="check" ${pubMode === "pl" ? "hidden" : ""}><input id="f-ai" type="checkbox" ${pubMode === "link" ? "checked disabled" : ""}><span>Cette chanson a été créée avec l'aide de l'IA. <small>Les auditeurs voient une petite mention « IA » : la transparence rassure.</small></span></label>
+            <div class="field" ${pubMode === "pl" ? "hidden" : ""}><label for="f-lyrics">Paroles (facultatif)</label><textarea id="f-lyrics" rows="6" maxlength="8000" placeholder="Colle ici les paroles. Elles défileront sur la pochette pendant l'écoute."></textarea>
               <small>Astuce : au format LRC (<code>[01:23.45] ma ligne</code>), elles seront parfaitement synchronisées. Sinon, Écrin estime le rythme.</small></div>
             <label class="check"><input id="f-rights" type="checkbox" required><span>Je suis l'auteur de cette chanson (ou j'ai le droit de la diffuser) et j'accepte qu'elle soit écoutée gratuitement par tous.</span></label>
             <p id="form-msg" class="form-msg" role="status"></p>
@@ -1239,6 +1249,46 @@
 
   // ---------- publication ----------
   let pubMode = "link", pvUrl;
+  // Relais Supabase « suno-import » : lit les pages publiques de Suno à la place du navigateur.
+  async function relay(type, id) {
+    if (!cfg.supabaseUrl) return null;
+    try {
+      const r = await fetch(`${cfg.supabaseUrl}/functions/v1/suno-import?type=${type}&id=${id}`, { headers: { apikey: cfg.supabaseAnonKey, Authorization: "Bearer " + cfg.supabaseAnonKey } });
+      if (!r.ok) return { error: r.status };
+      return await r.json();
+    } catch { return { error: "network" }; }
+  }
+  // Vérifie qu'une adresse audio se lit vraiment dans ce navigateur.
+  function probeUrl(url, ms = 12000) {
+    return new Promise(res => {
+      const a = new Audio(); a.crossOrigin = "anonymous"; a.preload = "metadata"; a.muted = true;
+      let done = false; const end = ok => { if (done) return; done = true; a.removeAttribute("src"); res(ok); };
+      a.onloadedmetadata = () => end(true); a.onerror = () => end(false); setTimeout(() => end(false), ms);
+      a.src = url;
+    });
+  }
+  // Paroles Suno : on retire le bloc de consignes de style placé en tête ([Style] …).
+  function cleanSunoLyrics(text) {
+    if (!text) return null;
+    const out = []; let skip = false;
+    for (const line of String(text).split(/\r?\n/)) {
+      const t = line.trim();
+      if (/^\[\s*(style|styles|genre|instruments?)\b[^\]]*\]$/i.test(t)) { skip = true; continue; }
+      if (/^\[[^\]]+\]$/.test(t)) skip = false;
+      if (!skip) out.push(line);
+    }
+    const r = out.join("\n").trim();
+    return r ? r.slice(0, 8000) : null;
+  }
+  // Pour une chanson Suno : seule la version publique (MP4) est utilisée. Le relais sert à savoir
+  // si la chanson est privée et à récupérer titre, pochette et paroles.
+  async function sunoPlayable(id, info) {
+    if (!info) { const r = await relay("song", id); info = r && r.songs && r.songs[0]; }
+    if (await probeUrl(sunoAudio(id))) return { url: sunoAudio(id), info };
+    if (info && !info.isPublic) return { error: "private", info };
+    return { error: "nosound", info };
+  }
+
   // Liens SoundCloud / YouTube : normalisation vers une forme unique
   function parseExt(input) {
     const raw = String(input || "").trim(); let u; try { u = new URL(raw); } catch { return null; }
@@ -1266,22 +1316,28 @@
     document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { pubMode = b.dataset.mode; render(); });
     const msg = (text, kind = "") => { const el = $("form-msg"); el.textContent = text; el.className = "form-msg " + kind; };
     // Vérifie que Suno sert vraiment le son avant d'autoriser la publication.
-    const probe = { id: null, state: null, wait: null };
+    const probe = { id: null, state: null, wait: null, url: null, info: null };
     function probeSuno(id) {
       if (probe.id === id) return;
-      probe.id = id; probe.state = "pending";
-      const a = new Audio(); a.crossOrigin = "anonymous"; a.preload = "metadata"; a.muted = true;
-      probe.wait = new Promise(res => {
-        const done = st => { if (probe.id === id && probe.state === "pending") { probe.state = st; showProbe(); } a.removeAttribute("src"); res(); };
-        a.onloadedmetadata = () => done("ok"); a.onerror = () => done("fail");
-        setTimeout(() => done("fail"), 12000);
+      Object.assign(probe, { id, state: "pending", url: null, info: null });
+      probe.wait = sunoPlayable(id).then(r => {
+        if (probe.id !== id) return;
+        probe.info = r.info || null;
+        if (r.url) { probe.url = r.url; probe.state = "ok"; } else probe.state = r.error === "private" ? "private" : "fail";
+        if (r.info) {
+          if (!$("f-title").value && r.info.title) { $("f-title").value = r.info.title.slice(0, 120); }
+          if (!$("f-lyrics").value && r.info.lyrics) $("f-lyrics").value = cleanSunoLyrics(r.info.lyrics) || "";
+          update();
+        }
+        showProbe();
       });
-      a.src = sunoAudio(id); showProbe();
+      showProbe();
     }
     function showProbe() {
       if (pubMode !== "link") return;
       if (probe.state === "pending") msg("Vérification du son chez Suno…");
       else if (probe.state === "ok") msg("Son vérifié : ta chanson est prête à être publiée.", "ok");
+      else if (probe.state === "private") msg("Cette chanson est privée sur Suno. Rends-la publique (⋯ › Visibilité › Publique), puis recolle le lien.", "err");
       else if (probe.state === "fail") msg("Suno ne rend pas encore ce son public. Sur Suno, rends la chanson publique (⋯ › Visibilité › Publique), attends quelques minutes puis recolle le lien. Sinon, choisis « Fichier audio » et envoie le fichier (Suno : ⋯ › Télécharger › MP3).", "err");
     }
     let extInfo = { url: null, meta: null };
@@ -1326,6 +1382,55 @@
       else { a.hidden = true; img.hidden = true; }
     }
     ["f-link", "f-ext", "f-title", "f-artist"].forEach(id => $(id).addEventListener("input", update));
+    let PL = null;
+    async function loadPlaylist() {
+      const m = /suno\.(?:com|ai)\/playlist\/([0-9a-f-]{36})/i.exec($("f-pl").value);
+      const box = $("pl-box");
+      if (!m) { box.innerHTML = $("f-pl").value.trim() ? `<p class="form-msg err">Colle un lien de la forme suno.com/playlist/…</p>` : ""; PL = null; return; }
+      if (PL && PL.id === m[1].toLowerCase()) return;
+      PL = { id: m[1].toLowerCase(), songs: null };
+      box.innerHTML = `<p class="form-msg">Lecture de la playlist chez Suno…</p>`;
+      const r = await relay("playlist", PL.id);
+      if (!PL || PL.id !== m[1].toLowerCase()) return;
+      if (!r || r.error || !r.songs) { box.innerHTML = `<p class="form-msg err">${r && r.error === 404 ? "Le relais Écrin n'est pas encore installé sur Supabase." : "Impossible de lire cette playlist. Vérifie qu'elle est publique sur Suno, puis réessaie."}</p>`; PL = null; return; }
+      PL.title = r.title; PL.songs = r.songs;
+      const have = new Set(S.all.map(t => t.suno_id).filter(Boolean));
+      if (!$("f-artist").value && r.songs[0] && r.songs[0].artist) $("f-artist").value = r.songs[0].artist;
+      box.innerHTML = `<div class="pl-head"><strong>${esc(r.title || "Playlist")}</strong><span>${plural(r.songs.length, "chanson")} · ${r.songs.filter(x => x.isPublic && !have.has(x.id)).length} à importer</span></div>
+        <ul class="pl-list">${r.songs.map(x => { const ok = x.isPublic && !have.has(x.id);
+          return `<li class="${ok ? "" : "off"}"><label><input type="checkbox" data-pl="${x.id}" ${ok ? "checked" : "disabled"}>${x.cover ? `<img src="${esc(x.cover)}" alt="" loading="lazy">` : ""}<span><b>${esc(x.title || "Sans titre")}</b><i>${have.has(x.id) ? "Déjà sur Écrin" : x.isPublic ? (x.duration ? fmt(x.duration) : "") + (x.lyrics ? " · paroles incluses" : "") : "Privée sur Suno : rends-la publique pour l'importer"}</i></span></label></li>`; }).join("")}</ul>`;
+      $("submit").textContent = "Importer la sélection";
+    }
+    $("f-pl").addEventListener("input", () => { clearTimeout(S.plT); S.plT = setTimeout(loadPlaylist, 400); });
+    async function importPlaylist() {
+      const artist = $("f-artist").value.trim(), genre = $("f-genre").value.trim() || null, made = $("f-made").value.trim().slice(0, 40) || "Suno";
+      if (!PL || !PL.songs) { msg("Colle d'abord le lien d'une playlist Suno.", "err"); return; }
+      const ids = [...document.querySelectorAll("[data-pl]:checked")].map(c => c.dataset.pl);
+      if (!ids.length) { msg("Coche au moins une chanson publique à importer.", "err"); return; }
+      if (!artist) { msg("Indique ton nom d'artiste.", "err"); return; }
+      if (!$("f-rights").checked) { msg("Coche la case pour confirmer que tu as le droit de diffuser ces chansons.", "err"); return; }
+      const btn = $("submit"); btn.disabled = true;
+      let okN = 0; const fails = [];
+      for (const [k, id] of ids.entries()) {
+        const x = PL.songs.find(s2 => s2.id === id);
+        msg(`Import ${k + 1} / ${ids.length} : « ${x.title} »…`);
+        const pr = await sunoPlayable(id, x);
+        if (!pr.url) { fails.push(x.title); continue; }
+        const row = { title: (x.title || "Sans titre").slice(0, 120), artist, genre, source: "suno", suno_id: id, audio_url: pr.url, cover_url: x.cover || sunoCover(id) };
+        const ly = cleanSunoLyrics(x.lyrics); if (ly && S.hasV2) row.lyrics = ly;
+        if (S.hasV3) { row.ai = true; row.made_with = made; }
+        const key = uuid(); if (S.hasV4) row.edit_key = key;
+        const { data: ins, error } = await sb.from("tracks").insert(row).select("id");
+        if (error) { fails.push(x.title + (error.code === "23505" ? " (déjà sur Écrin)" : "")); continue; }
+        if (S.hasV4 && ins && ins[0]) { owned[ins[0].id] = key; store.set("owned", owned); }
+        okN++;
+      }
+      store.set("artist", artist);
+      btn.disabled = false;
+      const summary = `${plural(okN, "chanson")} importée${okN > 1 ? "s" : ""}.${fails.length ? " Pas encore de son public chez Suno pour : " + fails.join(", ") + ". Réessaie dans quelques minutes." : ""}`;
+      msg(summary, okN ? "ok" : "err"); toast(summary);
+      if (okN) { await load(); setTimeout(() => go("artiste", artist), 1600); }
+    }
     $("f-audio").addEventListener("change", () => { const f = $("f-audio").files[0]; if (f && !$("f-title").value) $("f-title").value = f.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim().slice(0, 120); update(); });
     $("f-cover").addEventListener("change", update);
     update();
@@ -1333,6 +1438,7 @@
     $("add-form").addEventListener("submit", async e => {
       e.preventDefault();
       if (!sb) { msg("L'appli n'est pas encore reliée à sa base de données.", "err"); return; }
+      if (pubMode === "pl") { importPlaylist(); return; }
       const title = $("f-title").value.trim(), artist = $("f-artist").value.trim(), genre = $("f-genre").value.trim() || null;
       const lyrics = $("f-lyrics").value.trim() || null, made = $("f-made").value.trim().slice(0, 40) || null, ai = pubMode === "link" || $("f-ai").checked;
       if (!title || !artist) { msg("Indique le titre et ton nom d'artiste.", "err"); return; }
@@ -1346,7 +1452,7 @@
           if (!p || !p.id) { msg(p && p.short ? "Utilise l'adresse complète suno.com/song/…" : "Colle le lien de ta chanson Suno (suno.com/song/…).", "err"); return; }
           probeSuno(p.id); if (probe.state === "pending") await probe.wait;
           if (probe.state !== "ok") { showProbe(); return; }
-          row = { title, artist, genre, source: "suno", suno_id: p.id, audio_url: sunoAudio(p.id), cover_url: sunoCover(p.id) };
+          row = { title, artist, genre, source: "suno", suno_id: p.id, audio_url: probe.url || sunoAudio(p.id), cover_url: (probe.info && probe.info.cover) || sunoCover(p.id) };
         } else if (pubMode === "ext") {
           const p = parseExt($("f-ext").value);
           if (!p || !p.url) { msg("Colle le lien d'un titre SoundCloud ou d'une vidéo YouTube.", "err"); return; }
@@ -1381,7 +1487,7 @@
         if (error) { if (error.code === "23505") { msg("Cette chanson est déjà sur Écrin.", "err"); return; } throw error; }
         store.set("artist", artist);
         if (S.hasV4 && ins && ins[0]) { owned[ins[0].id] = key; store.set("owned", owned); }
-        msg("Publiée ! Ta chanson est maintenant écoutable par tout le monde.", "ok");
+        msg("Publiée ! Ta chanson est maintenant écoutable par tout le monde.", "ok"); toast("Publiée ! Ta chanson est maintenant écoutable par tout le monde.");
         await load();
         setTimeout(() => go("artiste", artist), 1200);
       } catch (err) {

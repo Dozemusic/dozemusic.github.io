@@ -242,7 +242,7 @@ input[type=range] { accent-color: var(--gold); height: 4px; cursor: pointer; }
 .menu button:hover { background: rgba(255, 255, 255, .08); }
 .menu .danger { color: var(--danger); }
 .menu .sep { height: 1px; background: var(--line); margin: 4px 0; }
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--player-h) + var(--tab-h) + env(safe-area-inset-bottom, 0px) + 16px); background: var(--fg); color: var(--bg); padding: 10px 18px; border-radius: 10px; font-weight: 600; z-index: 70; max-width: calc(100% - 32px); }
+.toast { white-space: normal; text-align: center; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--player-h) + var(--tab-h) + env(safe-area-inset-bottom, 0px) + 16px); background: var(--fg); color: var(--bg); padding: 10px 18px; border-radius: 10px; font-weight: 600; z-index: 70; max-width: calc(100% - 32px); }
 
 /* ---------- téléphone ---------- */
 @media (max-width: 860px) {
@@ -464,3 +464,20 @@ code { background: rgba(255, 255, 255, .08); padding: 1px 5px; border-radius: 5p
 .lyr-tapbar .lyr-next { flex: 1; padding: 14px; font-size: 16px; background: var(--gold); color: var(--gold-ink); }
 .lyr.tapping .lyr-tapbar { display: flex; }
 .lyr.tapping .lyr-tools, .lyr.tapping ~ .lyr-pill { display: none; }
+
+/* ---------- 3.3 : import de playlist Suno ---------- */
+.seg4 { flex-wrap: wrap; }
+.seg4 button { flex: 1 1 45%; font-size: 14px; padding: 10px 6px; }
+.pl-box:empty { display: none; }
+.pl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.pl-head span { color: var(--muted); font-size: 13px; }
+.pl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 420px; overflow-y: auto; border: 1px solid var(--line); border-radius: 14px; padding: 6px; }
+.pl-list label { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 10px; cursor: pointer; }
+.pl-list label:hover { background: rgba(255, 255, 255, .05); }
+.pl-list input { accent-color: var(--gold); width: 18px; height: 18px; flex: none; }
+.pl-list img { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex: none; }
+.pl-list span { display: grid; min-width: 0; }
+.pl-list b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-list i { font-style: normal; font-size: 12px; color: var(--muted); }
+.pl-list li.off label { cursor: default; opacity: .6; }
+.pl-list li.off i { color: var(--danger); }

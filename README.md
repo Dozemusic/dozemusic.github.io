@@ -2,7 +2,7 @@
 
 La musique des créateurs Suno, gratuite pour tout le monde. Les artistes publient leurs chansons (lien Suno ou fichier MP3) et tout le monde peut les écouter en boucle ou en aléatoire.
 
-Version 3.2.0
+Version 3.3.0
 
 ## Fonctions
 - **Accueil** façon plateforme de streaming : titre à la une, rayons « Écoutés récemment », « Nouveautés », « Pépites à découvrir » (titres peu écoutés mis en avant à tour de rôle), « Les plus écoutées », artistes et genres.
@@ -48,3 +48,11 @@ Dans Supabase › **Table Editor** › `tracks` :
 - **Logo** (`icon.svg`) : le bâton de Moïse, droit avec sa crosse de berger, forme la colonne de la harpe de David. La crosse se prolonge en console, les cordes sont tendues jusqu'à la caisse, et une pierre précieuse brille au sommet. Or sur velours bordeaux.
 - **Couleurs** : velours `#140A10`, or `#D9B36A` (thème sombre) ; ivoire `#FBF7F2`, or bruni `#9C6B1E` (thème clair).
 - **Typographies** : Marcellus (titres, inspirée des inscriptions gravées antiques), Inter (texte).
+
+## Relais Suno (import de playlist)
+Le navigateur ne peut pas lire les pages de Suno. Le relais `supabase/functions/suno-import/index.ts`
+(Supabase Edge Function) les lit à sa place et renvoie titres, pochettes, durées, paroles et visibilité.
+Seules les chansons publiques sur Suno sont importées, avec leur version publique (MP4).
+
+Installation (une fois) : Supabase › Edge Functions › Deploy a new function › Via Editor,
+nom `suno-import`, coller le fichier, Deploy, puis dans ses réglages désactiver « Verify JWT ».
