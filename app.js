@@ -1,4 +1,4 @@
-/* Écrin 1.1.0 */
+/* Écrin 1.1.1 */
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -57,7 +57,9 @@
     if (/suno\.(com|ai)\/s\//i.test(s)) return { short: true };
     return null;
   }
-  const sunoAudio = id => `https://cdn1.suno.ai/${id}.mp3`;
+  // Suno bloque désormais le MP3 direct ; la vidéo MP4 publique contient la même piste audio (AAC).
+  const sunoAudio = id => `https://cdn1.suno.ai/${id}.mp4`;
+  const playable = url => String(url || "").replace(/^(https:\/\/cdn1\.suno\.ai\/[0-9a-f-]{36})\.mp3$/i, "$1.mp4");
   const sunoCover = id => `https://cdn2.suno.ai/image_${id}.jpeg`;
 
   // ---------- chargement ----------
@@ -171,7 +173,7 @@
   function playCurrent(autoplay = true) {
     const t = S.queue[S.order[S.pos]]; if (!t) return;
     S.counted = false;
-    audio.src = t.audio_url;
+    audio.src = playable(t.audio_url);
     if (autoplay) audio.play().catch(() => {});
     $("p-title").textContent = t.title;
     $("p-artist").textContent = t.artist;
