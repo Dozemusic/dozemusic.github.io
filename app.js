@@ -1,5 +1,5 @@
-/* DOZE 4.1.0 */
-  const VERSION = "4.1.0";
+/* DOZE 4.1.1 */
+  const VERSION = "4.1.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1176,6 +1176,7 @@
   // Pochettes qui s'inclinent sous le doigt ou la souris, avec un reflet qui glisse.
   const TILT = ".card .art, .hero > img, .page-head .ph-art, .np-art img";
   function tiltMove(e) {
+    if (e.pointerType !== "mouse") return;            // au doigt, pas d'inclinaison : seulement à la souris
     const el = e.target.closest && e.target.closest(TILT); if (!el || calm) return;
     const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
     el.style.setProperty("--rx", ((.5 - y) * 16).toFixed(2) + "deg"); el.style.setProperty("--ry", ((x - .5) * 18).toFixed(2) + "deg");

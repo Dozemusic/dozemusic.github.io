@@ -584,3 +584,6 @@ body { background: radial-gradient(1100px 520px at 15% -12%, rgba(46, 72, 140, .
 @keyframes hover { 0%, 100% { transform: translateY(0) rotateX(0); } 50% { transform: translateY(-8px) rotateX(4deg); } }
 .brand img.brand-logo { width: 100%; max-width: 200px; height: auto; }
 .mobile-brand .brand img.brand-logo { width: auto; height: 46px; max-width: 60vw; }
+
+/* 4.1.1 : pas d'effet élastique quand on tire la page du doigt */
+html, body, .main, .np, .side { overscroll-behavior: none; }
