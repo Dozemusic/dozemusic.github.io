@@ -2,6 +2,7 @@
 // Lit une page publique de Suno (playlist ou chanson) à la place du navigateur, qui n'y a pas accès,
 // et renvoie la liste des chansons : titre, artiste, pochette, durée, paroles, adresses audio, visibilité.
 // Appel : GET /functions/v1/suno-import?type=playlist&id=<uuid>   ou   ?type=song&id=<uuid>
+//         ou ?type=profile&handle=<pseudo>  (les chansons publiques d'un profil, celles de ce profil uniquement)
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -69,6 +70,7 @@ export function parseSongs(html: string) {
       id: o.id,
       title: o.title || "",
       artist: o.displayName || o.display_name || o.handle || "",
+      handle: String(o.handle || "").toLowerCase(),
       cover: o.imageLargeUrl || o.image_large_url || o.imageUrl || o.image_url || null,
       isPublic: (o.isPublic ?? o.is_public) === true,
       duration: meta.duration || null,
@@ -85,6 +87,16 @@ export function parseSongs(html: string) {
 if (typeof Deno !== "undefined") Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const u = new URL(req.url);
+  if (u.searchParams.get("type") === "profile") {
+    const handle = (u.searchParams.get("handle") || "").replace(/^@/, "").toLowerCase();
+    if (!/^[a-z0-9_.-]{1,40}$/.test(handle)) return json({ error: "Pseudo invalide." }, 400);
+    const page = await fetch(`https://suno.com/@${handle}`, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36", "Accept-Language": "fr-FR,fr;q=0.9" },
+    });
+    if (!page.ok) return json({ error: `Suno a répondu ${page.status}.` }, 502);
+    const data = parseSongs(await page.text());
+    return json({ title: "@" + handle, songs: data.songs.filter((x) => x.handle === handle) });
+  }
   const type = u.searchParams.get("type") === "song" ? "song" : "playlist";
   const id = ((u.searchParams.get("id") || "").match(UUID) || [])[0];
   if (!id) return json({ error: "Identifiant manquant ou invalide." }, 400);

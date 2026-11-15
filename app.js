@@ -1,5 +1,5 @@
-/* Écrin 3.3.3 */
-  const VERSION = "3.3.3";
+/* Écrin 3.4.0 */
+  const VERSION = "3.4.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -407,7 +407,7 @@
             <p>Talent en herbe, artiste confirmé ou créateur IA : ta musique rejoint Écrin et devient écoutable par tout le monde. Les nouveaux titres passent dans « Pépites à découvrir » pour trouver leurs premiers auditeurs.</p></div>
           <div class="seg seg4" role="group" aria-label="Méthode">
             <button class="${pubMode === "link" ? "is-on" : ""}" data-mode="link" type="button">Suno</button>
-            <button class="${pubMode === "pl" ? "is-on" : ""}" data-mode="pl" type="button">Playlist Suno</button>
+            <button class="${pubMode === "pl" ? "is-on" : ""}" data-mode="pl" type="button">Playlist · profil Suno</button>
             <button class="${pubMode === "file" ? "is-on" : ""}" data-mode="file" type="button">Fichier audio</button>
             <button class="${pubMode === "ext" ? "is-on" : ""}" data-mode="ext" type="button">SoundCloud · YouTube</button>
           </div>
@@ -439,12 +439,12 @@
               <input id="f-cover" type="file" accept="image/jpeg,image/png,image/webp">
             </div>
             <div class="suno-steps" data-for="pl" ${pubMode === "pl" ? "" : "hidden"}>
-              <strong>Importe toute une playlist Suno en une fois</strong>
-              <span>Sur Suno, ouvre ta playlist, touche <b>⋯ › Partager › Copier le lien</b>, puis colle-le ci-dessous. Seules les chansons <b>publiques</b> sur Suno peuvent être importées : rends publiques celles que tu veux partager.</span>
+              <strong>Importe une playlist ou tout ton profil Suno en une fois</strong>
+              <span>Colle le lien d'une <b>playlist</b> (⋯ › Partager › Copier le lien) ou de ton <b>profil</b> (suno.com/@ton-pseudo) : Écrin liste tes chansons, tu coches et tu importes. Seules les chansons <b>publiques</b> sur Suno peuvent être importées. Ta liste « J'aime » n'est pas accessible : elle n'est visible que connecté à ton compte.</span>
             </div>
             <div class="field" data-for="pl" ${pubMode === "pl" ? "" : "hidden"}>
-              <label for="f-pl">Lien de la playlist Suno</label>
-              <input id="f-pl" type="url" inputmode="url" placeholder="https://suno.com/playlist/…" autocomplete="off">
+              <label for="f-pl">Lien de la playlist ou de ton profil Suno</label>
+              <input id="f-pl" type="url" inputmode="url" placeholder="https://suno.com/playlist/… ou https://suno.com/@ton-pseudo" autocomplete="off">
             </div>
             <div id="pl-box" class="pl-box" data-for="pl" ${pubMode === "pl" ? "" : "hidden"}></div>
             <div class="suno-steps" data-for="ext" ${pubMode === "ext" ? "" : "hidden"}>
@@ -1250,7 +1250,7 @@
   // ---------- publication ----------
   let pubMode = "link", pvUrl;
   // Relais Supabase « suno-import » : lit les pages publiques de Suno à la place du navigateur.
-  async function relay(type, id) {
+  async function relay(type, id, extra = "") {
     if (!cfg.supabaseUrl) return null;
     try {
       // Le nom du relais dépend de la façon dont il a été créé sur Supabase (minuscules ou majuscules).
@@ -1258,7 +1258,7 @@
       // Un nom inexistant fait échouer la pré-vérification du navigateur : on essaie alors le suivant.
       let r = null;
       for (const n of names) {
-        try { r = await fetch(`${cfg.supabaseUrl}/functions/v1/${n}?type=${type}&id=${id}`, { headers: { apikey: cfg.supabaseAnonKey, Authorization: "Bearer " + cfg.supabaseAnonKey } }); }
+        try { r = await fetch(`${cfg.supabaseUrl}/functions/v1/${n}?type=${type}&id=${id}${extra}`, { headers: { apikey: cfg.supabaseAnonKey, Authorization: "Bearer " + cfg.supabaseAnonKey } }); }
         catch { r = null; continue; }
         if (r.status !== 404) { store.set("relay", n); break; }
       }
@@ -1393,15 +1393,18 @@
     ["f-link", "f-ext", "f-title", "f-artist"].forEach(id => $(id).addEventListener("input", update));
     let PL = null;
     async function loadPlaylist() {
-      const m = /suno\.(?:com|ai)\/playlist\/([0-9a-f-]{36})/i.exec($("f-pl").value);
+      const v = $("f-pl").value.trim();
+      const m = /suno\.(?:com|ai)\/playlist\/([0-9a-f-]{36})/i.exec(v), hm = /suno\.(?:com|ai)\/@([A-Za-z0-9_.-]{1,40})/i.exec(v) || /^@([A-Za-z0-9_.-]{1,40})$/.exec(v);
       const box = $("pl-box");
-      if (!m) { box.innerHTML = $("f-pl").value.trim() ? `<p class="form-msg err">Colle un lien de la forme suno.com/playlist/…</p>` : ""; PL = null; return; }
-      if (PL && PL.id === m[1].toLowerCase()) return;
-      PL = { id: m[1].toLowerCase(), songs: null };
-      box.innerHTML = `<p class="form-msg">Lecture de la playlist chez Suno…</p>`;
-      const r = await relay("playlist", PL.id);
-      if (!PL || PL.id !== m[1].toLowerCase()) return;
-      if (!r || r.error || !r.songs) { box.innerHTML = `<p class="form-msg err">${r && r.error === 404 ? "Le relais Écrin n'est pas encore installé sur Supabase." : "Impossible de lire cette playlist. Vérifie qu'elle est publique sur Suno, puis réessaie."}</p>`; PL = null; return; }
+      if (!m && !hm) { box.innerHTML = v ? `<p class="form-msg err">Colle un lien de playlist (suno.com/playlist/…) ou de profil (suno.com/@ton-pseudo).</p>` : ""; PL = null; return; }
+      const key = m ? m[1].toLowerCase() : "@" + hm[1].toLowerCase();
+      if (PL && PL.id === key) return;
+      PL = { id: key, songs: null };
+      box.innerHTML = `<p class="form-msg">${m ? "Lecture de la playlist" : "Lecture du profil"} chez Suno…</p>`;
+      const r = m ? await relay("playlist", key) : await relay("profile", "", "&handle=" + encodeURIComponent(hm[1]));
+      if (!PL || PL.id !== key) return;
+      if (!r || r.error || !r.songs) { box.innerHTML = `<p class="form-msg err">${r && r.error === 404 ? "Le relais Écrin n'est pas encore installé sur Supabase." : r && r.error === 400 && !m ? "Le relais doit être mis à jour pour lire les profils (voir le guide)." : "Impossible de lire ce lien. Vérifie qu'il est public sur Suno, puis réessaie."}</p>`; PL = null; return; }
+      if (!r.songs.length) { box.innerHTML = `<p class="form-msg err">${m ? "Cette playlist ne contient aucune chanson lisible." : "Aucune chanson publique trouvée sur ce profil, ou le relais doit être mis à jour pour lire les profils."}</p>`; PL = null; return; }
       PL.title = r.title; PL.songs = r.songs;
       const have = new Set(S.all.map(t => t.suno_id).filter(Boolean));
       if (!$("f-artist").value && r.songs[0] && r.songs[0].artist) $("f-artist").value = r.songs[0].artist;
