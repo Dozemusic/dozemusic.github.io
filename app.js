@@ -1,5 +1,5 @@
-/* DOZE 5.2.1 */
-  const VERSION = "5.2.1";
+/* DOZE 5.3.0 */
+  const VERSION = "5.3.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -2081,7 +2081,12 @@
     if (!S.counted && audio.currentTime > 30) {
       S.counted = true;
       const t = current();
-      if (t && sb) sb.rpc("count_play", S.hasV2 ? { track: t.id, p_country: myCountry() } : { track: t.id }).then(() => { t.plays++; });
+      if (t && sb) {
+        // Avec l'identifiant anonyme de l'appareil (auditeurs uniques, mise à jour 8) ; sinon, ancienne forme
+        const args = S.hasV2 ? { track: t.id, p_country: myCountry() } : { track: t.id };
+        const call = withDev => sb.rpc("count_play", withDev ? { ...args, p_device: device } : args);
+        call(S.hasV2 && !S.noPlayDev).then(r => { if (r.error && !S.noPlayDev && S.hasV2) { S.noPlayDev = true; return call(false); } return r; }).then(r => { if (r && !r.error) t.plays++; });
+      }
     }
   });
   audio.addEventListener("loadedmetadata", () => { $("t-dur").textContent = $("np-dur").textContent = fmt(audio.duration); if (S.lyr && !S.lyr.timed) { S.lyr.estimated = false; estimateTimes(S.lyr, audio.duration); S.lyrIdx = -1; } });
