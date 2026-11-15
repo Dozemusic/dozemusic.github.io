@@ -1,5 +1,5 @@
-/* Écrin 3.5.0 */
-  const VERSION = "3.5.0";
+/* Écrin 3.5.1 */
+  const VERSION = "3.5.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1211,7 +1211,12 @@
     $("np-title").textContent = t.title; $("np-artist").textContent = t.artist;
     renderTags(t); S.lyricsFor = null; if (!$("np").hidden && S.npTab === "lyrics") loadLyrics();
     document.title = t.title + " · " + t.artist + " | Écrin";
-    if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: "Écrin", artwork: [{ src: coverOf(t), sizes: "512x512" }] });
+    if ("mediaSession" in navigator) {
+      // Infos affichées sur l'écran verrouillé, la montre, CarPlay et l'écran de la voiture (Bluetooth).
+      const art = coverOf(t), abs = art.startsWith("data:") ? art : new URL(art, location.href).href;
+      navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: t.genre ? "Écrin · " + t.genre : "Écrin",
+        artwork: [96, 192, 256, 512].map(n => ({ src: abs, sizes: n + "x" + n, type: abs.endsWith(".png") ? "image/png" : "image/jpeg" })) });
+    }
     history = [t.id, ...history.filter(x => x !== t.id)].slice(0, 50); store.set("history", history);
     syncLike(); refreshCurrent(); renderQueue();
   }
@@ -1326,6 +1331,14 @@
     ms.setActionHandler("play", () => audio.play()); ms.setActionHandler("pause", () => audio.pause());
     ms.setActionHandler("nexttrack", () => next(false)); ms.setActionHandler("previoustrack", prev);
     try { ms.setActionHandler("seekto", d => { audio.currentTime = d.seekTime; }); } catch {}
+    try { ms.setActionHandler("seekbackward", d => { audio.currentTime = Math.max(0, audio.currentTime - (d.seekOffset || 10)); }); } catch {}
+    try { ms.setActionHandler("seekforward", d => { audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + (d.seekOffset || 10)); }); } catch {}
+    try { ms.setActionHandler("stop", () => audio.pause()); } catch {}
+    // Barre de progression sur l'écran verrouillé et l'écran de la voiture
+    const pos = () => { try { if (isFinite(audio.duration) && audio.duration > 0) ms.setPositionState({ duration: audio.duration, position: Math.min(audio.currentTime, audio.duration), playbackRate: audio.playbackRate || 1 }); } catch {} };
+    ["loadedmetadata", "play", "pause"].forEach(ev => audio.addEventListener(ev, pos));
+    audio.addEventListener("play", () => { ms.playbackState = "playing"; }); audio.addEventListener("pause", () => { ms.playbackState = "paused"; });
+    let lastPos = 0; audio.addEventListener("timeupdate", () => { const n = Date.now(); if (n - lastPos > 5000) { lastPos = n; pos(); } });
   }
 
   // ---------- publication ----------
