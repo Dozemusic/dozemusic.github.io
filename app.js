@@ -1,4 +1,4 @@
-/* Écrin 2.1.0 */
+/* Écrin 2.2.0 */
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -374,15 +374,15 @@
     const art = e.target.closest("[data-artist]"); if (art) { go("artiste", art.dataset.artist); return; }
     const gen = e.target.closest("[data-genre]"); if (gen) { go("genre", gen.dataset.genre); return; }
     const chip = e.target.closest("[data-chip]"); if (chip) { S.genre = chip.dataset.chip || null; render(); return; }
-    const pc = e.target.closest("[data-play-ctx]"); if (pc) { const l = S.ctx[pc.dataset.playCtx]; if (l) { setShuffle(false); startQueue(l, 0); } return; }
-    const sc = e.target.closest("[data-shuffle-ctx]"); if (sc) { const l = S.ctx[sc.dataset.shuffleCtx]; if (l) { setShuffle(true); startQueue(l, Math.floor(Math.random() * l.length)); } return; }
-    if (e.target.closest("[data-shuffle-all]")) { setShuffle(true); startQueue(S.all, Math.floor(Math.random() * S.all.length)); return; }
+    const pc = e.target.closest("[data-play-ctx]"); if (pc) { const l = S.ctx[pc.dataset.playCtx]; if (l) { setShuffle(false); startQueue(l, 0, true, ctxLabel(pc.dataset.playCtx)); } return; }
+    const sc = e.target.closest("[data-shuffle-ctx]"); if (sc) { const l = S.ctx[sc.dataset.shuffleCtx]; if (l) { setShuffle(true); startQueue(l, Math.floor(Math.random() * l.length), true, ctxLabel(sc.dataset.shuffleCtx)); } return; }
+    if (e.target.closest("[data-shuffle-all]")) { setShuffle(true); startQueue(S.all, Math.floor(Math.random() * S.all.length), true, ["Aléatoire", "Tout Écrin"]); return; }
     const item = e.target.closest("[data-ctx]");
     if (item) {
       const list = S.ctx[item.dataset.ctx]; const i = +item.dataset.i; const t = list && list[i]; if (!t) return;
       const cur = current();
       if (cur && cur.id === t.id) { togglePlay(); return; }
-      startQueue(list, i);
+      startQueue(list, i, true, ctxLabel(item.dataset.ctx));
     }
   });
   $("view").addEventListener("keydown", e => {
@@ -535,6 +535,156 @@
     navigator.clipboard.writeText(url).then(() => toast("Lien de la playlist copié"), () => toast(url));
   }
 
+  // ---------- effets audio : égaliseur, halo, volume ----------
+  const isIOS = /iP(hone|ad|od)/.test(navigator.platform) || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+  const BANDS = [[60, "lowshelf", "Basses"], [250, "peaking", "Bas-médiums"], [1000, "peaking", "Médiums"], [4000, "peaking", "Présence"], [12000, "highshelf", "Aigus"]];
+  const PRESETS = { plat: ["Plat", [0, 0, 0, 0, 0]], basses: ["Basses+", [6, 3, 0, 0, 1]], voix: ["Voix", [-2, 0, 3, 4, 1]], afro: ["Afro", [4, 2, 0, 2, 3]], rap: ["Rap", [6, 4, -1, 1, 2]], douceur: ["Douceur", [2, 1, 0, -2, -4]], aigus: ["Aigus+", [0, 0, 0, 3, 6]] };
+  const GENRE_PRESET = { rap: "rap", afrobeat: "afro", "coupe-decale": "afro", zouglou: "afro", gospel: "voix", "r&b": "voix", pop: "voix", electro: "basses", reggae: "basses", rock: "aigus", jazz: "plat", classique: "plat" };
+  const FX = { ctx: null, filters: [], analyser: null, gain: null, bins: null,
+    enabled: store.get("fx", !isIOS), preset: store.get("eq", "auto"), custom: store.get("eqCustom", [0, 0, 0, 0, 0]), halo: store.get("halo", true) };
+  function fxGraph() {
+    if (FX.ctx) return true;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+      FX.ctx = new AC();
+      const src = FX.ctx.createMediaElementSource(audio);
+      FX.filters = BANDS.map(([f, type]) => { const b = FX.ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = 1; b.gain.value = 0; return b; });
+      FX.gain = FX.ctx.createGain();
+      FX.analyser = FX.ctx.createAnalyser(); FX.analyser.fftSize = 256; FX.analyser.smoothingTimeConstant = .8;
+      FX.bins = new Uint8Array(FX.analyser.frequencyBinCount);
+      [src, ...FX.filters, FX.gain, FX.analyser, FX.ctx.destination].reduce((a, b) => (a.connect(b), b));
+      return true;
+    } catch (e) { console.warn(e); FX.ctx = null; return false; }
+  }
+  function fxResume() { if (FX.enabled && fxGraph() && FX.ctx.state !== "running") FX.ctx.resume().catch(() => {}); applyEq(); }
+  function currentGains(t = current()) {
+    let key = FX.preset;
+    if (key === "auto") key = (t && GENRE_PRESET[norm(t.genre)]) || "plat";
+    return key === "perso" ? FX.custom : PRESETS[key][1];
+  }
+  function applyEq() { if (!FX.ctx) return; const g = FX.enabled ? currentGains() : [0, 0, 0, 0, 0]; FX.filters.forEach((f, i) => f.gain.setTargetAtTime(g[i], FX.ctx.currentTime, .05)); }
+  function applyAutoEq() { applyEq(); }
+  function setOutVolume(v) { if (FX.gain) FX.gain.gain.setTargetAtTime(Math.max(0, v), FX.ctx.currentTime, .1); else audio.volume = Math.max(0, Math.min(1, v * (+$("vol").value))); }
+  function qualityLabel(t) { return t.source === "upload" ? "Fichier d'origine de l'artiste" : "Qualité d'origine Suno · AAC"; }
+
+  // Couleur dominante de la pochette pour teinter le lecteur plein écran
+  function tintFrom(t) {
+    const img = new Image(); img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const c = document.createElement("canvas"); c.width = c.height = 24; const x = c.getContext("2d"); x.drawImage(img, 0, 0, 24, 24);
+        const d = x.getImageData(0, 0, 24, 24).data; let r = 0, g = 0, b = 0, w = 0;
+        for (let i = 0; i < d.length; i += 4) { const mx = Math.max(d[i], d[i + 1], d[i + 2]), mn = Math.min(d[i], d[i + 1], d[i + 2]); const sat = mx ? (mx - mn) / mx : 0; const k = .15 + sat * sat; r += d[i] * k; g += d[i + 1] * k; b += d[i + 2] * k; w += k; }
+        r /= w; g /= w; b /= w;
+        const m = Math.max(r, g, b) || 1, f = Math.min(1.4, 150 / m);              // éclaircit les pochettes sombres, borne les claires
+        setTint(Math.round(r * f), Math.round(g * f), Math.round(b * f));
+      } catch { setTint(76, 63, 180); }
+    };
+    img.onerror = () => setTint(76, 63, 180);
+    img.src = coverOf(t);
+  }
+  function setTint(r, g, b) { const np = $("np"); np.style.setProperty("--tint", `rgb(${r},${g},${b})`); np.style.setProperty("--tint-rgb", `${r},${g},${b}`); }
+
+  // Halo vivant : la lumière autour de la pochette suit les basses et le spectre de la musique
+  let haloRaf = 0;
+  function startHalo() { cancelAnimationFrame(haloRaf); haloRaf = requestAnimationFrame(drawHalo); }
+  function drawHalo() {
+    const cv = $("halo"), art = $("np-cover");
+    if ($("np").hidden) return;
+    const box = cv.parentElement.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
+    const W = Math.round(box.width * 1.3), H = Math.round(box.height * 1.3);
+    if (cv.width !== W * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
+    const x = cv.getContext("2d"); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
+    const live = FX.halo && FX.analyser && !audio.paused && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let bass = 0;
+    if (live) { FX.analyser.getByteFrequencyData(FX.bins); for (let i = 1; i < 8; i++) bass += FX.bins[i]; bass = bass / 7 / 255; }
+    const rgb = getComputedStyle($("np")).getPropertyValue("--tint-rgb").trim() || "76,63,180";
+    const cx = W / 2, cy = H / 2, base = box.width / 2;
+    const glow = x.createRadialGradient(cx, cy, base * .6, cx, cy, base * (1.05 + bass * .25));
+    glow.addColorStop(0, `rgba(${rgb},${.55 + bass * .4})`); glow.addColorStop(1, `rgba(${rgb},0)`);
+    x.fillStyle = glow; x.fillRect(0, 0, W, H);
+    if (live) {
+      const n = 72, R = base * 1.02;
+      x.lineCap = "round"; x.lineWidth = Math.max(2, base / 60);
+      for (let i = 0; i < n; i++) {
+        const v = FX.bins[Math.floor(4 + (i < n / 2 ? i : n - i) * 1.4)] / 255;
+        const a = (i / n) * Math.PI * 2 - Math.PI / 2, len = base * .02 + v * base * .16;
+        x.strokeStyle = `rgba(242,199,102,${.25 + v * .7})`;
+        x.beginPath(); x.moveTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); x.lineTo(cx + Math.cos(a) * (R + len), cy + Math.sin(a) * (R + len)); x.stroke();
+      }
+      art.style.transform = `scale(${1 + bass * .025})`;
+    } else art.style.transform = "";
+    haloRaf = requestAnimationFrame(drawHalo);
+  }
+
+  // ---------- panneaux « Sortie audio », « Égaliseur », « Réglages audio » ----------
+  let sheetStack = [];
+  function openSheet(view, push) {
+    if (!push) sheetStack = []; sheetStack.push(view);
+    $("sheet-wrap").hidden = false; $("sheet-back").hidden = sheetStack.length < 2;
+    renderSheet();
+  }
+  function closeSheet() { $("sheet-wrap").hidden = true; sheetStack = []; }
+  function renderSheet() {
+    const view = sheetStack[sheetStack.length - 1], body = $("sheet-body"), t = current();
+    if (view === "output") {
+      $("sheet-title").textContent = "Sortie audio";
+      const conn = navigator.connection && navigator.connection.type;
+      const net = conn === "wifi" ? "Wi-Fi" : conn === "cellular" ? "Données mobiles" : "";
+      const airplay = typeof audio.webkitShowPlaybackTargetPicker === "function";
+      const remote = !airplay && audio.remote && typeof audio.remote.prompt === "function";
+      body.innerHTML = `<div class="dev-card"><svg viewBox="0 0 24 24"><path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2m0 2v16h10V4zm5 13.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3"/></svg>
+          <span><b><span class="eqmini" aria-hidden="true"><i></i><i></i><i></i></span> Cet appareil</b><i>${esc(t ? qualityLabel(t) : "Qualité d'origine")}${net ? " · " + net : ""}</i></span></div>
+        ${airplay ? `<button class="sheet-row" type="button" data-out="airplay"><svg viewBox="0 0 24 24"><path d="M6 22h12l-6-6zM21 3H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4v-2H3V5h18v12h-4v2h4a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2"/></svg><span>AirPlay</span></button>` : ""}
+        ${remote ? `<button class="sheet-row" type="button" data-out="cast"><svg viewBox="0 0 24 24"><path d="M1 18v3h3a3 3 0 0 0-3-3m0-4v2a5 5 0 0 1 5 5h2a7 7 0 0 0-7-7m0-4v2a9 9 0 0 1 9 9h2A11 11 0 0 0 1 10m20-7H3a2 2 0 0 0-2 2v3h2V5h18v14h-7v2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2"/></svg><span>Diffuser sur un appareil (Chromecast, TV…)</span></button>` : ""}
+        <div class="sheet-row info"><svg viewBox="0 0 24 24"><path d="M17.7 7.7 12 2h-1v7.6L6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l4.6-4.6V22h1l5.7-5.7-4.3-4.3zM13 5.8l1.9 1.9L13 9.6zm1.9 10.5L13 18.2v-3.8z"/></svg><span>Bluetooth<small>Connecte ton casque ou ton enceinte dans les réglages Bluetooth du téléphone : Écrin passe dessus automatiquement.</small></span></div>
+        <div class="sheet-btns"><button class="btn" type="button" data-sheet="settings">Réglages audio</button><button class="btn" type="button" data-sheet="eq">Égaliseur</button></div>`;
+    }
+    if (view === "eq") {
+      $("sheet-title").textContent = "Égaliseur";
+      const g = FX.enabled ? currentGains() : [0, 0, 0, 0, 0];
+      const autoName = t ? PRESETS[GENRE_PRESET[norm(t.genre)] || "plat"][0] : "Plat";
+      body.innerHTML = `${!FX.enabled ? `<div class="sheet-note">Les effets audio sont désactivés. <button class="link" type="button" data-sheet="settings">Les activer</button></div>` : ""}
+        <div class="chips">${[["auto", "Auto · selon le genre"], ...Object.entries(PRESETS).map(([k, v]) => [k, v[0]]), ["perso", "Personnalisé"]].map(([k, n]) => `<button class="chip${FX.preset === k ? " is-on" : ""}" type="button" data-preset="${k}">${n}</button>`).join("")}</div>
+        ${FX.preset === "auto" ? `<p class="sheet-note">Innovation Écrin : le réglage s'adapte à chaque chanson. Pour ${t ? `« ${esc(t.title)} »${t.genre ? ` (${esc(t.genre)})` : ""}` : "ce titre"}, il applique <b>${autoName}</b>.</p>` : ""}
+        <div class="eq-bands">${BANDS.map(([f, , n], i) => `<label class="band"><span class="db">${g[i] > 0 ? "+" : ""}${g[i]} dB</span><input type="range" min="-12" max="12" step="1" value="${g[i]}" data-band="${i}" aria-label="${n}" ${FX.enabled ? "" : "disabled"}><span class="hz">${f >= 1000 ? f / 1000 + " k" : f} Hz</span><small>${n}</small></label>`).join("")}</div>`;
+    }
+    if (view === "settings") {
+      $("sheet-title").textContent = "Réglages audio";
+      body.innerHTML = `<label class="set-row"><span><b>Effets audio</b><small>Égaliseur et halo vivant.${isIOS ? " Sur iPhone, la musique peut s'arrêter quand l'écran se verrouille si cette option est active." : ""}</small></span><input type="checkbox" class="switch" data-set="fx" ${FX.enabled ? "checked" : ""}></label>
+        <label class="set-row"><span><b>Halo vivant</b><small>La lumière autour de la pochette suit les basses de la musique.</small></span><input type="checkbox" class="switch" data-set="halo" ${FX.halo ? "checked" : ""} ${FX.enabled ? "" : "disabled"}></label>
+        <div class="set-row col"><span><b>Vitesse de lecture</b><small>Pour apprendre les paroles ou chanter dessus.</small></span>
+          <div class="chips">${[.75, .9, 1, 1.1, 1.25].map(r => `<button class="chip${audio.playbackRate === r ? " is-on" : ""}" type="button" data-rate="${r}">${String(r).replace(".", ",")}×</button>`).join("")}</div></div>
+        <div class="set-row"><span><b>Minuteur de sommeil</b><small>${S.sleepAt ? "Arrêt prévu dans " + Math.max(1, Math.ceil((S.sleepAt - Date.now()) / 60000)) + " min, avec un fondu doux." : S.sleepEnd ? "Arrêt à la fin de ce titre." : "Le son baisse doucement avant de s'arrêter."}</small></span><button class="btn" type="button" data-sleepmenu>Régler</button></div>`;
+    }
+  }
+  $("sheet-wrap").addEventListener("click", e => {
+    if (e.target.closest("[data-close-sheet]")) { closeSheet(); return; }
+    const sh = e.target.closest("[data-sheet]"); if (sh) { openSheet(sh.dataset.sheet, true); return; }
+    const out = e.target.closest("[data-out]");
+    if (out) { if (out.dataset.out === "airplay") audio.webkitShowPlaybackTargetPicker(); else audio.remote.prompt().catch(err => toast(err.name === "NotFoundError" ? "Aucun appareil trouvé sur ce réseau." : "Diffusion impossible depuis ce navigateur.")); return; }
+    const pr = e.target.closest("[data-preset]"); if (pr) { FX.preset = pr.dataset.preset; store.set("eq", FX.preset); applyEq(); renderSheet(); return; }
+    const rt = e.target.closest("[data-rate]"); if (rt) { audio.playbackRate = +rt.dataset.rate; S.rate = audio.playbackRate; renderSheet(); return; }
+    if (e.target.closest("[data-sleepmenu]")) { $("b-sleep").click(); return; }
+  });
+  $("sheet-wrap").addEventListener("input", e => {
+    const b = e.target.closest("[data-band]");
+    if (b) { if (FX.preset !== "perso") { FX.custom = currentGains().slice(); FX.preset = "perso"; store.set("eq", "perso"); document.querySelectorAll("[data-preset]").forEach(c => c.classList.toggle("is-on", c.dataset.preset === "perso")); }
+      FX.custom[+b.dataset.band] = +b.value; store.set("eqCustom", FX.custom); applyEq(); b.parentElement.querySelector(".db").textContent = (b.value > 0 ? "+" : "") + b.value + " dB"; }
+  });
+  $("sheet-wrap").addEventListener("change", e => {
+    const s2 = e.target.closest("[data-set]"); if (!s2) return;
+    if (s2.dataset.set === "fx") { FX.enabled = s2.checked; store.set("fx", FX.enabled); if (FX.enabled) { fxGraph(); fxResume(); } else applyEq(); }
+    if (s2.dataset.set === "halo") { FX.halo = s2.checked; store.set("halo", FX.halo); }
+    renderSheet();
+  });
+  audio.addEventListener("loadedmetadata", () => { if (S.rate) audio.playbackRate = S.rate; });
+  $("np-output").onclick = () => openSheet("output");
+  $("np-eq").onclick = () => openSheet("eq");
+  $("b-output").onclick = () => openSheet("output");
+  $("np-more").onclick = e => { const t = current(); if (t) openMenu(e.currentTarget, t); };
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("sheet-wrap").hidden) { e.stopPropagation(); closeSheet(); } }, true);
+
   // ---------- file de lecture ----------
   function buildOrder(startIdx) {
     const n = S.queue.length;
@@ -543,8 +693,17 @@
     else S.pos = startIdx;
     S.order = order;
   }
-  function startQueue(list, idx, autoplay = true) {
+  const CTX_LABEL = { hero: ["Accueil", "À la une"], recent: ["Accueil", "Écoutés récemment"], new: ["Accueil", "Nouveautés"], gems: ["Accueil", "Pépites à découvrir"], top: ["Accueil", "Les plus écoutées"], week: ["Accueil", "Coups de cœur de la semaine"], search: ["Recherche", "Résultats"], favs: ["Playlist", "Coups de cœur"], hist: ["Bibliothèque", "Historique"] };
+  function ctxLabel(key) {
+    if (key === "artist") return ["Artiste", S.param || ""];
+    if (key === "genre") return ["Genre", S.param || ""];
+    if (key === "pl") return ["Playlist", (S.list && S.list.name) || ""];
+    return CTX_LABEL[key] || ["Lecture en cours", "ÉCRIN.AI"];
+  }
+  function startQueue(list, idx, autoplay = true, label) {
     if (!list || !list.length) return;
+    S.label = label || ["Lecture en cours", "ÉCRIN.AI"];
+    $("np-ctx-type").textContent = S.label[0]; $("np-ctx-name").textContent = S.label[1];
     S.queue = list.slice(); buildOrder(idx); playCurrent(autoplay);
   }
   function playNext(t) {
@@ -556,11 +715,11 @@
     const t = current(); if (!t) return;
     S.counted = false;
     audio.src = playable(t.audio_url);
-    if (autoplay) audio.play().catch(() => {});
+    if (autoplay) { fxResume(); audio.play().catch(() => {}); }
     $("p-title").textContent = t.title; $("p-artist").textContent = t.artist;
     const img = $("p-cover"); img.src = coverOf(t); img.dataset.fb = t.id; delete img.dataset.failed; img.hidden = false;
     $("np-cover").src = coverOf(t); $("np-cover").dataset.fb = t.id; delete $("np-cover").dataset.failed;
-    $("np-bg").style.backgroundImage = `url('${coverOf(t).replace(/'/g, "%27")}')`;
+    tintFrom(t); $("np-quality").textContent = qualityLabel(t); applyAutoEq(t);
     $("np-title").textContent = t.title; $("np-artist").textContent = t.artist;
     renderTags(t); S.lyricsFor = null; if (!$("np").hidden && S.npTab === "lyrics") loadLyrics();
     document.title = t.title + " · " + t.artist + " | Écrin";
@@ -585,7 +744,7 @@
   }
   function togglePlay() {
     if (!audio.src) { const l = S.ctx.hero || S.all; if (l && l.length) startQueue(l, 0); return; }
-    audio.paused ? audio.play().catch(() => {}) : audio.pause();
+    if (audio.paused) { fxResume(); audio.play().catch(() => {}); } else audio.pause();
   }
   function renderQueue() {
     const ol = $("np-queue");
@@ -616,8 +775,8 @@
   $("np-artist").onclick = () => { const t = current(); if (t) go("artiste", t.artist); };
 
   // ---------- plein écran ----------
-  function openNP() { if (!current()) return; $("np").hidden = false; renderQueue(); }
-  function closeNP() { $("np").hidden = true; }
+  function openNP() { if (!current()) return; $("np").hidden = false; renderQueue(); startHalo(); }
+  function closeNP() { $("np").hidden = true; closeSheet(); }
   $("p-open").onclick = openNP; $("b-queue").onclick = openNP; $("np-close").onclick = closeNP;
   document.addEventListener("keydown", e => {
     if (e.key === "Escape") { closeNP(); closeMenu(); }
@@ -641,7 +800,13 @@
     $("b-sleep").setAttribute("aria-pressed", !b.hidden);
   }
   $("b-sleep").onclick = e => openMenu(e.currentTarget, null, `<button type="button" data-a="sleep-15">Dans 15 minutes</button><button type="button" data-a="sleep-30">Dans 30 minutes</button><button type="button" data-a="sleep-60">Dans 1 heure</button><button type="button" data-a="sleep-end">À la fin du titre</button><div class="sep"></div><button type="button" data-a="sleep-off">Désactiver</button>`);
-  setInterval(() => { if (S.sleepAt) { if (Date.now() >= S.sleepAt) { S.sleepAt = 0; audio.pause(); toast("Bonne nuit. Minuteur terminé."); } updateSleepBadge(); } }, 15000);
+  setInterval(() => {
+    if (!S.sleepAt) { if (S.fading) { S.fading = false; setOutVolume(1); } return; }
+    const left = S.sleepAt - Date.now();
+    if (left <= 30000 && left > 0) { S.fading = true; setOutVolume(left / 30000); }    // fondu doux sur les 30 dernières secondes
+    if (left <= 0) { S.sleepAt = 0; audio.pause(); S.fading = false; setTimeout(() => setOutVolume(1), 500); toast("Bonne nuit. Minuteur terminé."); }
+    updateSleepBadge();
+  }, 1000);
 
   // ---------- progression ----------
   let seeking = false;
@@ -662,7 +827,7 @@
     }
   });
   audio.addEventListener("loadedmetadata", () => { $("t-dur").textContent = $("np-dur").textContent = fmt(audio.duration); });
-  function syncPlayIcons() { document.querySelectorAll(".i-play").forEach(i => i.hidden = !audio.paused); document.querySelectorAll(".i-pause").forEach(i => i.hidden = audio.paused); refreshCurrent(); }
+  function syncPlayIcons() { document.querySelectorAll(".i-play").forEach(i => i.toggleAttribute("hidden", !audio.paused)); document.querySelectorAll(".i-pause").forEach(i => i.toggleAttribute("hidden", audio.paused)); document.querySelectorAll("#b-play, [data-act=play]").forEach(b => b.title = audio.paused ? "Lecture" : "Pause"); refreshCurrent(); }
   audio.addEventListener("play", syncPlayIcons); audio.addEventListener("pause", syncPlayIcons);
   audio.addEventListener("ended", () => next(true));
   audio.addEventListener("error", () => { if (audio.src) { toast("Ce titre n'est pas disponible pour le moment, passage au suivant."); setTimeout(() => next(true), 900); } });
@@ -759,7 +924,7 @@
     if (id && sb) {
       let t = byId(id);
       if (!t) { const r = await sb.from("tracks").select("*").eq("id", id).maybeSingle(); t = r.data; }
-      if (t) { startQueue([t, ...S.all.filter(x => x.id !== t.id)], 0, false); openNP(); toast("Appuie sur lecture pour écouter « " + t.title + " »"); }
+      if (t) { startQueue([t, ...S.all.filter(x => x.id !== t.id)], 0, false, ["Partagé avec toi", "ÉCRIN.AI"]); openNP(); toast("Appuie sur lecture pour écouter « " + t.title + " »"); }
     }
   })();
   if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});

@@ -1,5 +1,5 @@
-// Version 2.1.0 : change le nom du cache à chaque version publiée.
-const CACHE = "ecrin-2.1.0";
+// Version 2.2.0 : change le nom du cache à chaque version publiée.
+const CACHE = "ecrin-2.2.0";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
