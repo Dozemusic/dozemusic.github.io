@@ -1,6 +1,6 @@
 {
  "updated": "2026-11-16",
- "note": "Sons en vogue : Afrique, France, Europe, États-Unis. Lecture via le lecteur officiel YouTube.",
+ "note": "Sons en vogue : Afrique, France, Europe, États-Unis. Lecture via les lecteurs officiels SoundCloud, Audiomack ou YouTube.",
  "items": [
   {
    "id": "yt-p6NmFh4f5ko",
@@ -111,13 +111,14 @@
    "cover_url": "https://i.ytimg.com/vi/gWuBQyAb7Dk/hqdefault.jpg"
   },
   {
-   "id": "yt-XMBDdTHTIEo",
+   "id": "sc-tiakola-melo-decale",
    "title": "Mélo décalé",
    "artist": "Tiakola",
    "region": "France",
    "country": "FR",
-   "audio_url": "https://www.youtube.com/watch?v=XMBDdTHTIEo",
-   "cover_url": "https://i.ytimg.com/vi/XMBDdTHTIEo/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/tiakola/melo-decale",
+   "cover_url": "https://i1.sndcdn.com/artworks-BPEIahrmeOEf-0-t500x500.jpg",
+   "bg": true
   },
   {
    "id": "yt-ZrtL1qAk46o",

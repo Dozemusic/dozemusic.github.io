@@ -1,5 +1,5 @@
-/* DOZE 5.5.0 */
-  const VERSION = "5.5.0";
+/* DOZE 5.5.1 */
+  const VERSION = "5.5.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -245,7 +245,7 @@
     try {
       const r = await fetch("trends.json?d=" + new Date().toISOString().slice(0, 10), { cache: "no-store" }); if (!r.ok) return;
       const j = await r.json();
-      S.trends = (j.items || []).map(x => ({ ...x, trend: true, source: "youtube", plays: 0, likes: 0, genre: x.region, created_at: j.updated }));
+      S.trends = (j.items || []).map(x => ({ ...x, trend: true, source: /soundcloud\.com/.test(x.audio_url) ? "soundcloud" : "youtube", plays: 0, likes: 0, genre: x.region, created_at: j.updated }));
       S.trendsUpdated = j.updated;
       if (S.view === "accueil") render();
     } catch {}
@@ -256,7 +256,7 @@
     const list = S.trends.filter(t => !S.trendReg || t.region === S.trendReg);
     S.ctx.trends = list;
     const d = S.trendsUpdated ? new Date(S.trendsUpdated + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : "";
-    return `<section class="trends"><div class="sec-head"><div><h2>🔥 Tendances</h2><p>Les sons qui cartonnent cette semaine${d ? " · mis à jour le " + d : ""} · lecteur officiel YouTube</p></div><button class="link" type="button" data-play-ctx="trends">Tout écouter</button></div>
+    return `<section class="trends"><div class="sec-head"><div><h2>🔥 Tendances</h2><p>Les sons qui cartonnent cette semaine${d ? " · mis à jour le " + d : ""} · lecteurs officiels · 🎧 = continue écran verrouillé</p></div><button class="link" type="button" data-play-ctx="trends">Tout écouter</button></div>
       <div class="chips trend-chips">${Object.entries(REG).map(([k, n]) => `<button class="chip${S.trendReg === k ? " is-on" : ""}" type="button" data-trend-reg="${k}">${n}</button>`).join("")}</div>
       <div class="shelf">${list.map((t, i) => card(t, "trends", i)).join("")}</div></section>`;
   }
@@ -318,7 +318,7 @@
   function card(t, ctx, i) {
     const cur = current();
     return `<div class="card${cur && cur.id === t.id ? " is-current" : ""}" style="--i:${Math.min(i, 12)}" data-ctx="${ctx}" data-i="${i}" role="button" tabindex="0" aria-label="Écouter ${esc(t.title)} de ${esc(t.artist)}">
-      <div class="art">${imgTag(t)}${t.ai ? '<span class="ai-tag">IA</span>' : ""}${offline[t.id] ? offBadge : ""}
+      <div class="art">${imgTag(t)}${t.ai ? '<span class="ai-tag">IA</span>' : ""}${t.bg ? '<span class="bg-tag" title="Continue écran verrouillé">🎧</span>' : ""}${offline[t.id] ? offBadge : ""}
         <button class="fab" type="button" tabindex="-1" aria-hidden="true">${cur && cur.id === t.id && !audio.paused ? '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'}</button></div>
       <strong>${esc(t.title)}</strong><span class="sub">${esc(t.artist)}</span></div>`;
   }
@@ -739,7 +739,7 @@
 
   // ---------- étiquettes, paroles ----------
   function renderTags(t) {
-    $("np-tags").innerHTML = `${t.ai ? `<span class="ai">Créé avec l'IA${t.made_with ? " · " + esc(t.made_with) : ""}</span>` : t.made_with ? `<span>${esc(t.made_with)}</span>` : ""}${t.trend ? `<span>🔥 Tendance · ${esc(t.region)}</span><span>Lecteur officiel YouTube</span>` : `${t.genre ? `<span>${esc(t.genre)}</span>` : ""}<span>${plural(t.plays, "écoute")}</span>`}${t.likes ? `<span>${nf.format(t.likes)} ♥</span>` : ""}`;
+    $("np-tags").innerHTML = `${t.ai ? `<span class="ai">Créé avec l'IA${t.made_with ? " · " + esc(t.made_with) : ""}</span>` : t.made_with ? `<span>${esc(t.made_with)}</span>` : ""}${t.trend ? `<span>🔥 Tendance · ${esc(t.region)}</span>${t.bg ? `<span class="bg-ok">🎧 Écoute en fond</span>` : ""}<span>Lecteur officiel ${t.source === "soundcloud" ? "SoundCloud" : "YouTube"}</span>` : `${t.genre ? `<span>${esc(t.genre)}</span>` : ""}<span>${plural(t.plays, "écoute")}</span>`}${t.likes ? `<span>${nf.format(t.likes)} ♥</span>` : ""}`;
   }
   S.npTab = "queue";
   S.showLyr = store.get("showLyr", true);
