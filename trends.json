@@ -21,22 +21,24 @@
    "cover_url": "https://i.ytimg.com/vi/vH7Z8oVLyzk/hqdefault.jpg"
   },
   {
-   "id": "yt-g_0aGFAZBtE",
+   "id": "sc-himra17869-incendie",
    "title": "INCENDIE",
    "artist": "Himra",
    "region": "Afrique",
    "country": "CI",
-   "audio_url": "https://www.youtube.com/watch?v=g_0aGFAZBtE",
-   "cover_url": "https://i.ytimg.com/vi/g_0aGFAZBtE/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/himra17869/incendie",
+   "cover_url": "https://i1.sndcdn.com/artworks-8rEg1xqCKG1B-0-t500x500.jpg",
+   "bg": true
   },
   {
-   "id": "yt-zv2Q85jRhBE",
+   "id": "sc-josey-13-les-juges",
    "title": "Les Juges",
    "artist": "Josey",
    "region": "Afrique",
    "country": "CI",
-   "audio_url": "https://www.youtube.com/watch?v=zv2Q85jRhBE",
-   "cover_url": "https://i.ytimg.com/vi/zv2Q85jRhBE/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/josey-13/les-juges",
+   "cover_url": "https://i1.sndcdn.com/artworks-9fLHwlwnJTnO-0-t500x500.jpg",
+   "bg": true
   },
   {
    "id": "yt-5zaeAcjTito",
@@ -48,49 +50,54 @@
    "cover_url": "https://i.ytimg.com/vi/5zaeAcjTito/hqdefault.jpg"
   },
   {
-   "id": "yt-4IuUYpS9RjE",
+   "id": "sc-wizkid-official-jogodo",
    "title": "Jogodo",
    "artist": "Asake & Wizkid",
    "region": "Afrique",
    "country": "NG",
-   "audio_url": "https://www.youtube.com/watch?v=4IuUYpS9RjE",
-   "cover_url": "https://i.ytimg.com/vi/4IuUYpS9RjE/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/wizkid-official/jogodo",
+   "cover_url": "https://i1.sndcdn.com/artworks-oZtaR06VkxgK-0-t500x500.jpg",
+   "bg": true
   },
   {
-   "id": "yt-rRjtTx49hkc",
+   "id": "sc-davido16056-track-7-1",
    "title": "B4 B4",
    "artist": "Davido, Mayorkun & FOLA",
    "region": "Afrique",
    "country": "NG",
-   "audio_url": "https://www.youtube.com/watch?v=rRjtTx49hkc",
-   "cover_url": "https://i.ytimg.com/vi/rRjtTx49hkc/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/davido16056/track-7-1",
+   "cover_url": "https://i1.sndcdn.com/artworks-k0ZO3Y6v5nMc-0-t500x500.jpg",
+   "bg": true
   },
   {
-   "id": "yt-RQOg16kmFJM",
+   "id": "sc-asakemusic-worship",
    "title": "Worship",
    "artist": "Asake & DJ Snake",
    "region": "Afrique",
    "country": "NG",
-   "audio_url": "https://www.youtube.com/watch?v=RQOg16kmFJM",
-   "cover_url": "https://i.ytimg.com/vi/RQOg16kmFJM/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/asakemusic/worship",
+   "cover_url": "https://i1.sndcdn.com/artworks-jn4OCAsIBryQ-0-t500x500.jpg",
+   "bg": true
   },
   {
-   "id": "yt-sObg5b2nx44",
+   "id": "sc-heisrema-fun",
    "title": "Fun",
    "artist": "Rema",
    "region": "Afrique",
    "country": "NG",
-   "audio_url": "https://www.youtube.com/watch?v=sObg5b2nx44",
-   "cover_url": "https://i.ytimg.com/vi/sObg5b2nx44/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/heisrema/fun",
+   "cover_url": "https://i1.sndcdn.com/artworks-QBx02ebdalJP-0-t500x500.jpg",
+   "bg": true
   },
   {
-   "id": "yt-SOJpE1KMUbo",
+   "id": "sc-santandave-raindance",
    "title": "Raindance",
    "artist": "Dave & Tems",
    "region": "Afrique",
    "country": "GB",
-   "audio_url": "https://www.youtube.com/watch?v=SOJpE1KMUbo",
-   "cover_url": "https://i.ytimg.com/vi/SOJpE1KMUbo/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/santandave/raindance",
+   "cover_url": "https://i1.sndcdn.com/artworks-CAlC3qi4oGAb-0-t500x500.jpg",
+   "bg": true
   },
   {
    "id": "yt-qNi9vyiYdxk",
@@ -102,13 +109,14 @@
    "cover_url": "https://i.ytimg.com/vi/qNi9vyiYdxk/hqdefault.jpg"
   },
   {
-   "id": "yt-gWuBQyAb7Dk",
+   "id": "sc-rnboi-jassume",
    "title": "J'assume",
    "artist": "RNBOI",
    "region": "France",
    "country": "FR",
-   "audio_url": "https://www.youtube.com/watch?v=gWuBQyAb7Dk",
-   "cover_url": "https://i.ytimg.com/vi/gWuBQyAb7Dk/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/rnboi/jassume",
+   "cover_url": "https://i1.sndcdn.com/artworks-t9EhNBapINxH-0-t500x500.jpg",
+   "bg": true
   },
   {
    "id": "sc-tiakola-melo-decale",
@@ -121,40 +129,44 @@
    "bg": true
   },
   {
-   "id": "yt-ZrtL1qAk46o",
+   "id": "sc-tiakola-la-nocturne",
    "title": "La Nocturne",
    "artist": "Tiakola & Theodora",
    "region": "France",
    "country": "FR",
-   "audio_url": "https://www.youtube.com/watch?v=ZrtL1qAk46o",
-   "cover_url": "https://i.ytimg.com/vi/ZrtL1qAk46o/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/tiakola/la-nocturne",
+   "cover_url": "https://i1.sndcdn.com/artworks-vRwuYJL1elMM-0-t500x500.jpg",
+   "bg": true
   },
   {
-   "id": "yt-YGpH6pdJ7ic",
+   "id": "sc-tiakola-jet-lag",
    "title": "Jet Lag",
    "artist": "Tiakola & Jorja Smith",
    "region": "France",
    "country": "FR",
-   "audio_url": "https://www.youtube.com/watch?v=YGpH6pdJ7ic",
-   "cover_url": "https://i.ytimg.com/vi/YGpH6pdJ7ic/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/tiakola/jet-lag",
+   "cover_url": "https://i1.sndcdn.com/artworks-VHPLUEijNp2D-0-t500x500.jpg",
+   "bg": true
   },
   {
-   "id": "yt-8g25GeJgxgs",
+   "id": "sc-jamiemillermusic-babydoll",
    "title": "Babydoll",
    "artist": "Jamie Miller",
    "region": "Europe",
    "country": "GB",
-   "audio_url": "https://www.youtube.com/watch?v=8g25GeJgxgs",
-   "cover_url": "https://i.ytimg.com/vi/8g25GeJgxgs/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/jamiemillermusic/babydoll",
+   "cover_url": "https://i1.sndcdn.com/artworks-DPrMDnOGUnxQ-0-t500x500.jpg",
+   "bg": true
   },
   {
-   "id": "yt-3triLkS0nq4",
+   "id": "sc-samfendermusic-1-rein-me-in-2",
    "title": "Rein Me In",
    "artist": "Sam Fender & Olivia Dean",
    "region": "Europe",
    "country": "GB",
-   "audio_url": "https://www.youtube.com/watch?v=3triLkS0nq4",
-   "cover_url": "https://i.ytimg.com/vi/3triLkS0nq4/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/samfendermusic-1/rein-me-in-2",
+   "cover_url": "https://i1.sndcdn.com/artworks-irzvOT54yDy8-0-t500x500.jpg",
+   "bg": true
   },
   {
    "id": "yt-3sB4Iv_tM7U",
@@ -166,58 +178,64 @@
    "cover_url": "https://i.ytimg.com/vi/3sB4Iv_tM7U/hqdefault.jpg"
   },
   {
-   "id": "yt-DLV8FpyxZPQ",
+   "id": "sc-ashe-stop-the-wedding",
    "title": "Stop The Wedding",
    "artist": "Ashe",
    "region": "Europe",
    "country": "GB",
-   "audio_url": "https://www.youtube.com/watch?v=DLV8FpyxZPQ",
-   "cover_url": "https://i.ytimg.com/vi/DLV8FpyxZPQ/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/ashe/stop-the-wedding",
+   "cover_url": "https://i1.sndcdn.com/artworks-9ubDVgNNKO0b-0-t500x500.jpg",
+   "bg": true
   },
   {
-   "id": "yt-nUsrYVxrDwI",
+   "id": "sc-ellalangley-choosin-texas",
    "title": "Choosin' Texas",
    "artist": "Ella Langley",
    "region": "États-Unis",
    "country": "US",
-   "audio_url": "https://www.youtube.com/watch?v=nUsrYVxrDwI",
-   "cover_url": "https://i.ytimg.com/vi/nUsrYVxrDwI/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/ellalangley/choosin-texas",
+   "cover_url": "https://i1.sndcdn.com/artworks-gAG3y4xkKA4I-0-t500x500.jpg",
+   "bg": true
   },
   {
-   "id": "yt-0UPDBODtxzw",
+   "id": "sc-tame-impala-dracula",
    "title": "Dracula",
    "artist": "Tame Impala & JENNIE",
    "region": "États-Unis",
    "country": "US",
-   "audio_url": "https://www.youtube.com/watch?v=0UPDBODtxzw",
-   "cover_url": "https://i.ytimg.com/vi/0UPDBODtxzw/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/tame-impala/dracula",
+   "cover_url": "https://i1.sndcdn.com/artworks-0ixwdTTLbsMM-0-t500x500.jpg",
+   "bg": true
   },
   {
-   "id": "yt-DPEodkHzH-s",
+   "id": "sc-tate-mcrae-housewife",
    "title": "Housewife",
    "artist": "Tate McRae",
    "region": "États-Unis",
    "country": "US",
-   "audio_url": "https://www.youtube.com/watch?v=DPEodkHzH-s",
-   "cover_url": "https://i.ytimg.com/vi/DPEodkHzH-s/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/tate-mcrae/housewife",
+   "cover_url": "https://i1.sndcdn.com/artworks-QdeMdUyBsHTv-0-t500x500.jpg",
+   "bg": true
   },
   {
-   "id": "yt-Xh0GyxWgKPs",
+   "id": "sc-stellalefty-boston",
    "title": "Boston",
    "artist": "Stella Lefty",
    "region": "États-Unis",
    "country": "US",
-   "audio_url": "https://www.youtube.com/watch?v=Xh0GyxWgKPs",
-   "cover_url": "https://i.ytimg.com/vi/Xh0GyxWgKPs/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/stellalefty/boston",
+   "cover_url": "https://i1.sndcdn.com/artworks-MyVDqsxmkneQ-0-t500x500.jpg",
+   "bg": true
   },
   {
-   "id": "yt-Rt9tW3cMLhI",
+   "id": "sc-oliviarodrigo-stupid-song",
    "title": "Stupid Song",
    "artist": "Olivia Rodrigo",
    "region": "États-Unis",
    "country": "US",
-   "audio_url": "https://www.youtube.com/watch?v=Rt9tW3cMLhI",
-   "cover_url": "https://i.ytimg.com/vi/Rt9tW3cMLhI/hqdefault.jpg"
+   "audio_url": "https://soundcloud.com/oliviarodrigo/stupid-song",
+   "cover_url": "https://i1.sndcdn.com/artworks-Tilwe52QT4JG-0-t500x500.jpg",
+   "bg": true
   }
  ]
 }
