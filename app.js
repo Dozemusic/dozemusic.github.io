@@ -1,5 +1,5 @@
-/* DOZE 5.7.0 */
-  const VERSION = "5.7.0";
+/* DOZE 5.7.1 */
+  const VERSION = "5.7.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -271,6 +271,7 @@
     S.ctx.trends = list;
     const d = S.trendsUpdated ? new Date(S.trendsUpdated + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : "";
     return `<section class="trends"><div class="sec-head"><div><h2>🔥 Tendances</h2><p>Les sons qui cartonnent cette semaine${d ? " · mis à jour le " + d : ""} · lecteur officiel SoundCloud · continue écran verrouillé</p></div><span class="trend-acts"><button class="link" type="button" data-shuffle-ctx="trends">🔀 Aléatoire</button><button class="link" type="button" data-play-ctx="trends">Tout écouter</button></span></div>
+      ${isIOS ? `<p class="trend-note">📱 Sur iPhone : touche ▶ dans le lecteur SoundCloud pour lancer chaque titre. Il continue ensuite écran verrouillé.</p>` : ""}
       <div class="chips trend-chips">${Object.entries(REG).map(([k, n]) => `<button class="chip${S.trendReg === k ? " is-on" : ""}" type="button" data-trend-reg="${k}">${n}</button>`).join("")}</div>
       <div class="shelf">${list.map((t, i) => card(t, "trends", i)).join("")}</div></section>`;
   }
