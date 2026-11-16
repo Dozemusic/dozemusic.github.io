@@ -697,3 +697,9 @@ html, body, .main, .np, .side { overscroll-behavior: none; }
 /* L'écran ne doit jamais glisser de côté (pochette déplacée au doigt, animations) */
 html, body, .main, .np { overflow-x: hidden; }
 .np { overflow-x: clip; }
+
+/* 🔥 Tendances */
+.trends .trend-chips { margin: -4px 0 12px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.trends .trend-chips::-webkit-scrollbar { display: none; }
+.trends .trend-chips .chip { flex: none; }
+.trends .card .art img { object-fit: cover; }

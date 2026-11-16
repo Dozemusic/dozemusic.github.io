@@ -1,5 +1,5 @@
-/* DOZE 5.4.0 */
-  const VERSION = "5.4.0";
+/* DOZE 5.5.0 */
+  const VERSION = "5.5.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -238,7 +238,28 @@
       if (!w.error && w.data) { S.week = w.data.map(r => { const t = byId(r.track_id); return t && { ...t, weekLikes: r.n }; }).filter(Boolean); if (S.view === "accueil") render(); }
     }
   }
-  const byId = id => S.all.find(t => t.id === id);
+  const byId = id => S.all.find(t => t.id === id) || (S.trends || []).find(t => t.id === id);
+  // ---------- 🔥 Tendances : les sons en vogue (Afrique, France, Europe, États-Unis), lus via le lecteur officiel YouTube ----------
+  S.trends = []; S.trendReg = store.get("trendReg", "");
+  async function loadTrends() {
+    try {
+      const r = await fetch("trends.json?d=" + new Date().toISOString().slice(0, 10), { cache: "no-store" }); if (!r.ok) return;
+      const j = await r.json();
+      S.trends = (j.items || []).map(x => ({ ...x, trend: true, source: "youtube", plays: 0, likes: 0, genre: x.region, created_at: j.updated }));
+      S.trendsUpdated = j.updated;
+      if (S.view === "accueil") render();
+    } catch {}
+  }
+  const REG = { "": "Tout", "Afrique": "🌍 Afrique", "France": "🇫🇷 France", "Europe": "🇪🇺 Europe", "États-Unis": "🇺🇸 États-Unis" };
+  function trendShelf() {
+    if (!S.trends.length) return "";
+    const list = S.trends.filter(t => !S.trendReg || t.region === S.trendReg);
+    S.ctx.trends = list;
+    const d = S.trendsUpdated ? new Date(S.trendsUpdated + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : "";
+    return `<section class="trends"><div class="sec-head"><div><h2>🔥 Tendances</h2><p>Les sons qui cartonnent cette semaine${d ? " · mis à jour le " + d : ""} · lecteur officiel YouTube</p></div><button class="link" type="button" data-play-ctx="trends">Tout écouter</button></div>
+      <div class="chips trend-chips">${Object.entries(REG).map(([k, n]) => `<button class="chip${S.trendReg === k ? " is-on" : ""}" type="button" data-trend-reg="${k}">${n}</button>`).join("")}</div>
+      <div class="shelf">${list.map((t, i) => card(t, "trends", i)).join("")}</div></section>`;
+  }
   const newest = () => S.all.slice();
   const popular = () => S.all.slice().sort((a, b) => b.plays - a.plays || (b.created_at > a.created_at ? 1 : -1));
   function gems() {
@@ -364,6 +385,7 @@
           </div>
         </section>
         ${shelf("Écoutés récemment", "", recent, "recent")}
+        ${trendShelf()}
         ${shelf("Coups de cœur de la semaine", "Les titres les plus aimés ces 7 derniers jours", S.week, "week")}
         ${shelf("Nouveautés", "Les dernières créations publiées", newest().slice(0, 16), "new", `<a class="link" href="#rechercher">Tout voir</a>`)}
         ${shelf("Pépites à découvrir", "Des titres encore peu écoutés, mis en avant à tour de rôle", gems(), "gems")}
@@ -631,6 +653,7 @@
     const art = e.target.closest("[data-artist]"); if (art) { go("artiste", art.dataset.artist); return; }
     const gen = e.target.closest("[data-genre]"); if (gen) { go("genre", gen.dataset.genre); return; }
     const chip = e.target.closest("[data-chip]"); if (chip) { S.genre = chip.dataset.chip || null; render(); return; }
+    const tr = e.target.closest("[data-trend-reg]"); if (tr) { S.trendReg = tr.dataset.trendReg; store.set("trendReg", S.trendReg); const y = $("main").scrollTop; render(); $("main").scrollTop = y; return; }
     const pc = e.target.closest("[data-play-ctx]"); if (pc) { const l = S.ctx[pc.dataset.playCtx]; if (l) { setShuffle(false); startQueue(l, 0, true, ctxLabel(pc.dataset.playCtx)); } return; }
     const sc = e.target.closest("[data-shuffle-ctx]"); if (sc) { const l = S.ctx[sc.dataset.shuffleCtx]; if (l) { setShuffle(true); startQueue(l, Math.floor(Math.random() * l.length), true, ctxLabel(sc.dataset.shuffleCtx)); } return; }
     if (e.target.closest("[data-shuffle-all]")) { setShuffle(true); startQueue(S.all, Math.floor(Math.random() * S.all.length), true, ["Aléatoire", "Tout DOZE"]); return; }
@@ -657,7 +680,7 @@
     const on = !favs.has(id);
     if (on) { favs.add(id); toast("Ajouté à tes coups de cœur"); } else { favs.delete(id); toast("Retiré de tes coups de cœur"); }
     store.set("favs", [...favs]);
-    if (sb && S.hasV2) sb.rpc("like_track", { p_track: id, p_device: device, p_on: on }).then(r => {
+    if (sb && S.hasV2 && !String(id).startsWith("yt-")) sb.rpc("like_track", { p_track: id, p_device: device, p_on: on }).then(r => {
       if (r.error || typeof r.data !== "number") return;
       const t = byId(id); if (t) t.likes = r.data;
       const c = current(); if (c && c.id === id) { c.likes = r.data; renderTags(c); }
@@ -675,6 +698,7 @@
     closeMenu();
     menuEl = document.createElement("div");
     menuEl.className = "menu";
+    if (!items && t && t.trend) items = `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="ytopen">▶ Ouvrir sur YouTube</button><button type="button" data-a="ytshare">Partager</button>`;
     menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="radio">📻 Radio de ce titre</button><button type="button" data-a="dedic">🎁 Dédicacer ce son</button>${t && canOffline(t) ? (offline[t.id] ? '<button type="button" data-a="undl">✓ Retirer des téléchargements</button>' : '<button type="button" data-a="dl">⬇ Télécharger (hors ligne)</button>') : ""}<button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button>${t && canEditTrack(t) && S.hasV4 ? '<button type="button" data-a="lyredit">✎ Paroles et synchro</button>' : ""}<div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>${t && adminKey && S.hasV4 ? '<button type="button" data-a="admdel" class="danger">🗑 Supprimer ce titre (admin)</button>' : ""}`;
     document.body.appendChild(menuEl);
     const r = btn.getBoundingClientRect(), mh = menuEl.offsetHeight;
@@ -685,6 +709,8 @@
       const b = ev.target.closest("button"); if (!b) return;
       const a = b.dataset.a;
       if (a === "share") share(t);
+      if (a === "ytopen") { window.open(t.audio_url, "_blank", "noopener"); closeMenu(); return; }
+      if (a === "ytshare") { closeMenu(); openShare({ kind: "titre", title: "« " + t.title + " »", text: `🔥 ${t.title} · ${t.artist}, en ce moment sur DOZE 🎧`, url: appUrl(), cover: t.cover_url }); return; }
       if (a === "artist") go("artiste", t.artist);
       if (a === "next") playNext(t);
       if (a === "dl") downloadTrack(t);
@@ -713,7 +739,7 @@
 
   // ---------- étiquettes, paroles ----------
   function renderTags(t) {
-    $("np-tags").innerHTML = `${t.ai ? `<span class="ai">Créé avec l'IA${t.made_with ? " · " + esc(t.made_with) : ""}</span>` : t.made_with ? `<span>${esc(t.made_with)}</span>` : ""}${t.genre ? `<span>${esc(t.genre)}</span>` : ""}<span>${plural(t.plays, "écoute")}</span>${t.likes ? `<span>${nf.format(t.likes)} ♥</span>` : ""}`;
+    $("np-tags").innerHTML = `${t.ai ? `<span class="ai">Créé avec l'IA${t.made_with ? " · " + esc(t.made_with) : ""}</span>` : t.made_with ? `<span>${esc(t.made_with)}</span>` : ""}${t.trend ? `<span>🔥 Tendance · ${esc(t.region)}</span><span>Lecteur officiel YouTube</span>` : `${t.genre ? `<span>${esc(t.genre)}</span>` : ""}<span>${plural(t.plays, "écoute")}</span>`}${t.likes ? `<span>${nf.format(t.likes)} ♥</span>` : ""}`;
   }
   S.npTab = "queue";
   S.showLyr = store.get("showLyr", true);
@@ -742,7 +768,7 @@
     S.lyr = { id: t.id, lines: [], timed: false, loading: true }; renderLyr(true);
     let text = null;
     if (offline[t.id] && offline[t.id].lyrics) text = offline[t.id].lyrics;
-    else if (sb && S.hasV2 && !S.offlineMode) { try { const r = await sb.from("tracks").select("lyrics").eq("id", t.id).maybeSingle(); text = r.data && r.data.lyrics; } catch {} }
+    else if (sb && S.hasV2 && !S.offlineMode && !t.trend) { try { const r = await sb.from("tracks").select("lyrics").eq("id", t.id).maybeSingle(); text = r.data && r.data.lyrics; } catch {} }
     if (!current() || current().id !== t.id) return;
     S.lyrRaw = text || "";
     S.lyr = { id: t.id, ...parseLyrics(text) }; applyMySync(S.lyr); estimateTimes(S.lyr, audio.duration); S.lyrIdx = -1; renderLyr(true);
@@ -1923,7 +1949,7 @@
     else S.pos = startIdx;
     S.order = order;
   }
-  const CTX_LABEL = { off: ["Bibliothèque", "Téléchargés"], hero: ["Accueil", "À la une"], recent: ["Accueil", "Écoutés récemment"], new: ["Accueil", "Nouveautés"], gems: ["Accueil", "Pépites à découvrir"], top: ["Accueil", "Les plus écoutées"], week: ["Accueil", "Coups de cœur de la semaine"], search: ["Recherche", "Résultats"], favs: ["Playlist", "Coups de cœur"], hist: ["Bibliothèque", "Historique"] };
+  const CTX_LABEL = { off: ["Bibliothèque", "Téléchargés"], hero: ["Accueil", "À la une"], recent: ["Accueil", "Écoutés récemment"], new: ["Accueil", "Nouveautés"], gems: ["Accueil", "Pépites à découvrir"], top: ["Accueil", "Les plus écoutées"], week: ["Accueil", "Coups de cœur de la semaine"], search: ["Recherche", "Résultats"], favs: ["Playlist", "Coups de cœur"], trends: ["Accueil", "🔥 Tendances"], hist: ["Bibliothèque", "Historique"] };
   function ctxLabel(key) {
     if (key === "artist") return ["Artiste", S.param || ""];
     if (key === "genre") return ["Genre", S.param || ""];
@@ -2111,7 +2137,7 @@
     if (!S.counted && audio.currentTime > 30) {
       S.counted = true;
       const t = current();
-      if (t && sb) {
+      if (t && sb && !t.trend) {
         // Avec l'identifiant anonyme de l'appareil (auditeurs uniques, mise à jour 8) ; sinon, ancienne forme
         const args = S.hasV2 ? { track: t.id, p_country: myCountry() } : { track: t.id };
         const call = withDev => sb.rpc("count_play", withDev ? { ...args, p_device: device } : args);
@@ -2409,6 +2435,7 @@
   if (ROUTES.includes(h0)) S.view = h0;
   syncModes(); syncLike(); render();
   (async () => {
+    loadTrends();
     await load();
     const adm = new URLSearchParams(location.search).get("admin");
     if (adm && sb) {
