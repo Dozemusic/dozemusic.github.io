@@ -1,5 +1,5 @@
-/* DOZE 5.6.0 */
-  const VERSION = "5.6.0";
+/* DOZE 5.6.1 */
+  const VERSION = "5.6.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -106,15 +106,20 @@
       swap(u) {
         x.url = u; x.time = 0; x.dur = NaN; x.err = null;
         x.w.load(u, { auto_play: true, visual: true, show_comments: false, hide_related: true, show_teaser: false, show_reposts: false,
-          callback: () => { x.w.getDuration(d => { x.dur = d / 1000; P.emit("loadedmetadata"); }); x.w.setVolume(Math.round(P.volume * 100)); if (x.pending) x.w.play(); else x.w.pause(); } });
+          callback: () => { x.unavailable = false; x.check(); x.w.getDuration(d => { x.dur = d / 1000; P.emit("loadedmetadata"); }); x.w.setVolume(Math.round(P.volume * 100)); if (x.pending) x.w.play(); else x.w.pause(); } });
       },
       play() { x.pending = true; if (x.w) x.w.play(); }, pause() { x.pending = false; if (x.w) x.w.pause(); },
       seek(sec) { if (x.w) x.w.seekTo(sec * 1000); }, setVolume(v) { if (x.w) x.w.setVolume(Math.round(v * 100)); },
       destroy() { x.dead = true; host.innerHTML = ""; host.hidden = true; } };
+    // Titre bloqué dans le pays de l'auditeur, ou limité à un extrait : on le signale pour passer au suivant
+    x.check = () => x.w.getCurrentSound(snd => {
+      const bad = !snd || snd.policy === "BLOCK" || snd.policy === "SNIP" || snd.streamable === false;
+      if (bad) { x.unavailable = true; P.emit("unavailable"); }
+    });
     scReady().then(() => {
       if (x.dead) return;
       const w = SC.Widget(ifr), E = SC.Widget.Events; x.w = w;
-      w.bind(E.READY, () => { w.getDuration(d => { x.dur = d / 1000; P.emit("loadedmetadata"); }); w.setVolume(Math.round(P.volume * 100)); if (x.pending) w.play(); });
+      w.bind(E.READY, () => { x.check(); w.getDuration(d => { x.dur = d / 1000; P.emit("loadedmetadata"); }); w.setVolume(Math.round(P.volume * 100)); if (x.pending) w.play(); });
       w.bind(E.PLAY, () => { x.paused = false; P.emit("play"); });
       w.bind(E.PAUSE, () => { x.paused = true; P.emit("pause"); });
       w.bind(E.FINISH, () => { x.paused = true; P.emit("pause"); P.emit("ended"); });
@@ -247,6 +252,7 @@
   const byId = id => S.all.find(t => t.id === id) || (S.trends || []).find(t => t.id === id);
   // ---------- 🔥 Tendances : les sons en vogue (Afrique, France, Europe, États-Unis), lus via le lecteur officiel YouTube ----------
   S.trends = []; S.trendReg = store.get("trendReg", "");
+  const blockedHere = new Set(store.get("scBlocked", []));   // titres SoundCloud bloqués dans le pays de cet appareil
   async function loadTrends() {
     try {
       const r = await fetch("trends.json?d=" + new Date().toISOString().slice(0, 10), { cache: "no-store" }); if (!r.ok) return;
@@ -259,7 +265,7 @@
   const REG = { "": "Tout", "Afrique": "🌍 Afrique", "France": "🇫🇷 France", "Europe": "🇪🇺 Europe", "États-Unis": "🇺🇸 États-Unis" };
   function trendShelf() {
     if (!S.trends.length) return "";
-    const list = S.trends.filter(t => !S.trendReg || t.region === S.trendReg);
+    const list = S.trends.filter(t => (!S.trendReg || t.region === S.trendReg) && !blockedHere.has(t.id));
     S.ctx.trends = list;
     const d = S.trendsUpdated ? new Date(S.trendsUpdated + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : "";
     return `<section class="trends"><div class="sec-head"><div><h2>🔥 Tendances</h2><p>Les sons qui cartonnent cette semaine${d ? " · mis à jour le " + d : ""} · lecteur officiel SoundCloud · continue écran verrouillé</p></div><span class="trend-acts"><button class="link" type="button" data-shuffle-ctx="trends">🔀 Aléatoire</button><button class="link" type="button" data-play-ctx="trends">Tout écouter</button></span></div>
@@ -2155,6 +2161,12 @@
   audio.addEventListener("timeupdate", syncLyr);
   function syncPlayIcons() { document.querySelectorAll(".i-play").forEach(i => i.toggleAttribute("hidden", !audio.paused)); document.querySelectorAll(".i-pause").forEach(i => i.toggleAttribute("hidden", audio.paused)); document.querySelectorAll("#b-play, [data-act=play]").forEach(b => b.title = audio.paused ? "Lecture" : "Pause"); refreshCurrent(); }
   audio.addEventListener("play", syncPlayIcons); audio.addEventListener("pause", syncPlayIcons);
+  audio.addEventListener("unavailable", () => {
+    const t = current(); if (!t) return;
+    blockedHere.add(t.id); store.set("scBlocked", [...blockedHere]);
+    toast(`« ${t.title} » n'est pas disponible dans ton pays. Titre suivant…`);
+    setTimeout(() => { if (current() && current().id === t.id) next(true); if (S.view === "accueil") { const y = $("main").scrollTop; render(); $("main").scrollTop = y; } }, 1200);
+  });
   audio.addEventListener("ended", () => { if (audio.isExternal && S.repeat === "one") { audio.currentTime = 0; audio.play(); return; } next(true); });
   audio.addEventListener("error", () => { if (audio.src) { toast("Ce titre n'est pas encore écoutable (son non public chez Suno). Passage au suivant."); setTimeout(() => next(true), 900); } });
   if ("mediaSession" in navigator) {
