@@ -1,5 +1,5 @@
-/* DOZE 5.5.1 */
-  const VERSION = "5.5.1";
+/* DOZE 5.6.0 */
+  const VERSION = "5.6.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -89,6 +89,7 @@
     removeAttribute(a) { if (a === "src") { this.dropExt(); this.el.removeAttribute("src"); this.el.load(); } }
     dropExt() { if (this.ext) { this.ext.destroy(); this.ext = null; } }
     load(u) {
+      if (this.ext && this.ext.kind === "sc" && EXT_SC.test(u) && this.ext.w) { this.ext.swap(u); return; }
       this.dropExt();
       if (EXT_SC.test(u) || EXT_YT.test(u)) { this.el.pause(); this.el.removeAttribute("src"); this.el.load(); this.ext = (EXT_SC.test(u) ? makeSC : makeYT)(u, this); return; }
       if (corsOk(u)) this.el.crossOrigin = "anonymous"; else this.el.removeAttribute("crossorigin");
@@ -101,7 +102,12 @@
     ifr.allow = "autoplay; encrypted-media"; ifr.title = "Lecteur SoundCloud";
     ifr.src = `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&auto_play=false&visual=true&show_comments=false&hide_related=true&show_teaser=false&show_reposts=false`;
     host.appendChild(ifr); host.dataset.kind = "sc";
-    const x = { url, paused: true, time: 0, dur: NaN, err: null, w: null, pending: false,
+    const x = { kind: "sc", url, paused: true, time: 0, dur: NaN, err: null, w: null, pending: false,
+      swap(u) {
+        x.url = u; x.time = 0; x.dur = NaN; x.err = null;
+        x.w.load(u, { auto_play: true, visual: true, show_comments: false, hide_related: true, show_teaser: false, show_reposts: false,
+          callback: () => { x.w.getDuration(d => { x.dur = d / 1000; P.emit("loadedmetadata"); }); x.w.setVolume(Math.round(P.volume * 100)); if (x.pending) x.w.play(); else x.w.pause(); } });
+      },
       play() { x.pending = true; if (x.w) x.w.play(); }, pause() { x.pending = false; if (x.w) x.w.pause(); },
       seek(sec) { if (x.w) x.w.seekTo(sec * 1000); }, setVolume(v) { if (x.w) x.w.setVolume(Math.round(v * 100)); },
       destroy() { x.dead = true; host.innerHTML = ""; host.hidden = true; } };
@@ -256,7 +262,7 @@
     const list = S.trends.filter(t => !S.trendReg || t.region === S.trendReg);
     S.ctx.trends = list;
     const d = S.trendsUpdated ? new Date(S.trendsUpdated + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : "";
-    return `<section class="trends"><div class="sec-head"><div><h2>🔥 Tendances</h2><p>Les sons qui cartonnent cette semaine${d ? " · mis à jour le " + d : ""} · lecteurs officiels · 🎧 = continue écran verrouillé</p></div><button class="link" type="button" data-play-ctx="trends">Tout écouter</button></div>
+    return `<section class="trends"><div class="sec-head"><div><h2>🔥 Tendances</h2><p>Les sons qui cartonnent cette semaine${d ? " · mis à jour le " + d : ""} · lecteur officiel SoundCloud · continue écran verrouillé</p></div><span class="trend-acts"><button class="link" type="button" data-shuffle-ctx="trends">🔀 Aléatoire</button><button class="link" type="button" data-play-ctx="trends">Tout écouter</button></span></div>
       <div class="chips trend-chips">${Object.entries(REG).map(([k, n]) => `<button class="chip${S.trendReg === k ? " is-on" : ""}" type="button" data-trend-reg="${k}">${n}</button>`).join("")}</div>
       <div class="shelf">${list.map((t, i) => card(t, "trends", i)).join("")}</div></section>`;
   }

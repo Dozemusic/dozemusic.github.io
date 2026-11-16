@@ -1,25 +1,7 @@
 {
  "updated": "2026-11-16",
- "note": "Sons en vogue : Afrique, France, Europe, États-Unis. Lecture via les lecteurs officiels SoundCloud, Audiomack ou YouTube.",
+ "note": "Sons en vogue : Afrique, France, Europe, États-Unis. Lecture via le lecteur officiel SoundCloud.",
  "items": [
-  {
-   "id": "yt-p6NmFh4f5ko",
-   "title": "PARTY",
-   "artist": "Didi B",
-   "region": "Afrique",
-   "country": "CI",
-   "audio_url": "https://www.youtube.com/watch?v=p6NmFh4f5ko",
-   "cover_url": "https://i.ytimg.com/vi/p6NmFh4f5ko/hqdefault.jpg"
-  },
-  {
-   "id": "yt-vH7Z8oVLyzk",
-   "title": "FREE",
-   "artist": "Didi B",
-   "region": "Afrique",
-   "country": "CI",
-   "audio_url": "https://www.youtube.com/watch?v=vH7Z8oVLyzk",
-   "cover_url": "https://i.ytimg.com/vi/vH7Z8oVLyzk/hqdefault.jpg"
-  },
   {
    "id": "sc-himra17869-incendie",
    "title": "INCENDIE",
@@ -39,15 +21,6 @@
    "audio_url": "https://soundcloud.com/josey-13/les-juges",
    "cover_url": "https://i1.sndcdn.com/artworks-9fLHwlwnJTnO-0-t500x500.jpg",
    "bg": true
-  },
-  {
-   "id": "yt-5zaeAcjTito",
-   "title": "Coup du marteau",
-   "artist": "Tam Sir",
-   "region": "Afrique",
-   "country": "CI",
-   "audio_url": "https://www.youtube.com/watch?v=5zaeAcjTito",
-   "cover_url": "https://i.ytimg.com/vi/5zaeAcjTito/hqdefault.jpg"
   },
   {
    "id": "sc-wizkid-official-jogodo",
@@ -98,15 +71,6 @@
    "audio_url": "https://soundcloud.com/santandave/raindance",
    "cover_url": "https://i1.sndcdn.com/artworks-CAlC3qi4oGAb-0-t500x500.jpg",
    "bg": true
-  },
-  {
-   "id": "yt-qNi9vyiYdxk",
-   "title": "Fille à papa",
-   "artist": "Vacra & La Rvfleuze",
-   "region": "France",
-   "country": "FR",
-   "audio_url": "https://www.youtube.com/watch?v=qNi9vyiYdxk",
-   "cover_url": "https://i.ytimg.com/vi/qNi9vyiYdxk/hqdefault.jpg"
   },
   {
    "id": "sc-rnboi-jassume",
@@ -167,15 +131,6 @@
    "audio_url": "https://soundcloud.com/samfendermusic-1/rein-me-in-2",
    "cover_url": "https://i1.sndcdn.com/artworks-irzvOT54yDy8-0-t500x500.jpg",
    "bg": true
-  },
-  {
-   "id": "yt-3sB4Iv_tM7U",
-   "title": "Nicole Kidman",
-   "artist": "ADÉLA",
-   "region": "Europe",
-   "country": "GB",
-   "audio_url": "https://www.youtube.com/watch?v=3sB4Iv_tM7U",
-   "cover_url": "https://i.ytimg.com/vi/3sB4Iv_tM7U/hqdefault.jpg"
   },
   {
    "id": "sc-ashe-stop-the-wedding",
