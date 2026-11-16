@@ -1,5 +1,5 @@
-/* DOZE 5.6.1 */
-  const VERSION = "5.6.1";
+/* DOZE 5.7.0 */
+  const VERSION = "5.7.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -100,8 +100,9 @@
   function makeSC(url, P) {
     const host = extHost(), ifr = document.createElement("iframe");
     ifr.allow = "autoplay; encrypted-media"; ifr.title = "Lecteur SoundCloud";
-    ifr.src = `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&auto_play=false&visual=true&show_comments=false&hide_related=true&show_teaser=false&show_reposts=false`;
     host.appendChild(ifr); host.dataset.kind = "sc";
+    // Le lecteur est créé juste après l'appui : on lui demande de démarrer seul si la lecture a été demandée.
+    queueMicrotask(() => { ifr.src = `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&auto_play=${x.pending}&visual=true&show_comments=false&hide_related=true&show_teaser=false&show_reposts=false`; });
     const x = { kind: "sc", url, paused: true, time: 0, dur: NaN, err: null, w: null, pending: false,
       swap(u) {
         x.url = u; x.time = 0; x.dur = NaN; x.err = null;
@@ -259,6 +260,7 @@
       const j = await r.json();
       S.trends = (j.items || []).map(x => ({ ...x, trend: true, source: /soundcloud\.com/.test(x.audio_url) ? "soundcloud" : "youtube", plays: 0, likes: 0, genre: x.region, created_at: j.updated }));
       S.trendsUpdated = j.updated;
+      if (S.trends.some(t => t.source === "soundcloud")) scReady().catch(() => {});
       if (S.view === "accueil") render();
     } catch {}
   }
@@ -1112,7 +1114,9 @@
     if (k.level) { K.level.threshold.value = -28; K.level.ratio.value = 3; K.level.knee.value = 12; K.level.attack.value = .01; K.level.release.value = .3; set(K.makeup.gain, Math.pow(10, 6 / 20)); }
     else { K.level.threshold.value = 0; K.level.ratio.value = 1; set(K.makeup.gain, 1); }
   }
-  function applyAutoEq(t) { applyEq(); if (FX.enabled && FX.preset === "auto") ensureAnalysis(t); }
+  function applyAutoEq(t) { applyEq(); if (FX.enabled && FX.preset === "auto") later(t, () => ensureAnalysis(t), anaCache[t && t.id] ? 0 : 8000); }
+  // Lance un calcul lourd seulement quand la chanson joue déjà depuis un moment, et si elle est toujours en cours
+  function later(t, fn, ms) { if (!t) return; setTimeout(() => { const c = current(); if (c && c.id === t.id) (window.requestIdleCallback || setTimeout)(() => fn()); }, ms); }
   function setOutVolume(v) { if (FX.gain) FX.gain.gain.setTargetAtTime(Math.max(0, v), FX.ctx.currentTime, .1); else audio.volume = Math.max(0, Math.min(1, v * (+$("vol").value))); }
 
   // ----- Analyse IA du son : tempo, énergie par octave, dynamique, attaques → style + correction tonale -----
@@ -1745,6 +1749,8 @@
     let p = waveCache[t.id];
     if (!p && sb && S.hasV2) { try { const r = await sb.from("tracks").select("peaks").eq("id", t.id).maybeSingle(); p = r.data && r.data.peaks; } catch {} }
     if (!p) {
+      await new Promise(r => setTimeout(r, 8000));                     // laisse la musique démarrer avant de télécharger de quoi calculer l'onde
+      if (!current() || current().id !== t.id) return;
       try { p = await computePeaks(playable(t.audio_url)); } catch (e) { console.warn("onde", e); p = null; }
       if (p && sb) sb.rpc("set_track_peaks", { p_id: t.id, p_peaks: p }).then(() => {}, () => {});
     }

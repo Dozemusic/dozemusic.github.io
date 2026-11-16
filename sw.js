@@ -1,5 +1,5 @@
-// Version 5.6.1 : change le nom du cache à chaque version publiée.
-const CACHE = "ecrin-5.6.1";
+// Version 5.7.0 : change le nom du cache à chaque version publiée.
+const CACHE = "ecrin-5.7.0";
 const OFFLINE = "ecrin-offline-v1";   // chansons téléchargées : jamais effacées lors d'une mise à jour
 const LIBS = "ecrin-libs-v1";         // bibliothèque Supabase et polices, pour démarrer sans connexion
 self.addEventListener("install", () => self.skipWaiting());
@@ -32,9 +32,26 @@ self.addEventListener("fetch", e => {
     return;
   }
   if (url.origin !== location.origin) return;
-  // Réseau d'abord, sans cache HTTP, pour toujours servir la dernière version ; copie locale seulement hors connexion.
-  e.respondWith(fetch(e.request, { cache: "no-store" }).then(r => {
-    if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
-    return r;
-  }).catch(async () => (await caches.match(e.request)) || (e.request.mode === "navigate" ? (await caches.match("./")) || (await caches.match("./index.html", { ignoreSearch: true })) : Response.error())));
+  // Fichiers versionnés (?v=…) : servis directement depuis le téléphone, ils ne changent jamais pour une version donnée.
+  if (url.search.includes("v=") && /\.(js|css)$/.test(url.pathname)) {
+    e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request).then(r => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); } return r; })));
+    return;
+  }
+  // Images et icônes de l'appli : copie locale d'abord, mise à jour en arrière-plan.
+  if (/\.(png|webp|jpg|svg|mp3)$/.test(url.pathname)) {
+    e.respondWith(caches.open(CACHE).then(async c => {
+      const hit = await c.match(e.request);
+      const net = fetch(e.request).then(r => { if (r.ok) c.put(e.request, r.clone()); return r; }).catch(() => hit);
+      return hit || net;
+    }));
+    return;
+  }
+  // Le reste (page, config, tendances) : réseau d'abord, mais si le réseau traîne plus de 3 s, la copie locale prend le relais.
+  e.respondWith((async () => {
+    const net = fetch(e.request, { cache: "no-store" }).then(r => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); } return r; });
+    const local = caches.match(e.request, { ignoreSearch: e.request.mode === "navigate" });
+    const slow = new Promise(res => setTimeout(res, 3000)).then(() => local);
+    try { return (await Promise.race([net, slow])) || (await net); }
+    catch { return (await local) || (e.request.mode === "navigate" ? (await caches.match("./")) || (await caches.match("./index.html", { ignoreSearch: true })) : Response.error()); }
+  })());
 });
