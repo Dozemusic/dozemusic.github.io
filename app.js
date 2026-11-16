@@ -1,5 +1,5 @@
-/* DOZE 5.3.0 */
-  const VERSION = "5.3.0";
+/* DOZE 5.4.0 */
+  const VERSION = "5.4.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1446,6 +1446,7 @@
       body.innerHTML = `<label class="set-row"><span><b>Effets audio</b><small>Égaliseur et halo vivant.${isIOS ? " Sur iPhone, la musique peut s'arrêter quand l'écran se verrouille si cette option est active." : ""}</small></span><input type="checkbox" class="switch" data-set="fx" ${FX.enabled ? "checked" : ""}></label>
         <label class="set-row"><span><b>Halo vivant</b><small>La lumière autour de la pochette suit les basses de la musique.</small></span><input type="checkbox" class="switch" data-set="halo" ${FX.halo ? "checked" : ""} ${FX.enabled ? "" : "disabled"}></label>
         <label class="set-row"><span><b>Radio DOZE automatique</b><small>À la fin de ta liste, DOZE enchaîne des titres proches (même artiste, même genre, pépites) au lieu de s'arrêter.</small></span><input type="checkbox" class="switch" data-set="radio" ${radioOn ? "checked" : ""}></label>
+        <label class="set-row"><span><b>Voix DOZE</b><small>Une voix présente la Radio DOZE tous les 3 titres et introduit les dédicaces.</small></span><input type="checkbox" class="switch" data-set="voice" ${voiceOn ? "checked" : ""}></label>
         <label class="set-row"><span><b>Formes d'onde</b><small>Affiche l'onde réelle du morceau dans le lecteur. Calculée une seule fois par titre, puis partagée avec tous.</small></span><input type="checkbox" class="switch" data-set="wave" ${waveOn ? "checked" : ""}></label>
         <div class="set-row col"><span><b>Vitesse de lecture</b><small>Pour apprendre les paroles ou chanter dessus.</small></span>
           <div class="chips">${[.75, .9, 1, 1.1, 1.25].map(r => `<button class="chip${audio.playbackRate === r ? " is-on" : ""}" type="button" data-rate="${r}">${String(r).replace(".", ",")}×</button>`).join("")}</div></div>
@@ -1502,6 +1503,7 @@
     if (s2.dataset.set === "tonal") { FX.tonal = s2.checked; store.set("eqTonal", FX.tonal); applyEq(); paintAi(); return; }
     if (s2.dataset.set === "level") { FX.k.level = s2.checked; saveKnobs(); applyEq(); return; }
     if (s2.dataset.set === "halo") { FX.halo = s2.checked; store.set("halo", FX.halo); }
+    if (s2.dataset.set === "voice") { voiceOn = s2.checked; store.set("voice", voiceOn); }
     if (s2.dataset.set === "radio") { radioOn = s2.checked; store.set("radio", radioOn); renderQueue(); }
     if (s2.dataset.set === "wave") { waveOn = s2.checked; store.set("wave", waveOn); const c = current(); if (c) loadWave(c); }
     renderSheet();
@@ -1972,8 +1974,35 @@
       if (S.shuffle) { const last = S.order[S.pos]; buildOrder(Math.floor(Math.random() * S.queue.length)); if (S.queue.length > 1 && S.order[0] === last) S.pos = 1; }
       else S.pos = 0;
     } else { pauseByUser(); audio.currentTime = 0; return; }
+    // Radio DOZE : la Voix DOZE fait une annonce tous les 3 titres enchaînés automatiquement
+    if (auto && S.label && S.label[0] === "Radio DOZE" && voiceOn && ++radioCount % 3 === 0) { sayThen("radio", playCurrent); return; }
     playCurrent();
   }
+  // ---------- Voix DOZE : annonces de la radio et introduction des dédicaces ----------
+  let voiceOn = store.get("voice", true), radioCount = 0, lastVoice = "";
+  const VOICE = { radio: [1, 2, 3, 4, 5, 6].map(i => `voice/radio-${i}.mp3`), dedic: [1, 2, 3].map(i => `voice/dedicace-${i}.mp3`) };
+  const vEl = new Audio(); vEl.preload = "none";
+  // iOS n'autorise un lecteur audio qu'après un premier geste : on prépare la voix au premier appui sur l'écran.
+  document.addEventListener("pointerdown", function prime() {
+    document.removeEventListener("pointerdown", prime, true);
+    try { vEl.muted = true; vEl.src = VOICE.radio[0]; const p = vEl.play(); if (p) p.then(() => { vEl.pause(); vEl.muted = false; }, () => { vEl.muted = false; }); } catch {}
+  }, true);
+  function sayThen(kind, done) {
+    if (!voiceOn || document.hidden) { done(); return; }          // écran verrouillé : pas d'annonce, la musique continue directement
+    const list = VOICE[kind]; let f; do { f = list[Math.floor(Math.random() * list.length)]; } while (list.length > 1 && f === lastVoice); lastVoice = f;
+    let over = false; const go = () => { if (over) return; over = true; clearTimeout(guard); vEl.onended = vEl.onerror = null; done(); };
+    const guard = setTimeout(go, 9000);
+    vEl.onended = go; vEl.onerror = go; vEl.muted = false; vEl.volume = 1; vEl.src = f;
+    const p = vEl.play(); if (p && p.catch) p.catch(go);
+  }
+  // Pendant un geste : on « débloque » le lecteur principal, la Voix DOZE parle, puis la chanson démarre.
+  function playWithVoice(kind) {
+    const el = audio.el;
+    if (!voiceOn || audio.isExternal || !el) { fxResume(); audio.play().catch(() => {}); return; }
+    try { el.muted = true; const p = el.play(); if (p) p.then(() => { el.pause(); el.currentTime = 0; el.muted = false; }, () => { el.muted = false; }); } catch { el.muted = false; }
+    sayThen(kind, () => { el.muted = false; fxResume(); audio.play().catch(() => {}); });
+  }
+
   // ---------- Radio DOZE : quand la liste se termine, la musique continue ----------
   let radioOn = store.get("radio", true);
   function radioPick(seed, n = 10) {
@@ -2001,6 +2030,7 @@
   }
   function togglePlay() {
     if (!audio.src) { const l = S.ctx.hero || S.all; if (l && l.length) startQueue(l, 0); return; }
+    if (audio.paused && S.dedicVoice) { S.dedicVoice = false; playWithVoice("dedic"); return; }
     if (audio.paused) { fxResume(); audio.play().catch(() => {}); } else pauseByUser();
   }
   function renderQueue() {
@@ -2393,7 +2423,7 @@
       let t = byId(id);
       if (!t) { const r = await sb.from("tracks").select("id,title,artist,genre,source,suno_id,audio_url,cover_url,plays,likes,created_at").eq("id", id).maybeSingle(); t = r.data; }
       const ded = b64.dec(new URLSearchParams(location.search).get("d") || "");
-      if (t) { startQueue([t, ...S.all.filter(x => x.id !== t.id)], 0, false, ded ? ["Dédicace", "pour " + (ded.to || "toi")] : ["Partagé avec toi", "DOZE"]); openNP(); showDedic(ded); toast("Appuie sur lecture pour écouter « " + t.title + " »"); }
+      if (t) { startQueue([t, ...S.all.filter(x => x.id !== t.id)], 0, false, ded ? ["Dédicace", "pour " + (ded.to || "toi")] : ["Partagé avec toi", "DOZE"]); openNP(); showDedic(ded); if (ded) S.dedicVoice = true; toast("Appuie sur lecture pour écouter « " + t.title + " »"); }
     }
   })();
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
