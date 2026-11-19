@@ -1,5 +1,5 @@
-/* DOZE 5.7.1 */
-  const VERSION = "5.7.1";
+/* DOZE 5.8.0 */
+  const VERSION = "5.8.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -484,6 +484,7 @@
           <a class="acc-card" href="#avis"><b>Donner mon avis</b><span>Note DOZE et aide-nous à l'améliorer.</span></a>
         </div>
         <label class="set-row acc-row"><span><b>Recevoir les nouveautés de DOZE par e-mail</b><small>${p && p.newsletter ? "Tu as accepté le " + new Date(p.newsletter_at || Date.now()).toLocaleDateString("fr-FR") + ". Décoche pour te désinscrire à tout moment." : "Nouvelles fonctions, concours, artistes à la une. Jamais de pub de tiers, jamais de revente de ton adresse."}</small></span><input type="checkbox" class="switch" data-newsletter ${p && p.newsletter ? "checked" : ""} ${p ? "" : "disabled"}></label>
+        <section class="follows" id="follows" hidden></section>
         <div class="acc-actions"><button class="btn" type="button" data-auth="logout">Me déconnecter</button></div>
         ${privacyNote()}</div>`;
       const mode = S.authMode || "signup";
@@ -619,7 +620,7 @@
     document.querySelectorAll("[data-nav]").forEach(a => a.classList.toggle("is-on", a.dataset.nav === (v === "artiste" || v === "genre" ? "rechercher" : v === "playlist" ? "bibliotheque" : v)));
     syncInstall();
     if (v === "publier" && !(sb && S.hasV6 && !S.user)) bindPublish();
-    if (v === "compte") bindAuth();
+    if (v === "compte") { bindAuth(); loadFollows(); }
     if (v === "avis") loadReviews();
     if (v === "artiste") loadStats(S.param);
     if (v === "rechercher") { const q = $("q"); q.oninput = e => { clearTimeout(qTimer); qTimer = setTimeout(() => { S.q = e.target.value; const pos = q.selectionStart; render(); const nq = $("q"); nq.focus(); nq.setSelectionRange(pos, pos); }, 250); }; }
@@ -1958,6 +1959,31 @@
       }, 0);
     });
   }
+  // Profils Suno suivis : liste, mise à jour immédiate, arrêt
+  async function loadFollows() {
+    const el = $("follows"); if (!el || !sb || !S.user) return;
+    const { data, error } = await sb.from("suno_follows").select("*").order("created_at");
+    if (error || !data || !data.length) { el.hidden = true; return; }
+    el.hidden = false;
+    el.innerHTML = `<h2>🔄 Mes profils Suno suivis</h2><p class="sub">Chaque matin vers 6 h, DOZE ajoute tes nouvelles chansons publiques.</p>` + data.map(f => `<div class="follow-row">
+      <div><b>@${esc(f.handle)}</b> <small>· publié comme « ${esc(f.artist)} »</small><br><small>${f.last_sync ? `Dernier passage ${new Date(f.last_sync).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · ${plural(f.last_added, "nouvelle chanson")}` : "Premier passage demain matin"}</small></div>
+      <div class="follow-acts"><button class="btn" type="button" data-sync-now="${f.id}">Mettre à jour maintenant</button><button class="btn" type="button" data-unfollow="${f.id}">Arrêter</button></div></div>`).join("");
+  }
+  document.addEventListener("click", async e => {
+    const sn = e.target.closest("[data-sync-now]");
+    if (sn) {
+      sn.disabled = true; sn.textContent = "Vérification chez Suno…";
+      try {
+        const r = await fetch(`${cfg.supabaseUrl}/functions/v1/suno-sync?follow=${sn.dataset.syncNow}`, { method: "POST", headers: { apikey: cfg.supabaseAnonKey, Authorization: "Bearer " + cfg.supabaseAnonKey } });
+        const j = await r.json().catch(() => null);
+        if (!r.ok || !j) toast(r.status === 404 ? "Le robot de mise à jour n'est pas encore installé sur Supabase." : "Mise à jour impossible pour le moment.");
+        else { const a = j.added || 0; toast(a ? `${plural(a, "nouvelle chanson")} ajoutée${a > 1 ? "s" : ""} 🎉` : "Aucune nouvelle chanson publique pour l'instant."); if (a) await load(); }
+      } catch { toast("Mise à jour impossible pour le moment."); }
+      loadFollows(); return;
+    }
+    const uf = e.target.closest("[data-unfollow]");
+    if (uf) { if (!confirm("Arrêter la mise à jour automatique de ce profil ? Les chansons déjà publiées restent sur DOZE.")) return; await sb.from("suno_follows").delete().eq("id", uf.dataset.unfollow); toast("Mise à jour automatique arrêtée"); loadFollows(); }
+  });
   function syncAccountIcon() { document.querySelectorAll("[data-account-label]").forEach(el => el.textContent = S.profile ? S.profile.username : "Mon compte"); }
 
   // ---------- file de lecture ----------
@@ -2355,6 +2381,8 @@
       box.innerHTML = `<div class="pl-head"><strong>${esc(r.title || "Playlist")}</strong><span>${plural(r.songs.length, "chanson")} · ${r.songs.filter(x => x.isPublic && !have.has(x.id)).length} à importer</span></div>
         <ul class="pl-list">${r.songs.map(x => { const ok = x.isPublic && !have.has(x.id);
           return `<li class="${ok ? "" : "off"}"><label><input type="checkbox" data-pl="${x.id}" ${ok ? "checked" : "disabled"}>${x.cover ? `<img src="${esc(x.cover)}" alt="" loading="lazy">` : ""}<span><b>${esc(x.title || "Sans titre")}</b><i>${have.has(x.id) ? "Déjà sur DOZE" : x.isPublic ? (x.duration ? fmt(x.duration) : "") + (x.lyrics ? " · paroles incluses" : "") : "Privée sur Suno : rends-la publique pour l'importer"}</i></span></label></li>`; }).join("")}</ul>`;
+      PL.handle = hm ? hm[1].toLowerCase() : null;
+      if (PL.handle && S.user) box.insertAdjacentHTML("beforeend", `<label class="check follow-check"><input id="f-follow" type="checkbox" checked><span>🔄 <b>Mettre à jour chaque matin</b> : tes nouvelles chansons publiques sur Suno seront ajoutées toutes seules à DOZE. <small>Tu peux arrêter à tout moment depuis « Mon compte ».</small></span></label>`);
       const priv = r.songs.filter(x => !x.isPublic).length;
       if (priv) box.insertAdjacentHTML("beforeend", `<p class="sheet-note pl-note">${priv === r.songs.length ? "Toutes les chansons sont privées." : plural(priv, "chanson") + " privée" + (priv > 1 ? "s" : "") + "."} Attention : sur Suno, rendre la <b>playlist</b> publique ne rend pas ses <b>chansons</b> publiques. Pour chaque chanson, touche le <b>⋯</b> à sa droite puis <b>Make public</b>, attends quelques minutes et recolle le lien.</p>`);
       $("submit").textContent = "Importer la sélection";
@@ -2364,7 +2392,8 @@
       const artist = $("f-artist").value.trim(), genre = $("f-genre").value.trim() || null, made = $("f-made").value.trim().slice(0, 40) || "Suno";
       if (!PL || !PL.songs) { msg("Colle d'abord le lien d'une playlist Suno.", "err"); return; }
       const ids = [...document.querySelectorAll("[data-pl]:checked")].map(c => c.dataset.pl);
-      if (!ids.length) { msg("Coche au moins une chanson publique à importer.", "err"); return; }
+      const follow = !!(PL.handle && S.user && $("f-follow") && $("f-follow").checked);
+      if (!ids.length && !follow) { msg("Coche au moins une chanson publique à importer.", "err"); return; }
       if (!artist) { msg("Indique ton nom d'artiste.", "err"); return; }
       if (!$("f-rights").checked) { msg("Coche la case pour confirmer que tu as le droit de diffuser ces chansons.", "err"); return; }
       const btn = $("submit"); btn.disabled = true;
@@ -2384,8 +2413,13 @@
         okN++;
       }
       store.set("artist", artist);
+      let followMsg = "";
+      if (follow) {
+        const { error: fe } = await sb.from("suno_follows").upsert({ user_id: S.user.id, handle: PL.handle, artist: artist.slice(0, 80), genre, made_with: made, active: true }, { onConflict: "user_id,handle" });
+        followMsg = fe ? " (La mise à jour automatique n'a pas pu être activée : la mise à jour 10 de la base doit être faite.)" : " 🔄 Ton profil sera vérifié chaque matin.";
+      }
       btn.disabled = false;
-      const summary = `${plural(okN, "chanson")} importée${okN > 1 ? "s" : ""}.${fails.length ? " Pas encore de son public chez Suno pour : " + fails.join(", ") + ". Réessaie dans quelques minutes." : ""}`;
+      const summary = `${plural(okN, "chanson")} importée${okN > 1 ? "s" : ""}.${followMsg}${fails.length ? " Pas encore de son public chez Suno pour : " + fails.join(", ") + ". Réessaie dans quelques minutes." : ""}`;
       msg(summary, okN ? "ok" : "err"); toast(summary);
       if (okN) { await load(); setTimeout(() => go("artiste", artist), 1600); }
     }
