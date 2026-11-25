@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "5.8.0";
+  const VERSION = "5.9.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -276,6 +276,18 @@
       <div class="shelf">${list.map((t, i) => card(t, "trends", i)).join("")}</div></section>`;
   }
   const newest = () => S.all.slice();
+  // Nouveaux sons : publiés depuis moins de 7 jours, ou depuis la dernière visite de l'auditeur.
+  const NEW_DAYS = 7, prevSeen = store.get("seenAt", 0);
+  setTimeout(() => store.set("seenAt", Date.now()), 15000);   // la visite compte une fois l'accueil vu
+  const ts = t => { const v = Date.parse(t && t.created_at); return isNaN(v) ? 0 : v; };
+  const isNew = t => !!t && !t.trend && Date.now() - ts(t) < NEW_DAYS * 864e5;
+  const isUnseen = t => !!t && !t.trend && prevSeen > 0 && ts(t) > prevSeen;
+  const fresh = () => S.all.filter(isNew);
+  function ago(t) {
+    const m = Math.max(1, Math.round((Date.now() - ts(t)) / 6e4));
+    return m < 60 ? `il y a ${m} min` : m < 1440 ? `il y a ${Math.round(m / 60)} h` : m < 2880 ? "hier" : `il y a ${Math.round(m / 1440)} jours`;
+  }
+  const newTag = t => isNew(t) ? `<span class="new-tag${isUnseen(t) ? " unseen" : ""}">${isUnseen(t) ? "NOUVEAU ●" : "NOUVEAU"}</span>` : "";
   const popular = () => S.all.slice().sort((a, b) => b.plays - a.plays || (b.created_at > a.created_at ? 1 : -1));
   function gems() {
     // Pépites : les titres encore peu écoutés, mélangés à chaque visite, pour que chacun ait sa chance.
@@ -332,15 +344,15 @@
   }
   function card(t, ctx, i) {
     const cur = current();
-    return `<div class="card${cur && cur.id === t.id ? " is-current" : ""}" style="--i:${Math.min(i, 12)}" data-ctx="${ctx}" data-i="${i}" role="button" tabindex="0" aria-label="Écouter ${esc(t.title)} de ${esc(t.artist)}">
-      <div class="art">${imgTag(t)}${t.ai ? '<span class="ai-tag">IA</span>' : ""}${t.bg ? '<span class="bg-tag" title="Continue écran verrouillé">🎧</span>' : ""}${offline[t.id] ? offBadge : ""}
+    return `<div class="card${cur && cur.id === t.id ? " is-current" : ""}${isNew(t) ? " is-new" : ""}" style="--i:${Math.min(i, 12)}" data-ctx="${ctx}" data-i="${i}" role="button" tabindex="0" aria-label="Écouter ${esc(t.title)} de ${esc(t.artist)}">
+      <div class="art">${imgTag(t)}${t.ai ? '<span class="ai-tag">IA</span>' : ""}${newTag(t)}${t.bg ? '<span class="bg-tag" title="Continue écran verrouillé">🎧</span>' : ""}${offline[t.id] ? offBadge : ""}
         <button class="fab" type="button" tabindex="-1" aria-hidden="true">${cur && cur.id === t.id && !audio.paused ? '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'}</button></div>
       <strong>${esc(t.title)}</strong><span class="sub">${esc(t.artist)}</span></div>`;
   }
-  function shelf(title, sub, tracks, ctx, more) {
+  function shelf(title, sub, tracks, ctx, more, cls) {
     if (!tracks.length) return "";
     S.ctx[ctx] = tracks;
-    return `<section><div class="sec-head"><div><h2>${title}</h2>${sub ? `<p>${sub}</p>` : ""}</div>${more || ""}</div>
+    return `<section${cls ? ` class="${cls}"` : ""}><div class="sec-head"><div><h2>${title}</h2>${sub ? `<p>${sub}</p>` : ""}</div>${more || ""}</div>
       <div class="shelf">${tracks.map((t, i) => card(t, ctx, i)).join("")}</div></section>`;
   }
   function artistShelf(list) {
@@ -358,7 +370,7 @@
       return `<li class="row-t${playing ? " is-current" : ""}" data-ctx="${ctx}" data-i="${i}" tabindex="0">
         <span class="t-num">${playing ? `<span class="eq${audio.paused ? " paused" : ""}"><i></i><i></i><i></i></span>` : i + 1}</span>
         ${imgTag(t, "t-cover")}
-        <span class="t-text"><span class="t-title">${offline[t.id] ? '<svg class="dl-mark" viewBox="0 0 24 24" role="img" aria-label="Disponible hors ligne"><title>Disponible hors ligne</title><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m-1 5h2v6l2.6-2.6L17 11.8 12 16.8l-5-5 1.4-1.4L11 13z"/></svg>' : ""}${esc(t.title)}</span><span class="t-sub">${opts.noArtist ? (t.genre ? esc(t.genre) : "Single") : `<button type="button" data-artist="${esc(t.artist)}">${esc(t.artist)}</button>`}</span></span>
+        <span class="t-text"><span class="t-title">${offline[t.id] ? '<svg class="dl-mark" viewBox="0 0 24 24" role="img" aria-label="Disponible hors ligne"><title>Disponible hors ligne</title><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m-1 5h2v6l2.6-2.6L17 11.8 12 16.8l-5-5 1.4-1.4L11 13z"/></svg>' : ""}${esc(t.title)}${isNew(t) ? '<span class="new-pill">NOUVEAU</span>' : ""}</span><span class="t-sub">${opts.noArtist ? (t.genre ? esc(t.genre) : "Single") : `<button type="button" data-artist="${esc(t.artist)}">${esc(t.artist)}</button>`}</span></span>
         <span class="t-genre">${t.genre ? esc(t.genre) : ""}</span>
         <span class="t-plays">${plural(t.plays, "écoute")}${t.likes ? ` · ${nf.format(t.likes)} ♥` : ""}</span>
         <span class="t-acts">
@@ -380,8 +392,10 @@
       if (S.offlineMode && !S.all.length) return mobileBrand + `<div class="empty">Pas de connexion et aucun titre téléchargé.</div>`;
       if (S.error) return mobileBrand + `<div class="empty">Impossible de charger les chansons. Vérifie ta connexion, puis recharge la page.</div>`;
       if (!S.all.length) return mobileBrand + `<h1 class="greet">${greeting()}</h1><div class="empty"><strong>DOZE attend sa première chanson.</strong><span>Publie la tienne : elle sera la première que le monde entendra ici.</span><a class="btn btn-gold" href="#publier">Publier ma chanson</a></div>`;
-      const top = popular()[0];
+      const latest = newest()[0], heroNew = latest && Date.now() - ts(latest) < 3 * 864e5;
+      const top = heroNew ? latest : popular()[0];
       S.ctx.hero = [top];
+      const fr = fresh(), unseen = S.all.filter(isUnseen);
       const recent = history.map(byId).filter(Boolean).slice(0, 12);
       const showInstall = !isInstalled() && matchMedia("(max-width: 860px)").matches && !store.get("noInstallBanner", false);
       return mobileBrand + `${S.offlineMode ? '<div class="offline-banner">📴 Hors connexion : tu écoutes tes titres téléchargés.</div>' : ""}${showInstall ? `<div class="install-banner"><img src="icon-192.png" alt=""><span><b>Installe DOZE</b>Sur ton écran d'accueil, comme une vraie appli, même hors connexion.</span><button class="btn btn-gold" type="button" data-install>Installer</button><button class="ic" type="button" data-hide-install aria-label="Masquer"><svg viewBox="0 0 24 24"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg></button></div>` : ""}<h1 class="greet">${greeting()}</h1>
@@ -389,7 +403,7 @@
           <div class="hero-bg" style="background-image:url('${esc(coverOf(top))}')"></div>
           ${imgTag(top)}
           <div class="hero-text">
-            <span class="eyebrow">À la une · le plus écouté</span>
+            <span class="eyebrow${heroNew ? " eyebrow-new" : ""}">${heroNew ? `🆕 Nouveau son · publié ${ago(top)}` : "À la une · le plus écouté"}</span>
             <h1>${esc(top.title)}</h1>
             <span class="by">${esc(top.artist)}${top.genre ? " · " + esc(top.genre) : ""}</span>
             <div class="stats"><span>${plural(top.plays, "écoute")}</span>${top.likes ? `<span>${nf.format(top.likes)} ♥</span>` : ""}</div>
@@ -399,10 +413,11 @@
             </div>
           </div>
         </section>
+        ${unseen.length ? `<button class="new-banner" type="button" data-play-unseen><span class="nb-dot"></span><span><b>${unseen.length > 1 ? `${unseen.length} nouveaux sons` : "1 nouveau son"} depuis ta dernière visite</b><small>${esc(unseen.slice(0, 3).map(t => t.title).join(" · "))}${unseen.length > 3 ? "…" : ""}</small></span><span class="nb-play">${playIcon} Écouter</span></button>` : ""}
+        ${shelf("Nouveaux sons", fr.length ? `${plural(fr.length, "titre")} publié${fr.length > 1 ? "s" : ""} ces ${NEW_DAYS} derniers jours` : "Les dernières créations publiées", (fr.length >= 4 ? fr : newest()).slice(0, 20), "new", `<a class="link" href="#rechercher">Tout voir</a>`, "sec-new")}
         ${shelf("Écoutés récemment", "", recent, "recent")}
         ${trendShelf()}
         ${shelf("Coups de cœur de la semaine", "Les titres les plus aimés ces 7 derniers jours", S.week, "week")}
-        ${shelf("Nouveautés", "Les dernières créations publiées", newest().slice(0, 16), "new", `<a class="link" href="#rechercher">Tout voir</a>`)}
         ${shelf("Pépites à découvrir", "Des titres encore peu écoutés, mis en avant à tour de rôle", gems(), "gems")}
         ${shelf("Les plus écoutées", "", popular().slice(0, 16), "top")}
         ${artistShelf(artists())}
@@ -672,6 +687,7 @@
     const tr = e.target.closest("[data-trend-reg]"); if (tr) { S.trendReg = tr.dataset.trendReg; store.set("trendReg", S.trendReg); const y = $("main").scrollTop; render(); $("main").scrollTop = y; return; }
     const pc = e.target.closest("[data-play-ctx]"); if (pc) { const l = S.ctx[pc.dataset.playCtx]; if (l) { setShuffle(false); startQueue(l, 0, true, ctxLabel(pc.dataset.playCtx)); } return; }
     const sc = e.target.closest("[data-shuffle-ctx]"); if (sc) { const l = S.ctx[sc.dataset.shuffleCtx]; if (l) { setShuffle(true); startQueue(l, Math.floor(Math.random() * l.length), true, ctxLabel(sc.dataset.shuffleCtx)); } return; }
+    if (e.target.closest("[data-play-unseen]")) { const u = S.all.filter(isUnseen); if (u.length) startQueue(u, 0, true, ["Nouveaux sons", "Depuis ta dernière visite"]); return; }
     if (e.target.closest("[data-shuffle-all]")) { setShuffle(true); startQueue(S.all, Math.floor(Math.random() * S.all.length), true, ["Aléatoire", "Tout DOZE"]); return; }
     const item = e.target.closest("[data-ctx]");
     if (item) {

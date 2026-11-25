@@ -717,3 +717,23 @@ html, body, .main, .np { overflow-x: hidden; }
 .follow-row small { color: var(--muted); }
 .follow-acts { display: flex; gap: 8px; flex-wrap: wrap; }
 .follow-acts .btn { padding: 8px 14px; font-size: 13px; }
+
+/* ---------- Nouveaux sons mis en exergue (5.9.0) ---------- */
+.new-tag { position: absolute; right: 8px; top: 8px; z-index: 2; font: 800 10px/1 var(--display); letter-spacing: .08em; padding: 5px 7px; border-radius: 7px; color: var(--gold-ink); background: linear-gradient(135deg, #F6CFA9, var(--gold)); box-shadow: 0 4px 14px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .25) inset; }
+.new-tag.unseen { animation: newPulse 1.8s ease-in-out infinite; }
+@keyframes newPulse { 0%, 100% { box-shadow: 0 4px 14px rgba(0, 0, 0, .45), 0 0 0 0 rgba(218, 154, 104, .7); } 50% { box-shadow: 0 4px 14px rgba(0, 0, 0, .45), 0 0 0 7px rgba(218, 154, 104, 0); } }
+.card.is-new .art { box-shadow: 0 10px 28px rgba(0, 0, 0, .45), 0 0 0 2px rgba(218, 154, 104, .55); }
+.new-pill { display: inline-block; vertical-align: middle; margin-left: 8px; font: 800 9px/1 var(--display); letter-spacing: .08em; padding: 3px 6px; border-radius: 6px; color: var(--gold-ink); background: linear-gradient(135deg, #F6CFA9, var(--gold)); }
+.sec-new { position: relative; margin-top: 26px; padding: 4px 18px 14px; border-radius: 20px; background: radial-gradient(120% 140% at 0% 0%, rgba(218, 154, 104, .16), transparent 60%), rgba(255, 255, 255, .025); border: 1px solid rgba(218, 154, 104, .28); }
+.sec-new .sec-head { margin-top: 18px; }
+.sec-new .sec-head h2::before { content: "NEW"; display: inline-block; vertical-align: middle; margin-right: 10px; font: 800 11px/1 var(--display); letter-spacing: .1em; padding: 5px 8px; border-radius: 7px; color: var(--gold-ink); background: var(--gold); -webkit-text-fill-color: var(--gold-ink); }
+.sec-new .sec-head h2 { background: linear-gradient(90deg, #F6CFA9, var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.eyebrow.eyebrow-new { color: var(--gold-ink); background: linear-gradient(135deg, #F6CFA9, var(--gold)); padding: 5px 10px; border-radius: 999px; justify-self: start; }
+.new-banner { display: flex; align-items: center; gap: 14px; width: 100%; margin: 18px 0 0; padding: 14px 16px; border-radius: 16px; border: 1px solid rgba(218, 154, 104, .4); background: linear-gradient(90deg, rgba(218, 154, 104, .18), rgba(218, 154, 104, .05)); color: var(--fg); text-align: left; cursor: pointer; font: inherit; }
+.new-banner > span:nth-child(2) { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.new-banner small { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nb-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--gold); flex: none; animation: newPulse 1.8s ease-in-out infinite; }
+.nb-play { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 8px 14px; border-radius: 999px; font-weight: 700; color: var(--gold-ink); background: var(--gold); }
+.nb-play svg { width: 16px; height: 16px; fill: currentColor; }
+@media (max-width: 860px) { .sec-new { margin-left: -6px; margin-right: -6px; padding: 2px 12px 12px; } .new-banner { padding: 12px; gap: 10px; } }
+@media (prefers-reduced-motion: reduce) { .new-tag.unseen, .nb-dot { animation: none; } }

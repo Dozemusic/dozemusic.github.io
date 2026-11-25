@@ -4,10 +4,10 @@ La musique des créateurs Suno, gratuite pour tout le monde. Les artistes publie
 
 **Appli :** https://dozemusic.github.io/ · **Studio (administrateur) :** https://dozemusic.github.io/studio/
 
-Version 5.8.0
+Version 5.9.0
 
 ## Fonctions
-- **Accueil** façon plateforme de streaming : titre à la une, rayons « Écoutés récemment », « Nouveautés », « Pépites à découvrir » (titres peu écoutés mis en avant à tour de rôle), « Les plus écoutées », artistes et genres.
+- **Accueil** façon plateforme de streaming : nouveaux sons mis en exergue (badge « NOUVEAU » 7 jours, section « Nouveaux sons » en tête, son tout juste publié à la une, bandeau « X nouveaux sons depuis ta dernière visite »), titre à la une, rayons « Écoutés récemment », « Nouveautés », « Pépites à découvrir » (titres peu écoutés mis en avant à tour de rôle), « Les plus écoutées », artistes et genres.
 - **Rechercher** par titre, artiste ou genre, avec filtres par genre.
 - **Bibliothèque** sans compte : coups de cœur et historique gardés sur l'appareil.
 - **Pages d'artiste et de genre**, avec lecture et aléatoire.
