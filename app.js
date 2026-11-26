@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.0.0";
+  const VERSION = "6.1.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1082,75 +1082,131 @@
   document.addEventListener("visibilitychange", () => { if (!document.hidden && FX.ctx && FX.ctx.state !== "running") FX.ctx.resume().catch(() => {}); });
 
   // ======================================================================================================
-  //  ORBITE · sculpte le son autour de toi (exclusivité DOZE)
-  //  N'importe quel morceau stéréo est démonté EN DIRECT, dans le navigateur, sans IA ni serveur, en 4 objets sonores :
-  //    mid  = (L+R)/2, coupé à 150 Hz par un filtre de Linkwitz-Riley du 4e ordre (deux Butterworth en cascade :
-  //           les deux moitiés se recomposent à plat, sans creux ni bosse de phase)
-  //           → « Basses » (sous 150 Hz, l'oreille ne les localise pas) et « Voix » (le centre : chant, caisse claire, lead)
-  //    side = (L−R)/2 → « Ambiance G » (+side) et « Ambiance D » (−side) : tout ce que l'ingénieur a étalé en stéréo.
-  //  Placés à leur place d'origine, ils se recombinent : L = mid + side, R = mid − side. Chacun passe ensuite dans un
-  //  PannerNode HRTF (le filtrage réel de la tête et des oreilles) : on le déplace, l'éloigne, le coupe, le fait tourner.
-  //  Le mouvement « Orbite » est calé sur l'horloge du morceau (position × BPM) : il reste en rythme après une pause ou
-  //  un saut, et chaque battement fait pulser la scène.
+  //  ORBITE 2 · le son voyage autour de ta tête (exclusivité DOZE)
+  //  1. Démontage en direct, sans IA ni serveur : mid = (L+R)/2 coupé à 150 Hz (Linkwitz-Riley 4e ordre, recomposition
+  //     à plat) → « Voix » (centre) et « Basses » ; side = (L−R)/2 → « Ambiance G » (+side) et « Ambiance D » (−side).
+  //  2. Double moteur binaural par objet, mélangé par le curseur « Intensité » :
+  //     · PannerNode HRTF (filtrage réel tête + pavillon de l'oreille : avant / arrière / hauteur) ;
+  //     · moteur DOZE « exagéré » : retard interaural de Woodworth (jusqu'à 0,66 ms sur l'oreille éloignée),
+  //       ombre de la tête (passe-bas sur l'oreille éloignée), écart de niveau, assourdissement quand le son passe
+  //       DERRIÈRE toi (c'est l'indice qui manque le plus aux écouteurs), loi de distance.
+  //  3. Externalisation : une petite salle synthétique (réponse impulsionnelle stéréo décorrélée générée en JS, envoyée
+  //     dans un ConvolverNode) sort le son de l'intérieur du crâne pour le placer AUTOUR de la tête.
+  //  4. Trajectoires automatiques calées sur l'horloge du morceau × BPM : le voyage reste en rythme après pause ou saut.
+  //  5. Scène en perspective 3D (canvas, Retina, 60 i/s) avec traînées lumineuses, et boussole du téléphone.
   // ======================================================================================================
   const ORB_SRC = [
     { k: "voix", n: "Voix", c: "#F6CFA9" }, { k: "basses", n: "Basses", c: "#E0794F" },
     { k: "gauche", n: "Ambiance G", c: "#A9C0F5" }, { k: "droite", n: "Ambiance D", c: "#9BE3C6" }];
+  // Positions en mètres [x, y, z] : x à droite, y en haut, z vers l'arrière (devant toi = z négatif)
   const ORB_PRESETS = {
-    origine: { n: "Original", d: "Le mixage tel qu'il a été pensé", p: [[0, -2.6], [0, -1.1], [-2.4, -1.5], [2.4, -1.5]] },
-    scene: { n: "Premier rang", d: "Le chanteur devant toi, le groupe derrière lui", p: [[0, -1], [0, -2.6], [-2.7, -3.2], [2.7, -3.2]] },
-    cabine: { n: "Dans la cabine", d: "La voix contre ton oreille, la musique autour", p: [[0, -.45], [0, .5], [-2.5, 1.9], [2.5, 1.9]] },
-    immersion: { n: "Immersion 360°", d: "Tu es au centre du groupe", p: [[0, -1.3], [0, 0], [-1.8, 1.7], [1.8, 1.7]] },
-    maquis: { n: "Maquis plein air", d: "La sono au loin, l'ambiance tout autour", p: [[0, -4.4], [0, -4], [-4.4, -.8], [4.4, -.8]] },
-    karaoke: { n: "Karaoké", d: "La voix s'efface : à toi de chanter", p: [[0, -2.6], [0, -1.1], [-2.4, -1.5], [2.4, -1.5]], mute: [1, 0, 0, 0] }
+    voyage: { n: "Voyage 8D", d: "Toute la musique tourne autour de ta tête", p: [[0, 0, -1.7], [0, 0, -.35], [-1.5, 0, 1], [1.5, 0, 1]], m: "cercle" },
+    papillon: { n: "Papillon", d: "La voix dessine un 8 autour de toi", p: [[0, 0, -1.6], [0, 0, -.35], [-1.7, 0, .6], [1.7, 0, .6]], m: "huit" },
+    envol: { n: "Envol", d: "Le son tourne et monte au-dessus de ta tête", p: [[0, 0, -1.6], [0, 0, -.35], [-1.5, 0, 1], [1.5, 0, 1]], m: "envol" },
+    origine: { n: "Original", d: "Le mixage tel qu'il a été pensé", p: [[0, 0, -2.6], [0, 0, -1.1], [-2.4, 0, -1.5], [2.4, 0, -1.5]], m: "aucun" },
+    cabine: { n: "Dans la cabine", d: "La voix contre ton oreille, la musique autour", p: [[0, 0, -.5], [0, 0, .5], [-2.5, 0, 1.9], [2.5, 0, 1.9]], m: "aucun" },
+    karaoke: { n: "Karaoké", d: "La voix s'efface : à toi de chanter", p: [[0, 0, -2.6], [0, 0, -1.1], [-2.4, 0, -1.5], [2.4, 0, -1.5]], m: "aucun", mute: [1, 0, 0, 0] }
   };
-  const orbSaved = store.get("orb", {});
-  const ORB = { on: false, nodes: null, preset: orbSaved.preset || "origine",
-    pos: Array.isArray(orbSaved.pos) && orbSaved.pos.length === 4 ? orbSaved.pos : ORB_PRESETS.origine.p.map(p => p.slice()),
-    mute: Array.isArray(orbSaved.mute) ? orbSaved.mute : [0, 0, 0, 0], orbit: !!orbSaved.orbit, beats: orbSaved.beats || 8,
-    yaw: 0, gyro: false, gyroRef: null, raf: 0, lv: [0, 0, 0, 0], drag: null, buf: null };
-  const orbSave = () => store.set("orb", { preset: ORB.preset, pos: ORB.pos, mute: ORB.mute, orbit: ORB.orbit, beats: ORB.beats });
+  const ORB_MOTIONS = { aucun: "Immobile", cercle: "Cercle", huit: "En huit", balancier: "Gauche ⇄ droite", spirale: "Spirale", envol: "Envol" };
+  const orbSaved = store.get("orb2", {});
+  const ORB = { on: false, nodes: null, preset: ORB_PRESETS[orbSaved.preset] || orbSaved.preset === "perso" ? orbSaved.preset : "voyage",
+    pos: Array.isArray(orbSaved.pos) && orbSaved.pos.length === 4 && orbSaved.pos[0].length === 3 ? orbSaved.pos : ORB_PRESETS.voyage.p.map(p => p.slice()),
+    mute: Array.isArray(orbSaved.mute) ? orbSaved.mute : [0, 0, 0, 0], motion: ORB_MOTIONS[orbSaved.motion] ? orbSaved.motion : "cercle",
+    beats: orbSaved.beats || 8, inten: orbSaved.inten ?? .8, room: orbSaved.room ?? .3,
+    yaw: 0, gyro: false, gyroRef: null, raf: 0, lv: [0, 0, 0, 0], drag: null, buf: null, trail: [[], [], [], []], lastTxt: 0 };
+  const orbSave = () => store.set("orb2", { preset: ORB.preset, pos: ORB.pos, mute: ORB.mute, motion: ORB.motion, beats: ORB.beats, inten: ORB.inten, room: ORB.room });
   if (location.hostname === "localhost") window.__doze = { ORB, FX };      // aide aux tests automatiques, uniquement en local
   const orbOk = () => !audio.isExternal && corsOk(audio.src || "");
   const orbBpm = () => { const t = current(), a = t && anaCache[t.id]; return a && a.bpm > 40 && a.bpm < 220 ? a.bpm : 0; };
 
-  // Graphe « humide » construit à la demande : tant qu'Orbite est éteint, aucun calcul HRTF ne tourne.
+  // Petite salle synthétique : premières réflexions décorrélées G/D + queue exponentielle adoucie (≈ 1,1 s)
+  function orbRoomIR(c) {
+    const sr = c.sampleRate, n = Math.floor(sr * 1.1), b = c.createBuffer(2, n, sr);
+    const early = [[.007, .5, -.3], [.011, -.4, .45], [.017, .35, .3], [.023, -.3, -.35], [.031, .25, .2], [.043, -.2, .22]];
+    for (let ch = 0; ch < 2; ch++) {
+      const d = b.getChannelData(ch); let lp = 0;
+      for (let i = 0; i < n; i++) { const t = i / sr, w = Math.random() * 2 - 1; lp += (w - lp) * (.35 - .25 * Math.min(1, t / .8)); d[i] = lp * Math.exp(-t * 6.2) * (t < .012 ? t / .012 : 1) * .55; }
+      for (const [t, l, r] of early) d[Math.floor(t * sr) + ch * 7] += ch ? r : l;
+    }
+    return b;
+  }
+  // Graphe « humide » construit à la demande : tant qu'Orbite est éteint, aucun calcul binaural ne tourne.
   function orbBuild() {
     if (ORB.nodes) return true;
     if (!FX.ctx || !FX.orbIn) return false;
     const c = FX.ctx, g = v => { const n = c.createGain(); n.gain.value = v; return n; };
+    const lp = f => { const b = c.createBiquadFilter(); b.type = "lowpass"; b.frequency.value = f; b.Q.value = .5; return b; };
     const split = c.createChannelSplitter(2), hl = g(.5), hr = g(.5), nr = g(-.5), mid = g(1), side = g(1);
     FX.orbIn.connect(split); split.connect(hl, 0); split.connect(hr, 1); split.connect(nr, 1);
     hl.connect(mid); hr.connect(mid); hl.connect(side); nr.connect(side);
     const lr4 = (type, from) => [0, 1].reduce(prev => { const f = c.createBiquadFilter(); f.type = type; f.frequency.value = 150; f.Q.value = Math.SQRT1_2; prev.connect(f); return f; }, from);
     const inv = g(-1); side.connect(inv);
-    const outs = [lr4("highpass", mid), lr4("lowpass", mid), side, inv];
+    const outs = [lr4("highpass", mid), lr4("lowpass", mid), g(1.25), g(1.25)];   // l'ambiance est remontée de 2 dB : elle porte le mouvement
+    side.connect(outs[2]); inv.connect(outs[3]);
+    const sum = g(1), send = g(ORB.room), room = c.createConvolver();
+    room.normalize = true; room.buffer = orbRoomIR(c);
+    sum.connect(FX.orbWet); sum.connect(send); send.connect(room); room.connect(FX.orbWet);
     ORB.nodes = outs.map(o => {
-      const mute = g(1), p = c.createPanner(), an = c.createAnalyser();
-      p.panningModel = "HRTF"; p.distanceModel = "inverse"; p.refDistance = 1.2; p.rolloffFactor = .9; p.maxDistance = 40;
-      an.fftSize = 512; o.connect(mute); mute.connect(p); p.connect(FX.orbWet); mute.connect(an);
-      return { mute, p, an };
+      const mute = g(1), rear = lp(20000), an = c.createAnalyser();
+      const p = c.createPanner(); p.panningModel = "HRTF"; p.distanceModel = "inverse"; p.refDistance = 1; p.rolloffFactor = .8; p.maxDistance = 40;
+      const hrtf = g(1 - ORB.inten), ex = g(ORB.inten);
+      // moteur exagéré : deux oreilles = deux lignes à retard + ombre + niveau, réunies en stéréo
+      const merge = c.createChannelMerger(2), ears = [0, 1].map(ch => { const d = c.createDelay(.01), sh = lp(20000), gn = g(1); rear.connect(d); d.connect(sh); sh.connect(gn); gn.connect(merge, 0, ch); return { d, sh, gn }; });
+      o.connect(mute); mute.connect(rear); mute.connect(an);
+      rear.connect(p); p.connect(hrtf); hrtf.connect(sum);
+      merge.connect(ex); ex.connect(sum);
+      return { mute, rear, p, hrtf, ex, ears, an };
     });
-    ORB.buf = new Float32Array(512);
+    ORB.send = send; ORB.buf = new Float32Array(512);
     return true;
   }
-  const setP = (prm, v, t) => prm.setTargetAtTime(v, t, .035);
-  // Position réelle de chaque objet, en mètres : base + rotation « Orbite » calée sur le battement du morceau
+  const setP = (prm, v, t, k = .03) => prm.setTargetAtTime(v, t, k);
+  // Trajectoires : la musique (voix + ambiances) voyage ; les basses, que l'oreille ne localise pas, restent près de toi.
   function orbWorld() {
-    const bpm = orbBpm() || 100, beat = (audio.currentTime || 0) * bpm / 60;
-    const phi = ORB.orbit ? 2 * Math.PI * beat / ORB.beats : 0;
-    return { beat, phi, pts: ORB.pos.map(([x, z], i) => i >= 2 && phi ? [x * Math.cos(phi) - z * Math.sin(phi), x * Math.sin(phi) + z * Math.cos(phi)] : [x, z]) };
+    const bpm = orbBpm() || 100, beat = (audio.currentTime || 0) * bpm / 60, m = ORB.motion;
+    const phi = m === "aucun" ? 0 : 2 * Math.PI * beat / ORB.beats;
+    const rot = ([x, y, z], a) => [x * Math.cos(a) - z * Math.sin(a), y, x * Math.sin(a) + z * Math.cos(a)];
+    const pts = ORB.pos.map((p, i) => {
+      if (m === "aucun" || i === 1) return p;
+      const r = Math.max(.6, Math.hypot(p[0], p[2]));
+      if (m === "cercle") return rot(p, phi);
+      if (m === "envol") { const q = rot(p, phi); return [q[0], 1.6 * Math.sin(phi * .5) ** 2, q[2]]; }
+      if (m === "spirale") { const k = .45 + .75 * (.5 + .5 * Math.sin(phi * .5)); const q = rot(p, phi); return [q[0] * k, q[1], q[2] * k]; }
+      if (m === "balancier") { const a = (i === 0 ? 1 : i === 2 ? -1 : 1) * 1.45 * Math.sin(phi); return rot(p, a); }
+      if (m === "huit") {
+        if (i !== 0) return rot(p, -phi * .5);
+        return [1.9 * Math.sin(phi), .4 * Math.sin(2 * phi), -1.9 * Math.sin(phi) * Math.cos(phi) * 1.3 - .2];   // lemniscate de Gerono autour de la tête
+      }
+      return p;
+    });
+    return { beat, phi, pts };
   }
+  // Repère de la tête : on tourne le monde de −yaw (boussole ou glisser)
+  const toHead = ([x, y, z]) => { const a = -ORB.yaw; return [x * Math.cos(a) - z * Math.sin(a), y, x * Math.sin(a) + z * Math.cos(a)]; };
   function orbApply(w = orbWorld()) {
     if (!ORB.nodes || !FX.ctx) return;
-    const t = FX.ctx.currentTime, l = FX.ctx.listener, fx = Math.sin(ORB.yaw), fz = -Math.cos(ORB.yaw);
+    const t = FX.ctx.currentTime, A = .0875, C = 343;          // rayon de tête moyen et vitesse du son
     ORB.nodes.forEach((n, i) => {
-      const [x, z] = w.pts[i], p = n.p;
-      if (p.positionX) { setP(p.positionX, x, t); setP(p.positionY, 0, t); setP(p.positionZ, z, t); } else p.setPosition(x, 0, z);
+      const [x, y, z] = toHead(w.pts[i]), d = Math.max(.3, Math.hypot(x, y, z)), p = n.p;
+      if (p.positionX) { setP(p.positionX, x, t); setP(p.positionY, y, t); setP(p.positionZ, z, t); } else p.setPosition(x, y, z);
+      const az = Math.atan2(x, -z), lat = Math.asin(Math.max(-1, Math.min(1, Math.sin(az) * Math.cos(Math.atan2(y, Math.hypot(x, z)))))), s = Math.abs(lat);
+      const sl = Math.abs(Math.sin(lat)), back = Math.max(0, Math.cos(az) < 0 ? -Math.cos(az) : 0), dist = Math.min(1.5, 1 / Math.max(d, .6));
+      const itd = A / C * (s + Math.sin(s));                     // formule de Woodworth
+      const near = lat >= 0 ? 1 : 0;                             // oreille droite proche si le son est à droite
+      n.ears.forEach((e, ch) => {
+        const far = ch !== near;
+        setP(e.d.delayTime, far ? itd : 0, t, .02);
+        setP(e.sh.frequency, far ? 19000 * Math.pow(1 - .88 * sl, 1.6) + 900 : 20000, t);
+        setP(e.gn.gain, (far ? 1 - .8 * sl : 1 + .2 * sl) * dist * (1 - .25 * back), t);
+      });
+      setP(n.rear.frequency, Math.min(20000, 20000 - 15500 * Math.pow(back, 1.3) + (y > .3 ? 2500 : 0)), t);   // derrière toi : le son s'assourdit
       setP(n.mute.gain, ORB.mute[i] ? 0 : 1, t);
+      setP(n.hrtf.gain, 1 - ORB.inten, t, .1); setP(n.ex.gain, ORB.inten, t, .1);
     });
-    if (l.forwardX) { setP(l.forwardX, fx, t); setP(l.forwardY, 0, t); setP(l.forwardZ, fz, t); l.upX.value = 0; l.upY.value = 1; l.upZ.value = 0; }
-    else if (l.setOrientation) l.setOrientation(fx, 0, fz, 0, 1, 0);
+    if (ORB.send) setP(ORB.send.gain, ORB.room * .9, t, .1);
+    const l = FX.ctx.listener;                                   // l'auditeur regarde toujours devant lui (le monde a déjà été tourné)
+    if (l.forwardX) { l.forwardX.value = 0; l.forwardY.value = 0; l.forwardZ.value = -1; l.upX.value = 0; l.upY.value = 1; l.upZ.value = 0; }
+    else if (l.setOrientation) l.setOrientation(0, 0, -1, 0, 1, 0);
   }
   function orbSet(on) {
     if (on) {
@@ -1162,6 +1218,7 @@
       const n = FX.ctx.currentTime; ORB.on = true; orbApply();
       FX.orbWet.gain.setTargetAtTime(1, n, .15); FX.orbDry.gain.setTargetAtTime(0, n, .15);
       if (!orbBpm()) later(t, () => ensureAnalysis(t), 1500);
+      if (!store.get("orbTip", false) && isIOS) { store.set("orbTip", true); setTimeout(() => toast("AirPods : coupe « Audio spatial » dans le Centre de contrôle pour entendre Orbite à 100 %"), 900); }
     } else {
       ORB.on = false;
       if (FX.ctx && FX.orbWet) { const n = FX.ctx.currentTime; FX.orbWet.gain.setTargetAtTime(0, n, .12); FX.orbDry.gain.setTargetAtTime(1, n, .12); }
@@ -1171,8 +1228,8 @@
   }
   function orbPreset(k) {
     const pr = ORB_PRESETS[k]; if (!pr) return;
-    ORB.preset = k; ORB.pos = pr.p.map(p => p.slice()); ORB.mute = (pr.mute || [0, 0, 0, 0]).slice();
-    orbSave(); orbApply(); orbPaint();
+    ORB.preset = k; ORB.pos = pr.p.map(p => p.slice()); ORB.mute = (pr.mute || [0, 0, 0, 0]).slice(); ORB.motion = pr.m;
+    ORB.trail = [[], [], [], []]; orbSave(); orbApply(); orbPaint();
     if (!ORB.on) orbSet(true);
   }
   // Boussole : le téléphone devient ta tête. Tourne-toi, la scène reste ancrée dans la pièce.
@@ -1192,22 +1249,35 @@
   }
   function orbShare() {
     const t = current(); if (!t) return toast("Lance d'abord une chanson");
-    const code = b64.enc({ p: ORB.pos.map(([x, z]) => [Math.round(x * 10) / 10, Math.round(z * 10) / 10]), m: ORB.mute, o: ORB.orbit ? ORB.beats : 0 });
+    const r1 = v => Math.round(v * 10) / 10;
+    const code = b64.enc({ v: 2, p: ORB.pos.map(p => p.map(r1)), m: ORB.mute, mo: ORB.motion, b: ORB.beats, i: r1(ORB.inten), r: r1(ORB.room) });
     const url = `${location.origin}${location.pathname}?t=${encodeURIComponent(t.id)}&o=${code}#orbite`;
-    const txt = `Écoute « ${t.title} » sculpté en 3D dans DOZE Orbite 🎧`;
+    const txt = `Écoute « ${t.title} » en voyage 3D autour de ta tête, dans DOZE Orbite 🎧`;
     if (navigator.share) navigator.share({ title: "DOZE Orbite", text: txt, url }).catch(() => {});
     else navigator.clipboard.writeText(url).then(() => toast("Lien copié : ta version 3D de ce titre"), () => prompt("Copie ce lien", url));
   }
   function orbLoadShared(code) {
     const o = b64.dec(code || ""); if (!o || !Array.isArray(o.p) || o.p.length !== 4) return false;
-    ORB.pos = o.p.map(([x, z]) => [Math.max(-5, Math.min(5, +x || 0)), Math.max(-5, Math.min(5, +z || 0))]);
+    const cl = v => Math.max(-5, Math.min(5, +v || 0));
+    ORB.pos = o.p.map(q => q.length === 3 ? q.map(cl) : [cl(q[0]), 0, cl(q[1])]);
     ORB.mute = Array.isArray(o.m) ? o.m.map(v => v ? 1 : 0).slice(0, 4) : [0, 0, 0, 0];
-    ORB.orbit = !!o.o; if (o.o) ORB.beats = [4, 8, 16].includes(+o.o) ? +o.o : 8; ORB.preset = "partage";
+    ORB.motion = ORB_MOTIONS[o.mo] ? o.mo : o.o ? "cercle" : "aucun";
+    ORB.beats = [2, 4, 8, 16].includes(+(o.b || o.o)) ? +(o.b || o.o) : 8;
+    if (o.i != null) ORB.inten = Math.max(0, Math.min(1, +o.i)); if (o.r != null) ORB.room = Math.max(0, Math.min(1, +o.r));
+    ORB.preset = "partage";
     return true;
   }
 
-  // ----- Rendu de la scène (canvas 2D, vue de dessus, Retina, 60 i/s) -----
-  const ORB_R = 5;                                   // rayon affiché : 5 mètres
+  // ----- Scène en perspective 3D : caméra derrière et au-dessus de ta tête -----
+  const ORB_R = 3, CAM_T = .82, CAM_D = 6, CAM_P = Math.sin(CAM_T) * .5;
+  const camK = z => CAM_D / (CAM_D - z * CAM_P);      // perspective : ce qui est devant toi s'éloigne
+  function orbProj([x, y, z], cx, cy, s) { const k = camK(z); return [cx + x * s * k, cy + (z * Math.cos(CAM_T) - y * Math.sin(CAM_T) * 1.15) * s * k, k]; }
+  function orbUnproj(X, Y, cx, cy, s) {                                      // inverse exacte sur le sol (y = 0)
+    const u = (Y - cy) / (s * Math.cos(CAM_T)), z = u * CAM_D / (CAM_D + u * CAM_P);
+    return [(X - cx) / (s * camK(z)), 0, z];
+  }
+  const where = ([x, , z]) => { const a = Math.atan2(x, -z) * 180 / Math.PI, A = Math.abs(a);
+    return A < 25 ? "devant toi" : A > 155 ? "derrière toi" : A < 70 ? `devant à ${a > 0 ? "droite" : "gauche"}` : A <= 110 ? `à ta ${a > 0 ? "droite" : "gauche"}` : `derrière à ${a > 0 ? "droite" : "gauche"}`; };
   function orbLevels() {
     if (!ORB.nodes || !ORB.on) { ORB.lv = ORB.lv.map(v => v * .9); return; }
     ORB.nodes.forEach((n, i) => {
@@ -1223,58 +1293,70 @@
     const dpr = Math.min(2, devicePixelRatio || 1), W = cv.clientWidth, H = cv.clientHeight;
     if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
     const x = cv.getContext("2d"); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
-    const cx = W / 2, cy = H / 2, sc = Math.min(W, H) / 2 / ORB_R * .92, w = orbWorld();
+    const cx = W / 2, cy = H * .5, sc = Math.min(W, H) / 2 / ORB_R * .88, w = orbWorld();
     if (ORB.on) orbApply(w);
     orbLevels();
-    const beatPh = w.beat % 1, pulse = ORB.on && !audio.paused && orbBpm() ? Math.pow(1 - beatPh, 3) : 0;
-    // anneaux de distance + onde de battement
-    x.lineWidth = 1;
-    for (const [r, lab] of [[1, "1 m"], [2.5, "2,5 m"], [5, "5 m"]]) {
-      x.beginPath(); x.arc(cx, cy, r * sc, 0, 7); x.setLineDash(r === 5 ? [] : [3, 6]);
-      x.strokeStyle = `rgba(218,154,104,${r === 5 ? .35 : .22})`; x.stroke();
-      x.setLineDash([]); x.fillStyle = "rgba(255,255,255,.35)"; x.font = "600 10px Montserrat, system-ui"; x.fillText(lab, cx + 4, cy - r * sc + 12);
-    }
-    if (pulse > .01) { x.beginPath(); x.arc(cx, cy, (1 - pulse) * ORB_R * sc, 0, 7); x.strokeStyle = `rgba(246,207,169,${pulse * .5})`; x.lineWidth = 2; x.stroke(); }
-    // trajectoire de l'orbite
-    if (ORB.orbit) for (let i = 2; i < 4; i++) { const r = Math.hypot(...ORB.pos[i]); x.beginPath(); x.arc(cx, cy, r * sc, 0, 7); x.strokeStyle = ORB_SRC[i].c + "33"; x.lineWidth = 6; x.stroke(); }
-    // l'auditeur : une tête qui regarde vers le haut de l'écran (ou là où pointe la boussole)
-    x.save(); x.translate(cx, cy); x.rotate(ORB.yaw);
-    const hg = x.createRadialGradient(0, 0, 4, 0, 0, 26); hg.addColorStop(0, "#2a2f3d"); hg.addColorStop(1, "#11141c");
-    x.fillStyle = hg; x.strokeStyle = "rgba(255,255,255,.55)"; x.lineWidth = 1.5;
-    x.beginPath(); x.ellipse(0, 0, 15, 17, 0, 0, 7); x.fill(); x.stroke();
-    x.beginPath(); x.moveTo(-5, -16); x.lineTo(0, -24); x.lineTo(5, -16); x.fillStyle = "rgba(255,255,255,.7)"; x.fill();
-    x.fillStyle = "#DA9A68"; x.beginPath(); x.ellipse(-16, 0, 3.5, 6, 0, 0, 7); x.ellipse(16, 0, 3.5, 6, 0, 0, 7); x.fill();
-    x.restore();
-    // les objets sonores
-    w.pts.forEach(([px, pz], i) => {
-      const s = ORB_SRC[i], X = cx + px * sc, Y = cy + pz * sc, lv = ORB.lv[i], m = ORB.mute[i];
-      const r = 13 + lv * 15 + (ORB.drag && ORB.drag.i === i ? 4 : 0);
+    const playing = ORB.on && !audio.paused, pulse = playing ? Math.pow(1 - (w.beat % 1), 3) : 0;
+    // sol : anneaux en perspective
+    const ring = (r, style, lw, dash = []) => { x.beginPath(); for (let k = 0; k <= 64; k++) { const a = k / 64 * 2 * Math.PI, [X, Y] = orbProj([r * Math.cos(a), 0, r * Math.sin(a)], cx, cy, sc); k ? x.lineTo(X, Y) : x.moveTo(X, Y); } x.setLineDash(dash); x.strokeStyle = style; x.lineWidth = lw; x.stroke(); x.setLineDash([]); };
+    ring(3, "rgba(218,154,104,.4)", 1.2); ring(2, "rgba(218,154,104,.24)", 1, [3, 6]); ring(1, "rgba(218,154,104,.24)", 1, [3, 6]);
+    if (pulse > .01) ring((1 - pulse) * ORB_R, `rgba(169,192,245,${pulse * .55})`, 2.5);
+    const front = orbProj([0, 0, -3], cx, cy, sc);
+    x.fillStyle = "rgba(255,255,255,.4)"; x.font = "700 10px Montserrat, system-ui"; x.textAlign = "center"; x.fillText("DEVANT", front[0], front[1] - 6);
+    const backP = orbProj([0, 0, 3], cx, cy, sc); x.fillText("DERRIÈRE", backP[0], Math.min(H - 6, backP[1] + 14));
+    // objets : position dans le repère de la tête, triés du plus loin au plus proche
+    const items = w.pts.map((p, i) => { const hp = toHead(p), [X, Y, k] = orbProj(hp, cx, cy, sc); return { i, hp, X, Y, k }; });
+    items.forEach(o => { const tr = ORB.trail[o.i]; if (ORB.on && ORB.motion !== "aucun") { tr.push([o.X, o.Y]); if (tr.length > 46) tr.shift(); } else tr.length = 0; });
+    const head = { i: -1, k: camK(0), X: cx, Y: cy };
+    [...items, head].sort((a, b) => a.k - b.k).forEach(o => {
+      if (o.i < 0) {          // la tête de l'auditeur, vue de derrière
+        x.save(); x.translate(cx, cy - 18 * o.k);
+        const hg = x.createRadialGradient(-6, -8, 3, 0, 0, 24); hg.addColorStop(0, "#3a4154"); hg.addColorStop(1, "#11141c");
+        x.fillStyle = hg; x.strokeStyle = "rgba(255,255,255,.55)"; x.lineWidth = 1.5;
+        x.beginPath(); x.ellipse(0, 0, 17, 20, 0, 0, 7); x.fill(); x.stroke();
+        x.fillStyle = "#DA9A68"; x.beginPath(); x.ellipse(-18, 2, 4, 7, 0, 0, 7); x.ellipse(18, 2, 4, 7, 0, 0, 7); x.fill();
+        x.strokeStyle = "rgba(246,207,169,.8)"; x.lineWidth = 3; x.beginPath(); x.arc(0, 0, 19, Math.PI * 1.08, Math.PI * 1.92); x.stroke();   // casque
+        x.restore(); return;
+      }
+      const s = ORB_SRC[o.i], lv = ORB.lv[o.i], m = ORB.mute[o.i], tr = ORB.trail[o.i];
+      if (tr.length > 2 && !m) { for (let k = 1; k < tr.length; k++) { x.beginPath(); x.moveTo(...tr[k - 1]); x.lineTo(...tr[k]); x.strokeStyle = s.c; x.globalAlpha = k / tr.length * .55; x.lineWidth = 1 + 7 * k / tr.length * o.k; x.stroke(); } x.globalAlpha = 1; }
+      // ombre portée au sol : on voit la hauteur quand le son s'envole
+      const [gx, gy] = orbProj([o.hp[0], 0, o.hp[2]], cx, cy, sc);
+      x.fillStyle = "rgba(0,0,0,.35)"; x.beginPath(); x.ellipse(gx, gy, 14 * o.k, 5 * o.k, 0, 0, 7); x.fill();
+      const r = (12 + lv * 16) * o.k * (ORB.drag && ORB.drag.i === o.i ? 1.2 : 1);
       x.globalAlpha = m ? .35 : 1;
-      if (!m) { x.shadowColor = s.c; x.shadowBlur = 18 + lv * 30; }
-      const gr = x.createRadialGradient(X - r * .35, Y - r * .35, 2, X, Y, r); gr.addColorStop(0, "#fff"); gr.addColorStop(.25, s.c); gr.addColorStop(1, s.c + "55");
-      x.fillStyle = gr; x.beginPath(); x.arc(X, Y, r, 0, 7); x.fill(); x.shadowBlur = 0;
-      x.fillStyle = "#fff"; x.font = "700 12px Montserrat, system-ui"; x.textAlign = "center"; x.fillText(s.n + (m ? " · coupé" : ""), X, Y + r + 15); x.textAlign = "start";
+      if (!m) { x.shadowColor = s.c; x.shadowBlur = 16 + lv * 34; }
+      const gr = x.createRadialGradient(o.X - r * .35, o.Y - r * .35, 2, o.X, o.Y, r); gr.addColorStop(0, "#fff"); gr.addColorStop(.25, s.c); gr.addColorStop(1, s.c + "55");
+      x.fillStyle = gr; x.beginPath(); x.arc(o.X, o.Y, r, 0, 7); x.fill(); x.shadowBlur = 0;
+      x.fillStyle = "#fff"; x.font = `700 ${Math.round(11 * Math.max(.85, o.k))}px Montserrat, system-ui`; x.fillText(s.n + (m ? " · coupé" : ""), o.X, o.Y + r + 14);
       x.globalAlpha = 1;
     });
+    x.textAlign = "start";
+    // où est la voix ? (texte en direct, 4 fois par seconde)
+    const now = performance.now();
+    if (now - ORB.lastTxt > 250) { ORB.lastTxt = now; const el = $("orb-where"); if (el) el.textContent = ORB.on ? `🎤 La voix est ${where(items[0].hp)}${items[0].hp[1] > .5 ? ", au-dessus de toi" : ""}` : "Allume Orbite pour faire voyager le son"; }
   }
   function orbBindStage() {
     const cv = $("orb-canvas"); if (!cv) return;
-    const toWorld = e => { const b = cv.getBoundingClientRect(), sc = Math.min(b.width, b.height) / 2 / ORB_R * .92; return [(e.clientX - b.left - b.width / 2) / sc, (e.clientY - b.top - b.height / 2) / sc]; };
+    const geo = () => { const b = cv.getBoundingClientRect(); return { b, cx: b.width / 2, cy: b.height * .5, s: Math.min(b.width, b.height) / 2 / ORB_R * .88 }; };
     cv.onpointerdown = e => {
-      const [wx, wz] = toWorld(e), w = orbWorld(), b = cv.getBoundingClientRect(), sc = Math.min(b.width, b.height) / 2 / ORB_R * .92;
-      let best = -1, bd = 34 / sc;
-      w.pts.forEach(([px, pz], i) => { const d = Math.hypot(px - wx, pz - wz); if (d < bd) { bd = d; best = i; } });
+      const { b, cx, cy, s } = geo(), X = e.clientX - b.left, Y = e.clientY - b.top, w = orbWorld();
+      let best = -1, bd = 30;
+      w.pts.forEach((p, i) => { const [px, py] = orbProj(toHead(p), cx, cy, s), d = Math.hypot(px - X, py - Y); if (d < bd) { bd = d; best = i; } });
       ORB.drag = best >= 0 ? { i: best, t0: performance.now(), moved: false } : { yaw: ORB.yaw, x0: e.clientX };
       cv.setPointerCapture(e.pointerId);
     };
     cv.onpointermove = e => {
       const d = ORB.drag; if (!d) return;
-      if (d.i == null) { if (!ORB.gyro) ORB.yaw = d.yaw + (e.clientX - d.x0) / 90; return; }
-      let [wx, wz] = toWorld(e); const r = Math.hypot(wx, wz);
-      if (r > ORB_R) { wx *= ORB_R / r; wz *= ORB_R / r; }
-      if (r < .35) { const k = .35 / Math.max(r, .01); wx *= k; wz *= k; }               // jamais à l'intérieur de la tête
-      const phi = d.i >= 2 ? orbWorld().phi : 0;                                          // en orbite : on place la base
-      ORB.pos[d.i] = [wx * Math.cos(-phi) - wz * Math.sin(-phi), wx * Math.sin(-phi) + wz * Math.cos(-phi)];
+      if (d.i == null) { if (!ORB.gyro) ORB.yaw = d.yaw - (e.clientX - d.x0) / 90; return; }
+      const { b, cx, cy, s } = geo();
+      let [hx, , hz] = orbUnproj(e.clientX - b.left, e.clientY - b.top, cx, cy, s);
+      const r = Math.hypot(hx, hz);
+      if (r > ORB_R) { hx *= ORB_R / r; hz *= ORB_R / r; }
+      if (r < .35) { const k = .35 / Math.max(r, .01); hx *= k; hz *= k; }               // jamais à l'intérieur de la tête
+      const a = ORB.yaw, wx = hx * Math.cos(a) - hz * Math.sin(a), wz = hx * Math.sin(a) + hz * Math.cos(a);   // repère tête → pièce
+      ORB.pos[d.i] = [wx, ORB.pos[d.i][1] || 0, wz];
+      if (ORB.motion !== "aucun") { ORB.motion = "aucun"; orbPaint(); }                  // on reprend la main : le voyage s'arrête
       d.moved = true; ORB.preset = "perso";
       if (!ORB.on) orbSet(true);
     };
@@ -1289,47 +1371,60 @@
     const t = current(), ok = t && orbOk(), bpm = orbBpm();
     p.querySelector("[data-orb-power]").checked = ORB.on;
     p.querySelectorAll("[data-orb-preset]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.orbPreset === ORB.preset)));
+    p.querySelectorAll("[data-orb-motion]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.orbMotion === ORB.motion)));
     p.querySelectorAll("[data-orb-mute]").forEach(b => b.setAttribute("aria-pressed", String(!ORB.mute[+b.dataset.orbMute])));
-    p.querySelector("[data-orb-orbit]").checked = ORB.orbit;
     p.querySelector("[data-orb-beats]").value = String(ORB.beats);
+    p.querySelector("[data-orb-inten]").value = String(Math.round(ORB.inten * 100));
+    p.querySelector("[data-orb-room]").value = String(Math.round(ORB.room * 100));
     p.querySelector("[data-orb-gyro]").setAttribute("aria-pressed", String(ORB.gyro));
     $("orb-now").innerHTML = t ? `${imgTag(t, "orb-cover")}<span><b>${esc(t.title)}</b><small>${esc(t.artist)}${bpm ? ` · ${bpm} BPM` : ""}</small></span><button class="ic ic-play" type="button" data-orb-play aria-label="${audio.paused ? "Lecture" : "Pause"}">${audio.paused ? playIcon : '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>'}</button>`
       : `<span><b>Aucun titre en cours</b><small>Choisis une chanson : elle s'ouvrira dans Orbite</small></span><button class="btn btn-gold" type="button" data-orb-pick>Choisir pour moi</button>`;
     $("orb-warn").hidden = !t || ok;
-    $("orb-state").textContent = !ORB.on ? "Éteint : tu entends le mixage d'origine" : ORB.orbit ? `En orbite : un tour toutes les ${ORB.beats} temps${bpm ? "" : " (tempo en cours d'analyse)"}` : "Actif : déplace les sphères";
+    const sec = bpm ? Math.round(ORB.beats * 60 / bpm * 10) / 10 : null;
+    $("orb-state").textContent = !ORB.on ? "Éteint : tu entends le mixage d'origine" : ORB.motion === "aucun" ? "Actif : glisse les sphères où tu veux" : `${ORB_MOTIONS[ORB.motion]} : un tour toutes les ${ORB.beats} temps${sec ? ` (${String(sec).replace(".", ",")} s)` : ""}`;
+    $("orb-start").hidden = ORB.on;
   }
   function orbMount() {
     orbBindStage(); orbPaint();
     if (!ORB.raf) ORB.raf = requestAnimationFrame(orbDraw);
   }
   function orbView() {
-    const presets = Object.entries(ORB_PRESETS).map(([k, p]) => `<button class="orb-chip" type="button" data-orb-preset="${k}" aria-pressed="false" title="${esc(p.d)}"><b>${p.n}</b><small>${p.d}</small></button>`).join("");
+    const presets = Object.entries(ORB_PRESETS).map(([k, p]) => `<button class="orb-chip" type="button" data-orb-preset="${k}" aria-pressed="false"><b>${p.n}</b><small>${p.d}</small></button>`).join("");
+    const motions = Object.entries(ORB_MOTIONS).map(([k, n]) => `<button class="orb-mo" type="button" data-orb-motion="${k}" aria-pressed="false">${n}</button>`).join("");
     const mutes = ORB_SRC.map((s, i) => `<button class="orb-src" type="button" data-orb-mute="${i}" aria-pressed="true" style="--c:${s.c}"><i></i>${s.n}</button>`).join("");
     return mobileBrand + `<section class="orb-hero">
         <span class="orb-kicker">Exclusivité DOZE · laboratoire sonore</span>
         <h1>Orbite</h1>
-        <p>Sculpte le son autour de toi. DOZE démonte n'importe quelle chanson en direct : la <b>voix</b>, les <b>basses</b> et l'<b>ambiance</b> deviennent des sphères que tu places où tu veux dans l'espace, que tu coupes d'un appui, ou que tu fais tourner autour de ta tête au rythme du morceau.</p>
-        <p class="orb-phones">🎧 Mets un casque ou des écouteurs : c'est là que la magie opère.</p>
+        <p>Le son <b>voyage autour de ta tête</b>. DOZE démonte la chanson en direct : la voix, les basses et l'ambiance deviennent des sphères qui tournent autour de toi au rythme du morceau, passent derrière toi, s'envolent au-dessus de ta tête.</p>
+        <p class="orb-phones">🎧 Avec un casque ou des écouteurs.</p>
       </section>
       <div class="orb-grid">
-        <div class="orb-stage"><canvas id="orb-canvas" aria-label="Scène 3D : glisse les sphères autour de la tête"></canvas>
-          <p class="orb-hint">Glisse une sphère pour la déplacer · touche-la pour la couper · glisse le fond pour tourner la tête</p></div>
+        <div class="orb-stage"><canvas id="orb-canvas" aria-label="Scène 3D : la tête au centre, les sphères de son autour"></canvas>
+          <button class="orb-start" id="orb-start" type="button" data-orb-go>▶ Lancer le voyage 3D</button>
+          <p class="orb-where" id="orb-where" aria-live="off"></p>
+          <p class="orb-hint">Glisse une sphère pour la placer · touche-la pour la couper · glisse le fond pour tourner la tête</p></div>
         <aside class="orb-panel" id="orb-panel">
           <div class="orb-now" id="orb-now"></div>
           <p class="orb-warn" id="orb-warn" hidden>Ce titre est lu par le lecteur SoundCloud ou YouTube : Orbite fonctionne avec les titres publiés sur DOZE et Suno.</p>
           <label class="set-row orb-power"><span><b>Orbite</b><small id="orb-state"></small></span><input type="checkbox" class="switch" data-orb-power></label>
-          <h3>Scènes</h3><div class="orb-chips">${presets}</div>
+          <h3>Voyages et scènes</h3><div class="orb-chips">${presets}</div>
+          <h3>Mouvement automatique</h3><div class="orb-mos">${motions}</div>
+          <label class="set-row"><span><b>Vitesse</b><small>Un tour complet tous les…</small></span><select data-orb-beats class="orb-sel"><option value="2">2 temps (très rapide)</option><option value="4">4 temps (rapide)</option><option value="8">8 temps</option><option value="16">16 temps (lent)</option></select></label>
+          <label class="set-row col"><span><b>Intensité de l'effet 3D</b><small>Vers la droite : mouvement plus marqué d'une oreille à l'autre</small></span><input type="range" min="0" max="100" step="5" data-orb-inten class="orb-range"></label>
+          <label class="set-row col"><span><b>Espace</b><small>Une salle autour de toi : le son sort de ta tête</small></span><input type="range" min="0" max="100" step="5" data-orb-room class="orb-range"></label>
           <h3>Les éléments du son</h3><div class="orb-srcs">${mutes}</div>
-          <label class="set-row"><span><b>Mettre en orbite</b><small>L'ambiance tourne autour de toi, calée sur le tempo</small></span><input type="checkbox" class="switch" data-orb-orbit></label>
-          <label class="set-row"><span><b>Un tour tous les</b></span><select data-orb-beats class="orb-sel"><option value="4">4 temps</option><option value="8">8 temps</option><option value="16">16 temps</option></select></label>
           <div class="orb-actions">
             <button class="btn" type="button" data-orb-gyro aria-pressed="false">🧭 Boussole</button>
             <button class="btn btn-gold" type="button" data-orb-share>Partager ma version 3D</button>
           </div>
+          <details class="orb-how" ${isIOS ? "open" : ""}><summary>🎧 AirPods et écouteurs Apple : le bon réglage</summary>
+            <p>Orbite calcule déjà lui-même le son 3D. Sur iPhone, coupe l'audio spatial d'Apple pour qu'il ne se superpose pas : <b>Centre de contrôle › appui long sur le volume › Audio spatial › Désactivé</b> (ou « Spatialiser la stéréo › Désactivé »). Avec des EarPods filaires, rien à régler.</p>
+            <p>Mets les deux écouteurs, monte un peu le volume, puis lance « Voyage 8D » : la voix part devant, passe à ta droite, derrière toi, puis à ta gauche.</p>
+          </details>
           <details class="orb-how"><summary>Comment ça marche ?</summary>
-            <p>Une chanson stéréo contient deux signaux : gauche et droite. Leur <b>somme</b> donne le centre (la voix, la basse, la caisse claire), leur <b>différence</b> donne tout ce qui est étalé (guitares, chœurs, réverbération).</p>
-            <p>Un filtre à 150 Hz sépare ensuite les basses de la voix sans abîmer le son. Chaque élément passe enfin dans un moteur de son 3D qui reproduit la façon dont ta tête et tes oreilles filtrent un son selon sa direction : ton cerveau le situe devant, derrière, à côté.</p>
-            <p>Tout se calcule en direct sur ton téléphone, sans intelligence artificielle ni serveur, sur n'importe quel titre de DOZE.</p>
+            <p>Leur <b>somme</b> des deux canaux stéréo donne le centre (la voix), leur <b>différence</b> donne l'ambiance. Un filtre à 150 Hz isole les basses.</p>
+            <p>Pour te faire sentir la direction, Orbite reproduit ce que fait ta tête : le son arrive quelques dixièmes de milliseconde plus tard à l'oreille la plus éloignée, plus faible et plus sourd (l'ombre de la tête), et s'assourdit quand il passe derrière toi. Une petite salle virtuelle le place autour de toi plutôt que dans ta tête.</p>
+            <p>Tout se calcule en direct sur ton téléphone, sans serveur, sur n'importe quel titre de DOZE.</p>
           </details>
         </aside>
       </div>`;
@@ -1338,20 +1433,30 @@
   document.addEventListener("change", e => {
     const el = e.target;
     if (el.matches("[data-orb-power]")) orbSet(el.checked);
-    else if (el.matches("[data-orb-orbit]")) { ORB.orbit = el.checked; orbSave(); if (ORB.orbit && !ORB.on) orbSet(true); else orbPaint(); }
     else if (el.matches("[data-orb-beats]")) { ORB.beats = +el.value; orbSave(); orbPaint(); }
   });
+  document.addEventListener("input", e => {
+    const el = e.target;
+    if (el.matches("[data-orb-inten]")) { ORB.inten = el.value / 100; orbSave(); orbApply(); }
+    else if (el.matches("[data-orb-room]")) { ORB.room = el.value / 100; orbSave(); orbApply(); }
+  });
   document.addEventListener("click", e => {
-    const b = e.target.closest("[data-orb-preset],[data-orb-mute],[data-orb-gyro],[data-orb-share],[data-orb-play],[data-orb-pick]"); if (!b) return;
+    const b = e.target.closest("[data-orb-preset],[data-orb-motion],[data-orb-mute],[data-orb-gyro],[data-orb-share],[data-orb-play],[data-orb-pick],[data-orb-go]"); if (!b) return;
     if (b.dataset.orbPreset) orbPreset(b.dataset.orbPreset);
+    else if (b.dataset.orbMotion) { ORB.motion = b.dataset.orbMotion; ORB.preset = "perso"; ORB.trail = [[], [], [], []]; orbSave(); if (!ORB.on) orbSet(true); else orbPaint(); }
     else if (b.dataset.orbMute != null) { const i = +b.dataset.orbMute; ORB.mute[i] ^= 1; ORB.preset = "perso"; orbSave(); if (!ORB.on) orbSet(true); else { orbApply(); orbPaint(); } }
     else if (b.hasAttribute("data-orb-gyro")) orbGyroToggle();
     else if (b.hasAttribute("data-orb-share")) orbShare();
     else if (b.hasAttribute("data-orb-play")) { if (audio.paused) { audio.play().catch(() => {}); if (FX.ctx) FX.ctx.resume().catch(() => {}); } else audio.pause(); }
-    else if (b.hasAttribute("data-orb-pick")) {
-      const list = S.all.filter(t => corsOk(playable(t.audio_url || "")) && !["soundcloud", "youtube"].includes(t.source));
-      if (!list.length) return toast("Aucun titre compatible pour l'instant");
-      startQueue(shuffled(list), 0, true, ["Orbite", "Sculpté en 3D"]); setTimeout(() => { orbSet(true); }, 400);
+    else if (b.hasAttribute("data-orb-pick") || b.hasAttribute("data-orb-go")) {
+      // tout se fait dans le même geste : iPhone n'autorise le son qu'à l'intérieur d'un appui
+      if (!current() || !orbOk()) {
+        const list = S.all.filter(t => corsOk(playable(t.audio_url || "")) && !["soundcloud", "youtube"].includes(t.source));
+        if (!list.length) return toast("Aucun titre compatible pour l'instant");
+        startQueue(shuffled(list), 0, true, ["Orbite", "Voyage 3D"]);
+      } else if (audio.paused) audio.play().catch(() => {});
+      if (ORB.motion === "aucun" && b.hasAttribute("data-orb-go")) { ORB.motion = "cercle"; orbSave(); }
+      orbSet(true);
     }
   });
   audio.addEventListener("play", () => { if ($("orb-panel")) orbPaint(); if (ORB.on && FX.ctx) FX.ctx.resume().catch(() => {}); });
