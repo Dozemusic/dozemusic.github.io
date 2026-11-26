@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "5.9.0";
+  const VERSION = "6.0.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -387,6 +387,7 @@
 
   // ---------- vues ----------
   const views = {
+    orbite() { return orbView(); },
     accueil() {
       if (!S.loaded) return mobileBrand + `<h1 class="greet">${greeting()}</h1><div class="empty">Chargement des créations…</div>`;
       if (S.offlineMode && !S.all.length) return mobileBrand + `<div class="empty">Pas de connexion et aucun titre téléchargé.</div>`;
@@ -414,6 +415,7 @@
           </div>
         </section>
         ${unseen.length ? `<button class="new-banner" type="button" data-play-unseen><span class="nb-dot"></span><span><b>${unseen.length > 1 ? `${unseen.length} nouveaux sons` : "1 nouveau son"} depuis ta dernière visite</b><small>${esc(unseen.slice(0, 3).map(t => t.title).join(" · "))}${unseen.length > 3 ? "…" : ""}</small></span><span class="nb-play">${playIcon} Écouter</span></button>` : ""}
+        <a class="orb-teaser" href="#orbite"><span class="ot-orbs"><i></i><i></i><i></i></span><span><small>Exclusivité DOZE</small><b>Orbite : sculpte le son autour de toi</b><em>Place la voix, les basses et l'ambiance où tu veux, en 3D, sur n'importe quel titre.</em></span><span class="ot-go">Essayer</span></a>
         ${shelf("Nouveaux sons", fr.length ? `${plural(fr.length, "titre")} publié${fr.length > 1 ? "s" : ""} ces ${NEW_DAYS} derniers jours` : "Les dernières créations publiées", (fr.length >= 4 ? fr : newest()).slice(0, 20), "new", `<a class="link" href="#rechercher">Tout voir</a>`, "sec-new")}
         ${shelf("Écoutés récemment", "", recent, "recent")}
         ${trendShelf()}
@@ -637,6 +639,7 @@
     if (v === "publier" && !(sb && S.hasV6 && !S.user)) bindPublish();
     if (v === "compte") { bindAuth(); loadFollows(); }
     if (v === "avis") loadReviews();
+    if (v === "orbite") orbMount();
     if (v === "artiste") loadStats(S.param);
     if (v === "rechercher") { const q = $("q"); q.oninput = e => { clearTimeout(qTimer); qTimer = setTimeout(() => { S.q = e.target.value; const pos = q.selectionStart; render(); const nq = $("q"); nq.focus(); nq.setSelectionRange(pos, pos); }, 250); }; }
   }
@@ -654,7 +657,7 @@
   }
 
   // ---------- navigation ----------
-  const ROUTES = ["accueil", "rechercher", "bibliotheque", "publier", "compte", "avis"];
+  const ROUTES = ["accueil", "rechercher", "bibliotheque", "publier", "compte", "avis", "orbite"];
   function go(view, param) {
     S.view = view; S.param = param ?? null;
     if (ROUTES.includes(view) && location.hash !== "#" + view) location.hash = view;
@@ -1054,7 +1057,10 @@
       FX.bins = new Uint8Array(FX.analyser.frequencyBinCount);
       FX.spec = c.createAnalyser(); FX.spec.fftSize = 4096; FX.spec.smoothingTimeConstant = .82;
       [src, pre, ...FX.filters, bass, pres, air, up].reduce((a, b) => (a.connect(b), b));
-      [merge, level, makeup, lim, FX.gain, FX.analyser, c.destination].reduce((a, b) => (a.connect(b), b));
+      // Point d'insertion d'Orbite : chemin direct (dry) par défaut, scène 3D (wet) construite seulement à l'activation
+      FX.orbIn = c.createGain(); FX.orbDry = c.createGain(); FX.orbWet = c.createGain(); FX.orbOut = c.createGain(); FX.orbWet.gain.value = 0;
+      merge.connect(FX.orbIn); FX.orbIn.connect(FX.orbDry); FX.orbDry.connect(FX.orbOut); FX.orbWet.connect(FX.orbOut);
+      [FX.orbOut, level, makeup, lim, FX.gain, FX.analyser, c.destination].reduce((a, b) => (a.connect(b), b));
       FX.gain.connect(FX.spec);
       FX.knobs = { pre, bass, pres, air, ll, rl, rr, lr, level, makeup };
       return true;
@@ -1070,9 +1076,291 @@
     if (!FX.ctx) return;
     try { FX.ctx.close(); } catch {}
     FX.ctx = null; FX.filters = []; FX.knobs = null; FX.gain = null; FX.analyser = null; FX.spec = null; FX.bins = null;
+    FX.orbIn = FX.orbDry = FX.orbWet = FX.orbOut = null; ORB.nodes = null; ORB.on = false;
     audio.swapElement();
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden && FX.ctx && FX.ctx.state !== "running") FX.ctx.resume().catch(() => {}); });
+
+  // ======================================================================================================
+  //  ORBITE · sculpte le son autour de toi (exclusivité DOZE)
+  //  N'importe quel morceau stéréo est démonté EN DIRECT, dans le navigateur, sans IA ni serveur, en 4 objets sonores :
+  //    mid  = (L+R)/2, coupé à 150 Hz par un filtre de Linkwitz-Riley du 4e ordre (deux Butterworth en cascade :
+  //           les deux moitiés se recomposent à plat, sans creux ni bosse de phase)
+  //           → « Basses » (sous 150 Hz, l'oreille ne les localise pas) et « Voix » (le centre : chant, caisse claire, lead)
+  //    side = (L−R)/2 → « Ambiance G » (+side) et « Ambiance D » (−side) : tout ce que l'ingénieur a étalé en stéréo.
+  //  Placés à leur place d'origine, ils se recombinent : L = mid + side, R = mid − side. Chacun passe ensuite dans un
+  //  PannerNode HRTF (le filtrage réel de la tête et des oreilles) : on le déplace, l'éloigne, le coupe, le fait tourner.
+  //  Le mouvement « Orbite » est calé sur l'horloge du morceau (position × BPM) : il reste en rythme après une pause ou
+  //  un saut, et chaque battement fait pulser la scène.
+  // ======================================================================================================
+  const ORB_SRC = [
+    { k: "voix", n: "Voix", c: "#F6CFA9" }, { k: "basses", n: "Basses", c: "#E0794F" },
+    { k: "gauche", n: "Ambiance G", c: "#A9C0F5" }, { k: "droite", n: "Ambiance D", c: "#9BE3C6" }];
+  const ORB_PRESETS = {
+    origine: { n: "Original", d: "Le mixage tel qu'il a été pensé", p: [[0, -2.6], [0, -1.1], [-2.4, -1.5], [2.4, -1.5]] },
+    scene: { n: "Premier rang", d: "Le chanteur devant toi, le groupe derrière lui", p: [[0, -1], [0, -2.6], [-2.7, -3.2], [2.7, -3.2]] },
+    cabine: { n: "Dans la cabine", d: "La voix contre ton oreille, la musique autour", p: [[0, -.45], [0, .5], [-2.5, 1.9], [2.5, 1.9]] },
+    immersion: { n: "Immersion 360°", d: "Tu es au centre du groupe", p: [[0, -1.3], [0, 0], [-1.8, 1.7], [1.8, 1.7]] },
+    maquis: { n: "Maquis plein air", d: "La sono au loin, l'ambiance tout autour", p: [[0, -4.4], [0, -4], [-4.4, -.8], [4.4, -.8]] },
+    karaoke: { n: "Karaoké", d: "La voix s'efface : à toi de chanter", p: [[0, -2.6], [0, -1.1], [-2.4, -1.5], [2.4, -1.5]], mute: [1, 0, 0, 0] }
+  };
+  const orbSaved = store.get("orb", {});
+  const ORB = { on: false, nodes: null, preset: orbSaved.preset || "origine",
+    pos: Array.isArray(orbSaved.pos) && orbSaved.pos.length === 4 ? orbSaved.pos : ORB_PRESETS.origine.p.map(p => p.slice()),
+    mute: Array.isArray(orbSaved.mute) ? orbSaved.mute : [0, 0, 0, 0], orbit: !!orbSaved.orbit, beats: orbSaved.beats || 8,
+    yaw: 0, gyro: false, gyroRef: null, raf: 0, lv: [0, 0, 0, 0], drag: null, buf: null };
+  const orbSave = () => store.set("orb", { preset: ORB.preset, pos: ORB.pos, mute: ORB.mute, orbit: ORB.orbit, beats: ORB.beats });
+  if (location.hostname === "localhost") window.__doze = { ORB, FX };      // aide aux tests automatiques, uniquement en local
+  const orbOk = () => !audio.isExternal && corsOk(audio.src || "");
+  const orbBpm = () => { const t = current(), a = t && anaCache[t.id]; return a && a.bpm > 40 && a.bpm < 220 ? a.bpm : 0; };
+
+  // Graphe « humide » construit à la demande : tant qu'Orbite est éteint, aucun calcul HRTF ne tourne.
+  function orbBuild() {
+    if (ORB.nodes) return true;
+    if (!FX.ctx || !FX.orbIn) return false;
+    const c = FX.ctx, g = v => { const n = c.createGain(); n.gain.value = v; return n; };
+    const split = c.createChannelSplitter(2), hl = g(.5), hr = g(.5), nr = g(-.5), mid = g(1), side = g(1);
+    FX.orbIn.connect(split); split.connect(hl, 0); split.connect(hr, 1); split.connect(nr, 1);
+    hl.connect(mid); hr.connect(mid); hl.connect(side); nr.connect(side);
+    const lr4 = (type, from) => [0, 1].reduce(prev => { const f = c.createBiquadFilter(); f.type = type; f.frequency.value = 150; f.Q.value = Math.SQRT1_2; prev.connect(f); return f; }, from);
+    const inv = g(-1); side.connect(inv);
+    const outs = [lr4("highpass", mid), lr4("lowpass", mid), side, inv];
+    ORB.nodes = outs.map(o => {
+      const mute = g(1), p = c.createPanner(), an = c.createAnalyser();
+      p.panningModel = "HRTF"; p.distanceModel = "inverse"; p.refDistance = 1.2; p.rolloffFactor = .9; p.maxDistance = 40;
+      an.fftSize = 512; o.connect(mute); mute.connect(p); p.connect(FX.orbWet); mute.connect(an);
+      return { mute, p, an };
+    });
+    ORB.buf = new Float32Array(512);
+    return true;
+  }
+  const setP = (prm, v, t) => prm.setTargetAtTime(v, t, .035);
+  // Position réelle de chaque objet, en mètres : base + rotation « Orbite » calée sur le battement du morceau
+  function orbWorld() {
+    const bpm = orbBpm() || 100, beat = (audio.currentTime || 0) * bpm / 60;
+    const phi = ORB.orbit ? 2 * Math.PI * beat / ORB.beats : 0;
+    return { beat, phi, pts: ORB.pos.map(([x, z], i) => i >= 2 && phi ? [x * Math.cos(phi) - z * Math.sin(phi), x * Math.sin(phi) + z * Math.cos(phi)] : [x, z]) };
+  }
+  function orbApply(w = orbWorld()) {
+    if (!ORB.nodes || !FX.ctx) return;
+    const t = FX.ctx.currentTime, l = FX.ctx.listener, fx = Math.sin(ORB.yaw), fz = -Math.cos(ORB.yaw);
+    ORB.nodes.forEach((n, i) => {
+      const [x, z] = w.pts[i], p = n.p;
+      if (p.positionX) { setP(p.positionX, x, t); setP(p.positionY, 0, t); setP(p.positionZ, z, t); } else p.setPosition(x, 0, z);
+      setP(n.mute.gain, ORB.mute[i] ? 0 : 1, t);
+    });
+    if (l.forwardX) { setP(l.forwardX, fx, t); setP(l.forwardY, 0, t); setP(l.forwardZ, fz, t); l.upX.value = 0; l.upY.value = 1; l.upZ.value = 0; }
+    else if (l.setOrientation) l.setOrientation(fx, 0, fz, 0, 1, 0);
+  }
+  function orbSet(on) {
+    if (on) {
+      const t = current();
+      if (!t) { toast("Lance d'abord une chanson, puis reviens dans Orbite"); return orbPaint(); }
+      if (!orbOk()) { toast("Orbite fonctionne avec les titres publiés sur DOZE et Suno (pas SoundCloud ni YouTube)"); return orbPaint(); }
+      if (!fxGraph() || !orbBuild()) { toast("Ton navigateur ne permet pas Orbite"); return orbPaint(); }
+      FX.ctx.resume().catch(() => {}); applyEq();
+      const n = FX.ctx.currentTime; ORB.on = true; orbApply();
+      FX.orbWet.gain.setTargetAtTime(1, n, .15); FX.orbDry.gain.setTargetAtTime(0, n, .15);
+      if (!orbBpm()) later(t, () => ensureAnalysis(t), 1500);
+    } else {
+      ORB.on = false;
+      if (FX.ctx && FX.orbWet) { const n = FX.ctx.currentTime; FX.orbWet.gain.setTargetAtTime(0, n, .12); FX.orbDry.gain.setTargetAtTime(1, n, .12); }
+      if (!FX.enabled) setTimeout(() => { if (!ORB.on) fxTeardown(); }, 700);   // effets éteints par l'auditeur : on rend le lecteur d'origine
+    }
+    orbPaint();
+  }
+  function orbPreset(k) {
+    const pr = ORB_PRESETS[k]; if (!pr) return;
+    ORB.preset = k; ORB.pos = pr.p.map(p => p.slice()); ORB.mute = (pr.mute || [0, 0, 0, 0]).slice();
+    orbSave(); orbApply(); orbPaint();
+    if (!ORB.on) orbSet(true);
+  }
+  // Boussole : le téléphone devient ta tête. Tourne-toi, la scène reste ancrée dans la pièce.
+  function orbGyro(e) {
+    const h = e.webkitCompassHeading != null ? e.webkitCompassHeading : e.alpha != null ? 360 - e.alpha : null;
+    if (h == null) return;
+    if (ORB.gyroRef == null) ORB.gyroRef = h;
+    ORB.yaw = ((h - ORB.gyroRef + 540) % 360 - 180) * Math.PI / 180;
+  }
+  async function orbGyroToggle() {
+    if (ORB.gyro) { window.removeEventListener("deviceorientation", orbGyro); ORB.gyro = false; ORB.yaw = 0; orbApply(); return orbPaint(); }
+    const D = window.DeviceOrientationEvent;
+    if (!D) return toast("Pas de boussole sur cet appareil : glisse le fond de la scène pour tourner la tête");
+    try { if (typeof D.requestPermission === "function" && (await D.requestPermission()) !== "granted") return toast("Autorise l'accès aux mouvements pour utiliser la boussole"); } catch { return toast("Boussole indisponible"); }
+    ORB.gyroRef = null; ORB.gyro = true; window.addEventListener("deviceorientation", orbGyro); orbPaint();
+    toast("Tiens ton téléphone devant toi et tourne-toi : le son reste à sa place dans la pièce");
+  }
+  function orbShare() {
+    const t = current(); if (!t) return toast("Lance d'abord une chanson");
+    const code = b64.enc({ p: ORB.pos.map(([x, z]) => [Math.round(x * 10) / 10, Math.round(z * 10) / 10]), m: ORB.mute, o: ORB.orbit ? ORB.beats : 0 });
+    const url = `${location.origin}${location.pathname}?t=${encodeURIComponent(t.id)}&o=${code}#orbite`;
+    const txt = `Écoute « ${t.title} » sculpté en 3D dans DOZE Orbite 🎧`;
+    if (navigator.share) navigator.share({ title: "DOZE Orbite", text: txt, url }).catch(() => {});
+    else navigator.clipboard.writeText(url).then(() => toast("Lien copié : ta version 3D de ce titre"), () => prompt("Copie ce lien", url));
+  }
+  function orbLoadShared(code) {
+    const o = b64.dec(code || ""); if (!o || !Array.isArray(o.p) || o.p.length !== 4) return false;
+    ORB.pos = o.p.map(([x, z]) => [Math.max(-5, Math.min(5, +x || 0)), Math.max(-5, Math.min(5, +z || 0))]);
+    ORB.mute = Array.isArray(o.m) ? o.m.map(v => v ? 1 : 0).slice(0, 4) : [0, 0, 0, 0];
+    ORB.orbit = !!o.o; if (o.o) ORB.beats = [4, 8, 16].includes(+o.o) ? +o.o : 8; ORB.preset = "partage";
+    return true;
+  }
+
+  // ----- Rendu de la scène (canvas 2D, vue de dessus, Retina, 60 i/s) -----
+  const ORB_R = 5;                                   // rayon affiché : 5 mètres
+  function orbLevels() {
+    if (!ORB.nodes || !ORB.on) { ORB.lv = ORB.lv.map(v => v * .9); return; }
+    ORB.nodes.forEach((n, i) => {
+      let s = 0;
+      if (n.an.getFloatTimeDomainData) { n.an.getFloatTimeDomainData(ORB.buf); for (let k = 0; k < ORB.buf.length; k++) s += ORB.buf[k] * ORB.buf[k]; s = Math.sqrt(s / ORB.buf.length); }
+      const v = Math.min(1, s * 4.5);
+      ORB.lv[i] = v > ORB.lv[i] ? v : ORB.lv[i] * .86 + v * .14;          // attaque rapide, retombée douce (comme un VU-mètre)
+    });
+  }
+  function orbDraw() {
+    const cv = $("orb-canvas"); if (!cv) { ORB.raf = 0; return; }
+    ORB.raf = requestAnimationFrame(orbDraw);
+    const dpr = Math.min(2, devicePixelRatio || 1), W = cv.clientWidth, H = cv.clientHeight;
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const x = cv.getContext("2d"); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
+    const cx = W / 2, cy = H / 2, sc = Math.min(W, H) / 2 / ORB_R * .92, w = orbWorld();
+    if (ORB.on) orbApply(w);
+    orbLevels();
+    const beatPh = w.beat % 1, pulse = ORB.on && !audio.paused && orbBpm() ? Math.pow(1 - beatPh, 3) : 0;
+    // anneaux de distance + onde de battement
+    x.lineWidth = 1;
+    for (const [r, lab] of [[1, "1 m"], [2.5, "2,5 m"], [5, "5 m"]]) {
+      x.beginPath(); x.arc(cx, cy, r * sc, 0, 7); x.setLineDash(r === 5 ? [] : [3, 6]);
+      x.strokeStyle = `rgba(218,154,104,${r === 5 ? .35 : .22})`; x.stroke();
+      x.setLineDash([]); x.fillStyle = "rgba(255,255,255,.35)"; x.font = "600 10px Montserrat, system-ui"; x.fillText(lab, cx + 4, cy - r * sc + 12);
+    }
+    if (pulse > .01) { x.beginPath(); x.arc(cx, cy, (1 - pulse) * ORB_R * sc, 0, 7); x.strokeStyle = `rgba(246,207,169,${pulse * .5})`; x.lineWidth = 2; x.stroke(); }
+    // trajectoire de l'orbite
+    if (ORB.orbit) for (let i = 2; i < 4; i++) { const r = Math.hypot(...ORB.pos[i]); x.beginPath(); x.arc(cx, cy, r * sc, 0, 7); x.strokeStyle = ORB_SRC[i].c + "33"; x.lineWidth = 6; x.stroke(); }
+    // l'auditeur : une tête qui regarde vers le haut de l'écran (ou là où pointe la boussole)
+    x.save(); x.translate(cx, cy); x.rotate(ORB.yaw);
+    const hg = x.createRadialGradient(0, 0, 4, 0, 0, 26); hg.addColorStop(0, "#2a2f3d"); hg.addColorStop(1, "#11141c");
+    x.fillStyle = hg; x.strokeStyle = "rgba(255,255,255,.55)"; x.lineWidth = 1.5;
+    x.beginPath(); x.ellipse(0, 0, 15, 17, 0, 0, 7); x.fill(); x.stroke();
+    x.beginPath(); x.moveTo(-5, -16); x.lineTo(0, -24); x.lineTo(5, -16); x.fillStyle = "rgba(255,255,255,.7)"; x.fill();
+    x.fillStyle = "#DA9A68"; x.beginPath(); x.ellipse(-16, 0, 3.5, 6, 0, 0, 7); x.ellipse(16, 0, 3.5, 6, 0, 0, 7); x.fill();
+    x.restore();
+    // les objets sonores
+    w.pts.forEach(([px, pz], i) => {
+      const s = ORB_SRC[i], X = cx + px * sc, Y = cy + pz * sc, lv = ORB.lv[i], m = ORB.mute[i];
+      const r = 13 + lv * 15 + (ORB.drag && ORB.drag.i === i ? 4 : 0);
+      x.globalAlpha = m ? .35 : 1;
+      if (!m) { x.shadowColor = s.c; x.shadowBlur = 18 + lv * 30; }
+      const gr = x.createRadialGradient(X - r * .35, Y - r * .35, 2, X, Y, r); gr.addColorStop(0, "#fff"); gr.addColorStop(.25, s.c); gr.addColorStop(1, s.c + "55");
+      x.fillStyle = gr; x.beginPath(); x.arc(X, Y, r, 0, 7); x.fill(); x.shadowBlur = 0;
+      x.fillStyle = "#fff"; x.font = "700 12px Montserrat, system-ui"; x.textAlign = "center"; x.fillText(s.n + (m ? " · coupé" : ""), X, Y + r + 15); x.textAlign = "start";
+      x.globalAlpha = 1;
+    });
+  }
+  function orbBindStage() {
+    const cv = $("orb-canvas"); if (!cv) return;
+    const toWorld = e => { const b = cv.getBoundingClientRect(), sc = Math.min(b.width, b.height) / 2 / ORB_R * .92; return [(e.clientX - b.left - b.width / 2) / sc, (e.clientY - b.top - b.height / 2) / sc]; };
+    cv.onpointerdown = e => {
+      const [wx, wz] = toWorld(e), w = orbWorld(), b = cv.getBoundingClientRect(), sc = Math.min(b.width, b.height) / 2 / ORB_R * .92;
+      let best = -1, bd = 34 / sc;
+      w.pts.forEach(([px, pz], i) => { const d = Math.hypot(px - wx, pz - wz); if (d < bd) { bd = d; best = i; } });
+      ORB.drag = best >= 0 ? { i: best, t0: performance.now(), moved: false } : { yaw: ORB.yaw, x0: e.clientX };
+      cv.setPointerCapture(e.pointerId);
+    };
+    cv.onpointermove = e => {
+      const d = ORB.drag; if (!d) return;
+      if (d.i == null) { if (!ORB.gyro) ORB.yaw = d.yaw + (e.clientX - d.x0) / 90; return; }
+      let [wx, wz] = toWorld(e); const r = Math.hypot(wx, wz);
+      if (r > ORB_R) { wx *= ORB_R / r; wz *= ORB_R / r; }
+      if (r < .35) { const k = .35 / Math.max(r, .01); wx *= k; wz *= k; }               // jamais à l'intérieur de la tête
+      const phi = d.i >= 2 ? orbWorld().phi : 0;                                          // en orbite : on place la base
+      ORB.pos[d.i] = [wx * Math.cos(-phi) - wz * Math.sin(-phi), wx * Math.sin(-phi) + wz * Math.cos(-phi)];
+      d.moved = true; ORB.preset = "perso";
+      if (!ORB.on) orbSet(true);
+    };
+    cv.onpointerup = cv.onpointercancel = () => {
+      const d = ORB.drag; ORB.drag = null; if (!d) return;
+      if (d.i != null && !d.moved && performance.now() - d.t0 < 300) { ORB.mute[d.i] ^= 1; ORB.preset = "perso"; orbApply(); }  // un appui court : couper / rétablir
+      orbSave(); orbPaint();
+    };
+  }
+  function orbPaint() {
+    const p = $("orb-panel"); if (!p) return;
+    const t = current(), ok = t && orbOk(), bpm = orbBpm();
+    p.querySelector("[data-orb-power]").checked = ORB.on;
+    p.querySelectorAll("[data-orb-preset]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.orbPreset === ORB.preset)));
+    p.querySelectorAll("[data-orb-mute]").forEach(b => b.setAttribute("aria-pressed", String(!ORB.mute[+b.dataset.orbMute])));
+    p.querySelector("[data-orb-orbit]").checked = ORB.orbit;
+    p.querySelector("[data-orb-beats]").value = String(ORB.beats);
+    p.querySelector("[data-orb-gyro]").setAttribute("aria-pressed", String(ORB.gyro));
+    $("orb-now").innerHTML = t ? `${imgTag(t, "orb-cover")}<span><b>${esc(t.title)}</b><small>${esc(t.artist)}${bpm ? ` · ${bpm} BPM` : ""}</small></span><button class="ic ic-play" type="button" data-orb-play aria-label="${audio.paused ? "Lecture" : "Pause"}">${audio.paused ? playIcon : '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>'}</button>`
+      : `<span><b>Aucun titre en cours</b><small>Choisis une chanson : elle s'ouvrira dans Orbite</small></span><button class="btn btn-gold" type="button" data-orb-pick>Choisir pour moi</button>`;
+    $("orb-warn").hidden = !t || ok;
+    $("orb-state").textContent = !ORB.on ? "Éteint : tu entends le mixage d'origine" : ORB.orbit ? `En orbite : un tour toutes les ${ORB.beats} temps${bpm ? "" : " (tempo en cours d'analyse)"}` : "Actif : déplace les sphères";
+  }
+  function orbMount() {
+    orbBindStage(); orbPaint();
+    if (!ORB.raf) ORB.raf = requestAnimationFrame(orbDraw);
+  }
+  function orbView() {
+    const presets = Object.entries(ORB_PRESETS).map(([k, p]) => `<button class="orb-chip" type="button" data-orb-preset="${k}" aria-pressed="false" title="${esc(p.d)}"><b>${p.n}</b><small>${p.d}</small></button>`).join("");
+    const mutes = ORB_SRC.map((s, i) => `<button class="orb-src" type="button" data-orb-mute="${i}" aria-pressed="true" style="--c:${s.c}"><i></i>${s.n}</button>`).join("");
+    return mobileBrand + `<section class="orb-hero">
+        <span class="orb-kicker">Exclusivité DOZE · laboratoire sonore</span>
+        <h1>Orbite</h1>
+        <p>Sculpte le son autour de toi. DOZE démonte n'importe quelle chanson en direct : la <b>voix</b>, les <b>basses</b> et l'<b>ambiance</b> deviennent des sphères que tu places où tu veux dans l'espace, que tu coupes d'un appui, ou que tu fais tourner autour de ta tête au rythme du morceau.</p>
+        <p class="orb-phones">🎧 Mets un casque ou des écouteurs : c'est là que la magie opère.</p>
+      </section>
+      <div class="orb-grid">
+        <div class="orb-stage"><canvas id="orb-canvas" aria-label="Scène 3D : glisse les sphères autour de la tête"></canvas>
+          <p class="orb-hint">Glisse une sphère pour la déplacer · touche-la pour la couper · glisse le fond pour tourner la tête</p></div>
+        <aside class="orb-panel" id="orb-panel">
+          <div class="orb-now" id="orb-now"></div>
+          <p class="orb-warn" id="orb-warn" hidden>Ce titre est lu par le lecteur SoundCloud ou YouTube : Orbite fonctionne avec les titres publiés sur DOZE et Suno.</p>
+          <label class="set-row orb-power"><span><b>Orbite</b><small id="orb-state"></small></span><input type="checkbox" class="switch" data-orb-power></label>
+          <h3>Scènes</h3><div class="orb-chips">${presets}</div>
+          <h3>Les éléments du son</h3><div class="orb-srcs">${mutes}</div>
+          <label class="set-row"><span><b>Mettre en orbite</b><small>L'ambiance tourne autour de toi, calée sur le tempo</small></span><input type="checkbox" class="switch" data-orb-orbit></label>
+          <label class="set-row"><span><b>Un tour tous les</b></span><select data-orb-beats class="orb-sel"><option value="4">4 temps</option><option value="8">8 temps</option><option value="16">16 temps</option></select></label>
+          <div class="orb-actions">
+            <button class="btn" type="button" data-orb-gyro aria-pressed="false">🧭 Boussole</button>
+            <button class="btn btn-gold" type="button" data-orb-share>Partager ma version 3D</button>
+          </div>
+          <details class="orb-how"><summary>Comment ça marche ?</summary>
+            <p>Une chanson stéréo contient deux signaux : gauche et droite. Leur <b>somme</b> donne le centre (la voix, la basse, la caisse claire), leur <b>différence</b> donne tout ce qui est étalé (guitares, chœurs, réverbération).</p>
+            <p>Un filtre à 150 Hz sépare ensuite les basses de la voix sans abîmer le son. Chaque élément passe enfin dans un moteur de son 3D qui reproduit la façon dont ta tête et tes oreilles filtrent un son selon sa direction : ton cerveau le situe devant, derrière, à côté.</p>
+            <p>Tout se calcule en direct sur ton téléphone, sans intelligence artificielle ni serveur, sur n'importe quel titre de DOZE.</p>
+          </details>
+        </aside>
+      </div>`;
+  }
+  // Commandes de la page Orbite
+  document.addEventListener("change", e => {
+    const el = e.target;
+    if (el.matches("[data-orb-power]")) orbSet(el.checked);
+    else if (el.matches("[data-orb-orbit]")) { ORB.orbit = el.checked; orbSave(); if (ORB.orbit && !ORB.on) orbSet(true); else orbPaint(); }
+    else if (el.matches("[data-orb-beats]")) { ORB.beats = +el.value; orbSave(); orbPaint(); }
+  });
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-orb-preset],[data-orb-mute],[data-orb-gyro],[data-orb-share],[data-orb-play],[data-orb-pick]"); if (!b) return;
+    if (b.dataset.orbPreset) orbPreset(b.dataset.orbPreset);
+    else if (b.dataset.orbMute != null) { const i = +b.dataset.orbMute; ORB.mute[i] ^= 1; ORB.preset = "perso"; orbSave(); if (!ORB.on) orbSet(true); else { orbApply(); orbPaint(); } }
+    else if (b.hasAttribute("data-orb-gyro")) orbGyroToggle();
+    else if (b.hasAttribute("data-orb-share")) orbShare();
+    else if (b.hasAttribute("data-orb-play")) { if (audio.paused) { audio.play().catch(() => {}); if (FX.ctx) FX.ctx.resume().catch(() => {}); } else audio.pause(); }
+    else if (b.hasAttribute("data-orb-pick")) {
+      const list = S.all.filter(t => corsOk(playable(t.audio_url || "")) && !["soundcloud", "youtube"].includes(t.source));
+      if (!list.length) return toast("Aucun titre compatible pour l'instant");
+      startQueue(shuffled(list), 0, true, ["Orbite", "Sculpté en 3D"]); setTimeout(() => { orbSet(true); }, 400);
+    }
+  });
+  audio.addEventListener("play", () => { if ($("orb-panel")) orbPaint(); if (ORB.on && FX.ctx) FX.ctx.resume().catch(() => {}); });
+  audio.addEventListener("pause", () => { if ($("orb-panel")) orbPaint(); });
+  audio.addEventListener("loadedmetadata", () => {
+    if ($("orb-panel")) orbPaint();
+    if (ORB.on && !orbOk()) { orbSet(false); toast("Orbite en pause : ce titre est lu par SoundCloud ou YouTube"); }
+    const t = current(); if (ORB.on && t && !orbBpm()) later(t, () => ensureAnalysis(t), 3000);
+  });
 
   // ----- Style de la chanson : artiste > titre > analyse IA du son -----
   const anaCache = store.get("ana", {});               // { idTitre: analyse } gardée sur l'appareil
@@ -1571,6 +1859,7 @@
   audio.addEventListener("loadedmetadata", () => { if (S.rate) audio.playbackRate = S.rate; });
   $("np-output").onclick = () => openSheet("output");
   $("np-eq").onclick = () => openSheet("eq");
+  $("np-orb").onclick = () => go("orbite");
   $("b-output").onclick = () => openSheet("output");
   $("np-more").onclick = e => { const t = current(); if (t) openMenu(e.currentTarget, t); };
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("sheet-wrap").hidden) { e.stopPropagation(); closeSheet(); } }, true);
@@ -2521,11 +2810,13 @@
     const plId = new URLSearchParams(location.search).get("p");
     if (plId) openList(plId);
     const id = new URLSearchParams(location.search).get("t");
+    const orbCode = new URLSearchParams(location.search).get("o");
+    if (orbCode && orbLoadShared(orbCode)) { orbSave(); go("orbite"); setTimeout(() => toast("Version 3D partagée : appuie sur lecture, puis active Orbite"), 1200); }
     if (id && sb) {
       let t = byId(id);
       if (!t) { const r = await sb.from("tracks").select("id,title,artist,genre,source,suno_id,audio_url,cover_url,plays,likes,created_at").eq("id", id).maybeSingle(); t = r.data; }
       const ded = b64.dec(new URLSearchParams(location.search).get("d") || "");
-      if (t) { startQueue([t, ...S.all.filter(x => x.id !== t.id)], 0, false, ded ? ["Dédicace", "pour " + (ded.to || "toi")] : ["Partagé avec toi", "DOZE"]); openNP(); showDedic(ded); if (ded) S.dedicVoice = true; toast("Appuie sur lecture pour écouter « " + t.title + " »"); }
+      if (t) { startQueue([t, ...S.all.filter(x => x.id !== t.id)], 0, false, ded ? ["Dédicace", "pour " + (ded.to || "toi")] : orbCode ? ["Orbite", "Version 3D partagée"] : ["Partagé avec toi", "DOZE"]); if (!orbCode) openNP(); showDedic(ded); if (ded) S.dedicVoice = true; toast("Appuie sur lecture pour écouter « " + t.title + " »"); }
     }
   })();
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
