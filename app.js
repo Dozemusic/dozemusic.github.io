@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.1.0";
+  const VERSION = "6.2.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1100,21 +1100,21 @@
     { k: "gauche", n: "Ambiance G", c: "#A9C0F5" }, { k: "droite", n: "Ambiance D", c: "#9BE3C6" }];
   // Positions en mètres [x, y, z] : x à droite, y en haut, z vers l'arrière (devant toi = z négatif)
   const ORB_PRESETS = {
-    voyage: { n: "Voyage 8D", d: "Toute la musique tourne autour de ta tête", p: [[0, 0, -1.7], [0, 0, -.35], [-1.5, 0, 1], [1.5, 0, 1]], m: "cercle" },
-    papillon: { n: "Papillon", d: "La voix dessine un 8 autour de toi", p: [[0, 0, -1.6], [0, 0, -.35], [-1.7, 0, .6], [1.7, 0, .6]], m: "huit" },
-    envol: { n: "Envol", d: "Le son tourne et monte au-dessus de ta tête", p: [[0, 0, -1.6], [0, 0, -.35], [-1.5, 0, 1], [1.5, 0, 1]], m: "envol" },
+    voyage: { n: "Voyage 8D", d: "Toute la musique tourne autour de ta tête", p: [[0, 0, -1.6], [0, 0, -1.1], [-.8, 0, -1.4], [.8, 0, -1.4]], m: "cercle" },
+    papillon: { n: "Papillon", d: "La voix dessine un 8 autour de toi", p: [[0, 0, -1.6], [0, 0, -1.1], [-1.2, 0, .6], [1.2, 0, .6]], m: "huit" },
+    envol: { n: "Envol", d: "Le son tourne et monte au-dessus de ta tête", p: [[0, 0, -1.6], [0, 0, -1.1], [-.8, 0, -1.4], [.8, 0, -1.4]], m: "envol" },
     origine: { n: "Original", d: "Le mixage tel qu'il a été pensé", p: [[0, 0, -2.6], [0, 0, -1.1], [-2.4, 0, -1.5], [2.4, 0, -1.5]], m: "aucun" },
     cabine: { n: "Dans la cabine", d: "La voix contre ton oreille, la musique autour", p: [[0, 0, -.5], [0, 0, .5], [-2.5, 0, 1.9], [2.5, 0, 1.9]], m: "aucun" },
     karaoke: { n: "Karaoké", d: "La voix s'efface : à toi de chanter", p: [[0, 0, -2.6], [0, 0, -1.1], [-2.4, 0, -1.5], [2.4, 0, -1.5]], m: "aucun", mute: [1, 0, 0, 0] }
   };
   const ORB_MOTIONS = { aucun: "Immobile", cercle: "Cercle", huit: "En huit", balancier: "Gauche ⇄ droite", spirale: "Spirale", envol: "Envol" };
-  const orbSaved = store.get("orb2", {});
+  const orbSaved = store.get("orb3", {});
   const ORB = { on: false, nodes: null, preset: ORB_PRESETS[orbSaved.preset] || orbSaved.preset === "perso" ? orbSaved.preset : "voyage",
     pos: Array.isArray(orbSaved.pos) && orbSaved.pos.length === 4 && orbSaved.pos[0].length === 3 ? orbSaved.pos : ORB_PRESETS.voyage.p.map(p => p.slice()),
     mute: Array.isArray(orbSaved.mute) ? orbSaved.mute : [0, 0, 0, 0], motion: ORB_MOTIONS[orbSaved.motion] ? orbSaved.motion : "cercle",
-    beats: orbSaved.beats || 8, inten: orbSaved.inten ?? .8, room: orbSaved.room ?? .3,
+    beats: orbSaved.beats || 8, inten: orbSaved.inten ?? .9, room: orbSaved.room ?? .2,
     yaw: 0, gyro: false, gyroRef: null, raf: 0, lv: [0, 0, 0, 0], drag: null, buf: null, trail: [[], [], [], []], lastTxt: 0 };
-  const orbSave = () => store.set("orb2", { preset: ORB.preset, pos: ORB.pos, mute: ORB.mute, motion: ORB.motion, beats: ORB.beats, inten: ORB.inten, room: ORB.room });
+  const orbSave = () => store.set("orb3", { preset: ORB.preset, pos: ORB.pos, mute: ORB.mute, motion: ORB.motion, beats: ORB.beats, inten: ORB.inten, room: ORB.room });
   if (location.hostname === "localhost") window.__doze = { ORB, FX };      // aide aux tests automatiques, uniquement en local
   const orbOk = () => !audio.isExternal && corsOk(audio.src || "");
   const orbBpm = () => { const t = current(), a = t && anaCache[t.id]; return a && a.bpm > 40 && a.bpm < 220 ? a.bpm : 0; };
@@ -1157,17 +1157,19 @@
       merge.connect(ex); ex.connect(sum);
       return { mute, rear, p, hrtf, ex, ears, an };
     });
-    ORB.send = send; ORB.buf = new Float32Array(512);
+    const ms = c.createChannelSplitter(2); ORB.meter = [c.createAnalyser(), c.createAnalyser()];
+    FX.orbWet.connect(ms); ORB.meter.forEach((a, ch) => { a.fftSize = 1024; ms.connect(a, ch); });
+    ORB.send = send; ORB.buf = new Float32Array(512); ORB.mbuf = new Float32Array(1024); ORB.ear = [0, 0];
     return true;
   }
   const setP = (prm, v, t, k = .03) => prm.setTargetAtTime(v, t, k);
-  // Trajectoires : la musique (voix + ambiances) voyage ; les basses, que l'oreille ne localise pas, restent près de toi.
+  // Trajectoires : toute la musique voyage en bloc (voix, basses, ambiances), comme une source unique qui tourne autour de toi.
   function orbWorld() {
     const bpm = orbBpm() || 100, beat = (audio.currentTime || 0) * bpm / 60, m = ORB.motion;
     const phi = m === "aucun" ? 0 : 2 * Math.PI * beat / ORB.beats;
     const rot = ([x, y, z], a) => [x * Math.cos(a) - z * Math.sin(a), y, x * Math.sin(a) + z * Math.cos(a)];
     const pts = ORB.pos.map((p, i) => {
-      if (m === "aucun" || i === 1) return p;
+      if (m === "aucun") return p;
       const r = Math.max(.6, Math.hypot(p[0], p[2]));
       if (m === "cercle") return rot(p, phi);
       if (m === "envol") { const q = rot(p, phi); return [q[0], 1.6 * Math.sin(phi * .5) ** 2, q[2]]; }
@@ -1197,7 +1199,7 @@
         const far = ch !== near;
         setP(e.d.delayTime, far ? itd : 0, t, .02);
         setP(e.sh.frequency, far ? 19000 * Math.pow(1 - .88 * sl, 1.6) + 900 : 20000, t);
-        setP(e.gn.gain, (far ? 1 - .8 * sl : 1 + .2 * sl) * dist * (1 - .25 * back), t);
+        setP(e.gn.gain, (far ? 1 - .92 * sl : 1 + .22 * sl) * dist * (1 - .25 * back), t);
       });
       setP(n.rear.frequency, Math.min(20000, 20000 - 15500 * Math.pow(back, 1.3) + (y > .3 ? 2500 : 0)), t);   // derrière toi : le son s'assourdit
       setP(n.mute.gain, ORB.mute[i] ? 0 : 1, t);
@@ -1268,6 +1270,22 @@
     return true;
   }
 
+  // Test des oreilles : indépendant de la chanson. Si « gauche » s'entend au centre, c'est un réglage de l'iPhone ou des AirPods.
+  let earTest = null;
+  function orbEarTest() {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return toast("Ton navigateur ne permet pas le test");
+    if (earTest) { try { earTest.close(); } catch {} earTest = null; }
+    const c = earTest = new AC(), out = $("orb-test-msg"), was = !audio.paused; if (was) audio.pause();
+    const n = c.createBuffer(1, c.sampleRate * 9, c.sampleRate), d = n.getChannelData(0);
+    for (let i = 0; i < d.length; i++) { const t = i / c.sampleRate, beat = (t * 4) % 1; d[i] = (Math.random() * 2 - 1) * Math.exp(-beat * 9) * .5 + Math.sin(2 * Math.PI * 660 * t) * Math.exp(-beat * 5) * .25; }
+    const src = c.createBufferSource(), pan = c.createStereoPanner ? c.createStereoPanner() : null; src.buffer = n;
+    if (pan) { src.connect(pan); pan.connect(c.destination); } else src.connect(c.destination);
+    const t0 = c.currentTime + .05; src.start(t0);
+    const steps = [[0, -1, "◀ Tu dois l'entendre uniquement à GAUCHE"], [2.2, 1, "Maintenant uniquement à DROITE ▶"], [4.4, null, "Il tourne d'une oreille à l'autre…"]];
+    steps.forEach(([t, v, msg]) => { if (pan && v != null) pan.pan.setValueAtTime(v, t0 + t); setTimeout(() => { if (earTest === c && out) out.textContent = msg; }, t * 1000); });
+    if (pan) for (let k = 0; k <= 46; k++) pan.pan.setValueAtTime(Math.sin(k / 46 * 4 * Math.PI), t0 + 4.4 + k * .1);
+    setTimeout(() => { if (earTest !== c) return; try { c.close(); } catch {} earTest = null; if (out) out.innerHTML = "Tu as bien entendu gauche puis droite ? Alors Orbite marche sur ton appareil. Sinon, vérifie les 3 réglages ci-dessous."; if (was) audio.play().catch(() => {}); }, 9300);
+  }
   // ----- Scène en perspective 3D : caméra derrière et au-dessus de ta tête -----
   const ORB_R = 3, CAM_T = .82, CAM_D = 6, CAM_P = Math.sin(CAM_T) * .5;
   const camK = z => CAM_D / (CAM_D - z * CAM_P);      // perspective : ce qui est devant toi s'éloigne
@@ -1332,6 +1350,9 @@
       x.globalAlpha = 1;
     });
     x.textAlign = "start";
+    // vu-mètres des deux oreilles : la preuve visible que le son passe d'un côté à l'autre
+    if (ORB.meter) ORB.meter.forEach((a, ch) => { let s2 = 0; a.getFloatTimeDomainData(ORB.mbuf); for (let k = 0; k < ORB.mbuf.length; k++) s2 += ORB.mbuf[k] * ORB.mbuf[k]; const v = ORB.on ? Math.min(1, Math.sqrt(s2 / ORB.mbuf.length) * 6) : 0; ORB.ear[ch] = v > ORB.ear[ch] ? v : ORB.ear[ch] * .88 + v * .12; });
+    const eL = $("orb-l"), eR = $("orb-r"); if (eL && ORB.ear) { eL.style.transform = `scaleX(${ORB.ear[0].toFixed(3)})`; eR.style.transform = `scaleX(${ORB.ear[1].toFixed(3)})`; }
     // où est la voix ? (texte en direct, 4 fois par seconde)
     const now = performance.now();
     if (now - ORB.lastTxt > 250) { ORB.lastTxt = now; const el = $("orb-where"); if (el) el.textContent = ORB.on ? `🎤 La voix est ${where(items[0].hp)}${items[0].hp[1] > .5 ? ", au-dessus de toi" : ""}` : "Allume Orbite pour faire voyager le son"; }
@@ -1401,8 +1422,9 @@
       <div class="orb-grid">
         <div class="orb-stage"><canvas id="orb-canvas" aria-label="Scène 3D : la tête au centre, les sphères de son autour"></canvas>
           <button class="orb-start" id="orb-start" type="button" data-orb-go>▶ Lancer le voyage 3D</button>
+          <div class="orb-ears" aria-hidden="true"><b>G</b><span><i id="orb-l"></i></span><span><i id="orb-r"></i></span><b>D</b></div>
           <p class="orb-where" id="orb-where" aria-live="off"></p>
-          <p class="orb-hint">Glisse une sphère pour la placer · touche-la pour la couper · glisse le fond pour tourner la tête</p></div>
+          <p class="orb-hint">Glisse une sphère pour la placer · touche-la pour la couper · glisse le fond pour tourner la tête · moteur Orbite v${VERSION}</p></div>
         <aside class="orb-panel" id="orb-panel">
           <div class="orb-now" id="orb-now"></div>
           <p class="orb-warn" id="orb-warn" hidden>Ce titre est lu par le lecteur SoundCloud ou YouTube : Orbite fonctionne avec les titres publiés sur DOZE et Suno.</p>
@@ -1417,9 +1439,15 @@
             <button class="btn" type="button" data-orb-gyro aria-pressed="false">🧭 Boussole</button>
             <button class="btn btn-gold" type="button" data-orb-share>Partager ma version 3D</button>
           </div>
-          <details class="orb-how" ${isIOS ? "open" : ""}><summary>🎧 AirPods et écouteurs Apple : le bon réglage</summary>
-            <p>Orbite calcule déjà lui-même le son 3D. Sur iPhone, coupe l'audio spatial d'Apple pour qu'il ne se superpose pas : <b>Centre de contrôle › appui long sur le volume › Audio spatial › Désactivé</b> (ou « Spatialiser la stéréo › Désactivé »). Avec des EarPods filaires, rien à régler.</p>
-            <p>Mets les deux écouteurs, monte un peu le volume, puis lance « Voyage 8D » : la voix part devant, passe à ta droite, derrière toi, puis à ta gauche.</p>
+          <div class="orb-diag">
+            <b>Tu ne sens pas l'effet ?</b>
+            <button class="btn" type="button" data-orb-ears>🔊 Test gauche / droite (9 s)</button>
+            <p id="orb-test-msg" class="orb-test-msg">Mets tes deux AirPods et lance le test.</p>
+          </div>
+          <details class="orb-how" open><summary>🎧 AirPods : les 3 réglages qui bloquent la 3D</summary>
+            <p><b>1. Audio spatial désactivé</b> : Centre de contrôle › appui long sur le curseur de volume (avec les AirPods connectés) › touche « Audio spatial » ou « Spatialiser la stéréo » › <b>Désactivé</b>. Sinon l'iPhone remélange le son et efface l'effet d'Orbite.</p>
+            <p><b>2. Audio mono désactivé</b> : Réglages › Accessibilité › Audio et visuel › « Audio mono » doit être <b>éteint</b>, et le curseur « Équilibre » bien <b>au centre</b>.</p>
+            <p><b>3. Les deux écouteurs dans les oreilles</b> (avec un seul AirPod, l'iPhone passe en mono), et l'onglet Orbite indique la version ${VERSION} en bas.</p>
           </details>
           <details class="orb-how"><summary>Comment ça marche ?</summary>
             <p>Leur <b>somme</b> des deux canaux stéréo donne le centre (la voix), leur <b>différence</b> donne l'ambiance. Un filtre à 150 Hz isole les basses.</p>
@@ -1441,11 +1469,12 @@
     else if (el.matches("[data-orb-room]")) { ORB.room = el.value / 100; orbSave(); orbApply(); }
   });
   document.addEventListener("click", e => {
-    const b = e.target.closest("[data-orb-preset],[data-orb-motion],[data-orb-mute],[data-orb-gyro],[data-orb-share],[data-orb-play],[data-orb-pick],[data-orb-go]"); if (!b) return;
+    const b = e.target.closest("[data-orb-preset],[data-orb-motion],[data-orb-mute],[data-orb-gyro],[data-orb-share],[data-orb-play],[data-orb-pick],[data-orb-go],[data-orb-ears]"); if (!b) return;
     if (b.dataset.orbPreset) orbPreset(b.dataset.orbPreset);
     else if (b.dataset.orbMotion) { ORB.motion = b.dataset.orbMotion; ORB.preset = "perso"; ORB.trail = [[], [], [], []]; orbSave(); if (!ORB.on) orbSet(true); else orbPaint(); }
     else if (b.dataset.orbMute != null) { const i = +b.dataset.orbMute; ORB.mute[i] ^= 1; ORB.preset = "perso"; orbSave(); if (!ORB.on) orbSet(true); else { orbApply(); orbPaint(); } }
     else if (b.hasAttribute("data-orb-gyro")) orbGyroToggle();
+    else if (b.hasAttribute("data-orb-ears")) orbEarTest();
     else if (b.hasAttribute("data-orb-share")) orbShare();
     else if (b.hasAttribute("data-orb-play")) { if (audio.paused) { audio.play().catch(() => {}); if (FX.ctx) FX.ctx.resume().catch(() => {}); } else audio.pause(); }
     else if (b.hasAttribute("data-orb-pick") || b.hasAttribute("data-orb-go")) {
