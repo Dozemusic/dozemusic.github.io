@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.2.0";
+  const VERSION = "6.3.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1166,7 +1166,7 @@
   // Trajectoires : toute la musique voyage en bloc (voix, basses, ambiances), comme une source unique qui tourne autour de toi.
   function orbWorld() {
     const bpm = orbBpm() || 100, beat = (audio.currentTime || 0) * bpm / 60, m = ORB.motion;
-    const phi = m === "aucun" ? 0 : 2 * Math.PI * beat / ORB.beats;
+    const phi = m === "aucun" ? 0 : ORB.frozen != null ? ORB.frozen : 2 * Math.PI * beat / ORB.beats + (ORB.phOff || 0);
     const rot = ([x, y, z], a) => [x * Math.cos(a) - z * Math.sin(a), y, x * Math.sin(a) + z * Math.cos(a)];
     const pts = ORB.pos.map((p, i) => {
       if (m === "aucun") return p;
@@ -1182,6 +1182,18 @@
       return p;
     });
     return { beat, phi, pts };
+  }
+  // Angle de rotation appliqué à un objet par le mouvement en cours (pour replacer sa base quand on le déplace en route)
+  function orbAngle(i, phi, m = ORB.motion) {
+    if (m === "cercle" || m === "envol" || m === "spirale") return phi;
+    if (m === "balancier") return (i === 0 ? 1 : i === 2 ? -1 : 1) * 1.45 * Math.sin(phi);
+    if (m === "huit") return i === 0 ? 0 : -phi * .5;
+    return 0;
+  }
+  function orbSpin() {
+    if (ORB.motion === "aucun") { ORB.motion = ORB.lastMotion || "cercle"; ORB.phOff = 0; ORB.trail = [[], [], [], []]; if (!ORB.on) orbSet(true); }
+    else { ORB.lastMotion = ORB.motion; ORB.motion = "aucun"; }
+    ORB.preset = "perso"; orbSave(); orbPaint();
   }
   // Repère de la tête : on tourne le monde de −yaw (boussole ou glisser)
   const toHead = ([x, y, z]) => { const a = -ORB.yaw; return [x * Math.cos(a) - z * Math.sin(a), y, x * Math.sin(a) + z * Math.cos(a)]; };
@@ -1365,6 +1377,7 @@
       let best = -1, bd = 30;
       w.pts.forEach((p, i) => { const [px, py] = orbProj(toHead(p), cx, cy, s), d = Math.hypot(px - X, py - Y); if (d < bd) { bd = d; best = i; } });
       ORB.drag = best >= 0 ? { i: best, t0: performance.now(), moved: false } : { yaw: ORB.yaw, x0: e.clientX };
+      if (best >= 0 && ORB.motion !== "aucun") ORB.frozen = w.phi;                 // on fige le voyage le temps de déplacer la sphère
       cv.setPointerCapture(e.pointerId);
     };
     cv.onpointermove = e => {
@@ -1376,13 +1389,15 @@
       if (r > ORB_R) { hx *= ORB_R / r; hz *= ORB_R / r; }
       if (r < .35) { const k = .35 / Math.max(r, .01); hx *= k; hz *= k; }               // jamais à l'intérieur de la tête
       const a = ORB.yaw, wx = hx * Math.cos(a) - hz * Math.sin(a), wz = hx * Math.sin(a) + hz * Math.cos(a);   // repère tête → pièce
-      ORB.pos[d.i] = [wx, ORB.pos[d.i][1] || 0, wz];
-      if (ORB.motion !== "aucun") { ORB.motion = "aucun"; orbPaint(); }                  // on reprend la main : le voyage s'arrête
+      // la sphère est posée là où tu la lâches, puis repart dans le voyage depuis cet endroit
+      const ph = ORB.frozen != null ? ORB.frozen : 0, a2 = -orbAngle(d.i, ph), k = ORB.motion === "spirale" ? .45 + .75 * (.5 + .5 * Math.sin(ph * .5)) : 1;
+      ORB.pos[d.i] = [(wx * Math.cos(a2) - wz * Math.sin(a2)) / k, ORB.pos[d.i][1] || 0, (wx * Math.sin(a2) + wz * Math.cos(a2)) / k];
       d.moved = true; ORB.preset = "perso";
       if (!ORB.on) orbSet(true);
     };
     cv.onpointerup = cv.onpointercancel = () => {
       const d = ORB.drag; ORB.drag = null; if (!d) return;
+      if (ORB.frozen != null) { const bpm = orbBpm() || 100; ORB.phOff = ORB.frozen - 2 * Math.PI * ((audio.currentTime || 0) * bpm / 60) / ORB.beats; ORB.frozen = null; }   // reprise sans à-coup
       if (d.i != null && !d.moved && performance.now() - d.t0 < 300) { ORB.mute[d.i] ^= 1; ORB.preset = "perso"; orbApply(); }  // un appui court : couper / rétablir
       orbSave(); orbPaint();
     };
@@ -1404,6 +1419,7 @@
     const sec = bpm ? Math.round(ORB.beats * 60 / bpm * 10) / 10 : null;
     $("orb-state").textContent = !ORB.on ? "Éteint : tu entends le mixage d'origine" : ORB.motion === "aucun" ? "Actif : glisse les sphères où tu veux" : `${ORB_MOTIONS[ORB.motion]} : un tour toutes les ${ORB.beats} temps${sec ? ` (${String(sec).replace(".", ",")} s)` : ""}`;
     $("orb-start").hidden = ORB.on;
+    const sp = $("orb-spin"); if (sp) { sp.hidden = !ORB.on; sp.textContent = ORB.motion === "aucun" ? "▶ Faire tourner" : "❚❚ Figer"; sp.setAttribute("aria-pressed", String(ORB.motion !== "aucun")); }
   }
   function orbMount() {
     orbBindStage(); orbPaint();
@@ -1422,6 +1438,7 @@
       <div class="orb-grid">
         <div class="orb-stage"><canvas id="orb-canvas" aria-label="Scène 3D : la tête au centre, les sphères de son autour"></canvas>
           <button class="orb-start" id="orb-start" type="button" data-orb-go>▶ Lancer le voyage 3D</button>
+          <button class="orb-spin" id="orb-spin" type="button" data-orb-spin hidden>❚❚ Figer</button>
           <div class="orb-ears" aria-hidden="true"><b>G</b><span><i id="orb-l"></i></span><span><i id="orb-r"></i></span><b>D</b></div>
           <p class="orb-where" id="orb-where" aria-live="off"></p>
           <p class="orb-hint">Glisse une sphère pour la placer · touche-la pour la couper · glisse le fond pour tourner la tête · moteur Orbite v${VERSION}</p></div>
@@ -1469,12 +1486,13 @@
     else if (el.matches("[data-orb-room]")) { ORB.room = el.value / 100; orbSave(); orbApply(); }
   });
   document.addEventListener("click", e => {
-    const b = e.target.closest("[data-orb-preset],[data-orb-motion],[data-orb-mute],[data-orb-gyro],[data-orb-share],[data-orb-play],[data-orb-pick],[data-orb-go],[data-orb-ears]"); if (!b) return;
+    const b = e.target.closest("[data-orb-preset],[data-orb-motion],[data-orb-mute],[data-orb-gyro],[data-orb-share],[data-orb-play],[data-orb-pick],[data-orb-go],[data-orb-ears],[data-orb-spin]"); if (!b) return;
     if (b.dataset.orbPreset) orbPreset(b.dataset.orbPreset);
-    else if (b.dataset.orbMotion) { ORB.motion = b.dataset.orbMotion; ORB.preset = "perso"; ORB.trail = [[], [], [], []]; orbSave(); if (!ORB.on) orbSet(true); else orbPaint(); }
+    else if (b.dataset.orbMotion) { ORB.motion = b.dataset.orbMotion; ORB.phOff = 0; if (ORB.motion !== "aucun") ORB.lastMotion = ORB.motion; ORB.preset = "perso"; ORB.trail = [[], [], [], []]; orbSave(); if (!ORB.on) orbSet(true); else orbPaint(); }
     else if (b.dataset.orbMute != null) { const i = +b.dataset.orbMute; ORB.mute[i] ^= 1; ORB.preset = "perso"; orbSave(); if (!ORB.on) orbSet(true); else { orbApply(); orbPaint(); } }
     else if (b.hasAttribute("data-orb-gyro")) orbGyroToggle();
     else if (b.hasAttribute("data-orb-ears")) orbEarTest();
+    else if (b.hasAttribute("data-orb-spin")) orbSpin();
     else if (b.hasAttribute("data-orb-share")) orbShare();
     else if (b.hasAttribute("data-orb-play")) { if (audio.paused) { audio.play().catch(() => {}); if (FX.ctx) FX.ctx.resume().catch(() => {}); } else audio.pause(); }
     else if (b.hasAttribute("data-orb-pick") || b.hasAttribute("data-orb-go")) {

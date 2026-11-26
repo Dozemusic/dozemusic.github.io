@@ -831,3 +831,8 @@ html, body, .main, .np { overflow-x: hidden; }
 .orb-diag { display: grid; gap: 8px; margin-top: 14px; padding: 14px; border-radius: 16px; border: 1px dashed rgba(169, 192, 245, .4); background: rgba(169, 192, 245, .06); }
 .orb-diag .btn { justify-content: center; }
 .orb-test-msg { margin: 0; font-weight: 700; color: var(--orb3); min-height: 20px; }
+
+/* ---------- Orbite 6.3.0 : bouton Faire tourner / Figer ---------- */
+.orb-spin { position: absolute; top: 22px; right: 22px; z-index: 2; padding: 11px 16px; border-radius: 999px; cursor: pointer; font: 800 14px/1 var(--display); color: var(--fg); border: 1px solid rgba(169, 192, 245, .5); background: rgba(10, 13, 24, .75); backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(0, 0, 0, .4); }
+.orb-spin[aria-pressed="false"] { color: #0B0E18; border-color: transparent; background: linear-gradient(90deg, var(--orb1), var(--orb2)); animation: orbCall 2s ease-out infinite; }
+@media (max-width: 860px) { .orb-spin { top: 14px; right: 14px; padding: 10px 14px; font-size: 13px; } }
