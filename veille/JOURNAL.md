@@ -10,3 +10,4 @@
 | 2026-11-27 | Retour de Charles : nouveaux sons Suno invisibles | Catalogue rafraîchi automatiquement au retour sur l appli et toutes les 5 min, avec annonce des nouveaux sons | 6.3.1 |
 | 2026-11-27 | Avis App Store NG (YouTube Music, Spotify), Boomplay (analyses d'avis, Trustpilot) ; son : crossfeed bs2b / Bauer / Linkwitz | Confort casque (crossfeed) dans l'égaliseur | 6.4.0 |
 | 2026-11-27 | Travail du robot de la nuit (perdu faute d'accès GitHub) refait par la session principale | Aléatoire DOZE (artistes alternés, sons récents en fin), bouton « Hasard pur » | 6.5.0 |
+| 2026-11-27 | Contrôle de la 6.5.0 publiée par la session principale | Correction : erreur JavaScript à l'ouverture d'un lien admin ou d'un lien de connexion par e-mail (window.history) ; texte du bandeau Aléatoire DOZE qui se coupait en morceaux | 6.5.1 |

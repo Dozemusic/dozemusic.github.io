@@ -841,3 +841,4 @@ html, body, .main, .np { overflow-x: hidden; }
 .np-queue li.q-mode { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: default; padding: 10px 12px; margin-bottom: 6px; border-radius: 12px; font-size: 13px; border: 1px solid rgba(218, 154, 104, .45); background: linear-gradient(90deg, rgba(218, 154, 104, .22), rgba(218, 154, 104, .06)); }
 .np-queue li.q-mode:hover { background: linear-gradient(90deg, rgba(218, 154, 104, .22), rgba(218, 154, 104, .06)); }
 .np-queue li.q-mode button { flex: none; padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(218, 154, 104, .6); background: rgba(0, 0, 0, .25); color: var(--gold); font: 700 12px/1 var(--body); cursor: pointer; }
+.np-queue li.q-mode span { display: block; min-width: 0; line-height: 1.4; }

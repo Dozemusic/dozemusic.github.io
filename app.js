@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.5.0";
+  const VERSION = "6.5.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -2436,7 +2436,7 @@
         if (ev === "PASSWORD_RECOVERY") { go("compte"); openSheet("newpass"); }
         await loadProfile(); syncAccountIcon();
         if (["compte", "publier", "avis"].includes(S.view)) render();
-        if (ev === "SIGNED_IN" && location.hash.includes("access_token")) { history.replaceState(null, "", location.pathname + "#compte"); go("compte"); }
+        if (ev === "SIGNED_IN" && location.hash.includes("access_token")) { window.history.replaceState(null, "", location.pathname + "#compte"); go("compte"); }
       }, 0);
     });
   }
@@ -3025,7 +3025,7 @@
     const adm = new URLSearchParams(location.search).get("admin");
     if (adm && sb) {
       const r = await sb.rpc("is_admin", { p_key: adm });
-      history.replaceState(null, "", location.pathname + location.hash);
+      window.history.replaceState(null, "", location.pathname + location.hash);
       if (r.data === true) { adminKey = adm; store.set("admin", adm); toast("Mode administrateur activé sur cet appareil"); } else toast("Clé administrateur invalide");
     }
     const plId = new URLSearchParams(location.search).get("p");
