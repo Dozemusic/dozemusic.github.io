@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.12.1";
+  const VERSION = "6.12.2";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -2853,7 +2853,7 @@
   // Fondu enchaîné (Radio) : si le titre suivant est prêt avec la fin de celui-ci mélangée à son début, on y passe
   // XF secondes avant la fin. Événement « timeupdate » : il continue d'arriver écran verrouillé.
   audio.addEventListener("timeupdate", () => {
-    if (S.xfGo || !radioMode() || audio.paused || audio.isExternal) return;
+    if (S.xfGo || S.sigPlaying || !radioMode() || audio.paused || audio.isExternal) return;
     const t = current(), nx = S.queue[S.order[S.pos + 1]], bk = nx && BAKE.ready.get(nx.id), d = audio.duration, ct = audio.currentTime || 0;
     if (!t || !bk || bk.xfFrom !== t.id || !isFinite(d) || ct < d - XF || ct > d - .25) return;
     S.xfGo = true; S.pos++; playCurrent();
@@ -2872,9 +2872,11 @@
     // · ordinateur / Android : elle passe par-dessus le début du titre suivant, musique baissée (sigTick) ;
     // · iPhone : elle est déjà gravée au début du titre suivant s'il est pré-calculé ; sinon elle passe entre les deux titres
     //   (l'iPhone ne joue qu'un lecteur audio à la fois : la superposer coupait la musique et bloquait l'enchaînement).
-    if (auto && radioMode() && voiceOn && isIOS) {
+    if (radioMode() && voiceOn && isIOS) {
       const nx = current(), bk = nx && BAKE.ready.get(nx.id);
-      if (!(bk && bk.sig != null)) { try { audio.el.pause(); } catch {} sayThen("sig", playCurrent); return; }
+      // déjà gravée au début du titre pré-calculé ? sinon la signature passe par le lecteur principal lui-même :
+      // c'est le seul lecteur que l'iPhone laisse jouer, y compris écran verrouillé (un second lecteur est refusé ou coupe la musique)
+      if (!(bk && bk.sig != null && (!bk.xfFrom || bk.xfFrom === S.lastPlayedId))) { playSigThen(playCurrent); return; }
     }
     playCurrent();
   }
@@ -2928,6 +2930,15 @@
   // la grosse voix DOZE passe par-dessus la musique, qui baisse le temps de la signature puis remonte.
   // Sur iPhone, elle est gravée directement dans la version 3D pré-calculée (elle passe donc aussi écran verrouillé).
   const SIG_URL = "voice/signature-doze-by-clb.mp3";
+  // La signature jouée comme un court « titre » sur le lecteur principal, puis le titre suivant sur ce même lecteur
+  function playSigThen(done) {
+    const el = audio.el, loop0 = el.loop; let over = false;
+    S.sigPlaying = true; el.loop = false;
+    const fin = () => { if (over) return; over = true; clearTimeout(g); el.removeEventListener("ended", fin); el.removeEventListener("error", fin); S.sigPlaying = false; el.loop = loop0; done(); };
+    const g = setTimeout(fin, 9500);
+    el.addEventListener("ended", fin); el.addEventListener("error", fin);
+    audio.src = SIG_URL; audio.play().catch(fin);
+  }
   const radioMode = () => !!(S.label && S.label[0] === "Radio DOZE");
   function sigTime(ms, dur) {
     if (!isFinite(dur) || dur < 40) return null;
@@ -2954,7 +2965,7 @@
   }
   function sigTick() {
     const t = current();
-    if (!t || !radioMode() || !voiceOn || audio.paused || audio.isExternal) return;
+    if (!t || S.sigPlaying || !radioMode() || !voiceOn || audio.paused || audio.isExternal) return;
     const bk = S.baked && BAKE.ready.get(t.id);
     if (bk && bk.sig != null) return;                                            // déjà gravées dans la version pré-calculée
     if (isIOS) return;                                                         // iPhone : jamais par-dessus (un seul lecteur à la fois)
@@ -3134,12 +3145,12 @@
   { let lastT = 0;
     audio.addEventListener("timeupdate", () => {
       const t = audio.currentTime, d = audio.duration;
-      if (isIOS && !audio.isExternal && S.repeat !== "one" && isFinite(d) && d > 5 && lastT > d - 1.5 && t < 1.5 && Date.now() - (audio.lastSeek || 0) > 1500) { lastT = 0; next(true); return; }
+      if (isIOS && !S.sigPlaying && !audio.isExternal && S.repeat !== "one" && isFinite(d) && d > 5 && lastT > d - 1.5 && t < 1.5 && Date.now() - (audio.lastSeek || 0) > 1500) { lastT = 0; next(true); return; }
       lastT = t;
     });
     audio.addEventListener("loadedmetadata", () => { lastT = 0; }); }
-  audio.addEventListener("ended", () => { if (audio.isExternal && S.repeat === "one") { audio.currentTime = 0; audio.play(); return; } next(true); });
-  audio.addEventListener("error", () => { if (audio.src) { toast("Ce titre n'est pas encore écoutable (son non public chez Suno). Passage au suivant."); setTimeout(() => next(true), 900); } });
+  audio.addEventListener("ended", () => { if (S.sigPlaying) return; if (audio.isExternal && S.repeat === "one") { audio.currentTime = 0; audio.play(); return; } next(true); });
+  audio.addEventListener("error", () => { if (S.sigPlaying) return; if (audio.src) { toast("Ce titre n'est pas encore écoutable (son non public chez Suno). Passage au suivant."); setTimeout(() => next(true), 900); } });
   if ("mediaSession" in navigator) {
     const ms = navigator.mediaSession;
     // iOS ignore les commandes enregistrées avant que la lecture ait vraiment démarré et affiche alors ses boutons

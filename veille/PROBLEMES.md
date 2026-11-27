@@ -37,3 +37,5 @@ Chaque passage, le robot choisit un problème ouvert, cherche des solutions (doc
 - [ ] **Faire connaître DOZE automatiquement** — demandé par Charles le 27 novembre 2026.
   Règle : aucun message automatique dans des communautés tierces (Discord de Suno, groupes, forums, commentaires) : c'est du spam au regard de leurs règles et cela ferait bannir DOZE. Ce qui est permis et automatisable : référencement (pages et données structurées, sitemap à jour avec les nouveaux titres), cartes de partage soignées, outils qui donnent envie aux artistes de partager eux-mêmes leur page DOZE (lien direct, image prête pour les réseaux, compteur d'écoutes), publication sur des canaux appartenant à DOZE via leurs API officielles quand Charles aura créé ces comptes (chaîne Telegram, page Facebook, compte X…), et textes de promotion prêts à publier rédigés dans veille/PROMO.md.
   Notes :
+
+- [corrigé v6.12.2] Signature radio inaudible sur iPhone → jouée sur le lecteur principal aux transitions (garde 9,5 s, reprise automatique du titre suivant).

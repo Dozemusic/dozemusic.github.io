@@ -25,3 +25,8 @@
 | 2026-11-27 | Demande de Charles : signature aussi pendant les envolées / moments chauds, et en fondu enchaîné | Radio : titre suivant pré-calculé avec fondu enchaîné de 6 s depuis le titre en cours, signature sur le fondu et sur le moment chaud ; pré-calcul activé en Radio sur tous les appareils | 6.11.0 |
 | 2026-11-27 | Demande de Charles : paroles qui correspondent à la musique | 54 titres transcrits mot à mot (ElevenLabs Scribe via Creative Claw, ~180 crédits) et alignés sur les paroles (médiane 96 % des mots retrouvés) ; karaoké mot par mot | 6.12.0 |
 | 2026-11-27 | Retour de Charles : plus de son après une pause (radio, iPhone) | Plus de moteur audio créé en arrière-plan ni de session imposée sur iPhone ; bouton « Réparer le son » | 6.12.1 |
+
+## 2026-11-27 — v6.12.2 : signature radio audible sur iPhone
+- Problème : « en mode radio, la signature ne passe pas ». Cause : sur iPhone, un 2ᵉ lecteur audio est refusé ou coupe la musique, et la signature n'était jouée qu'aux enchaînements automatiques.
+- Correctif : la signature « DOZE BY CLB » est jouée sur le lecteur principal entre deux titres (auto, « suivant » manuel, écran verrouillé), puis le titre suivant démarre. Si le titre suivant est déjà pré-mixé avec la signature (fondu enchaîné), on ne la double pas.
+- Test : enchaînements iPhone simulés OK, 0 erreur.
