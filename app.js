@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.12.2";
+  const VERSION = "6.12.3";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -2882,7 +2882,7 @@
   }
   // ---------- Voix DOZE : annonces de la radio et introduction des dédicaces ----------
   let voiceOn = store.get("voice", true), radioCount = 0, lastVoice = "";
-  const VOICE = { radio: [1, 2, 3, 4, 5, 6].map(i => `voice/radio-${i}.mp3`), dedic: [1, 2, 3].map(i => `voice/dedicace-${i}.mp3`), sig: ["voice/signature-doze-by-clb.mp3"] };
+  const VOICE = { radio: [1, 2, 3, 4, 5, 6].map(i => `voice/radio-${i}.mp3`), dedic: [1, 2, 3].map(i => `voice/dedicace-${i}.mp3`), sig: ["voice/signature-doze-scratch.mp3"] };
   const vEl = new Audio(); vEl.preload = "none";
   // iOS n'autorise un lecteur audio qu'après un premier geste : on prépare la voix au premier appui sur l'écran.
   document.addEventListener("pointerdown", function prime() {
@@ -2929,7 +2929,7 @@
   // Une fois par titre, sur le moment chaud (envolée ou pont repéré par les Moments 3D, sinon vers 40 % du titre),
   // la grosse voix DOZE passe par-dessus la musique, qui baisse le temps de la signature puis remonte.
   // Sur iPhone, elle est gravée directement dans la version 3D pré-calculée (elle passe donc aussi écran verrouillé).
-  const SIG_URL = "voice/signature-doze-by-clb.mp3";
+  const SIG_URL = "voice/signature-doze-scratch.mp3";
   // La signature jouée comme un court « titre » sur le lecteur principal, puis le titre suivant sur ce même lecteur
   function playSigThen(done) {
     const el = audio.el, loop0 = el.loop; let over = false;
@@ -2974,7 +2974,7 @@
     if (!((ct >= .15 && ct <= 4) || (hot != null && ct >= hot && ct <= hot + 3))) return;   // transition, puis moment chaud
     SIG.last = key;
     sigEl.onended = () => sigDuck(false); sigEl.onerror = () => sigDuck(false);
-    sigDuck(true); sigEl.muted = false; sigEl.volume = 1; sigEl.currentTime = 0; if (!/signature-doze-by-clb/.test(sigEl.src)) sigEl.src = SIG_URL;
+    sigDuck(true); sigEl.muted = false; sigEl.volume = 1; sigEl.currentTime = 0; if (!/signature-doze-scratch/.test(sigEl.src)) sigEl.src = SIG_URL;
     const p = sigEl.play(); if (p && p.catch) p.catch(() => sigDuck(false));
     setTimeout(() => sigDuck(false), 8000);
   }

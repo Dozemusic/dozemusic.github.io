@@ -30,3 +30,8 @@
 - Problème : « en mode radio, la signature ne passe pas ». Cause : sur iPhone, un 2ᵉ lecteur audio est refusé ou coupe la musique, et la signature n'était jouée qu'aux enchaînements automatiques.
 - Correctif : la signature « DOZE BY CLB » est jouée sur le lecteur principal entre deux titres (auto, « suivant » manuel, écran verrouillé), puis le titre suivant démarre. Si le titre suivant est déjà pré-mixé avec la signature (fondu enchaîné), on ne la double pas.
 - Test : enchaînements iPhone simulés OK, 0 erreur.
+
+## 2026-11-27 — v6.12.3 : signature scratch DJ « do-do-DO-DOZE »
+- Demande : le bruit de scratch posé au début n'était pas chic ; voulu : la voix elle-même hachée et scratchée comme un DJ.
+- Fait : simulation de vinyle sur la voix (mouvements de main aller/retour, crossfader coupé net) : « do » · « do » · « DO » (baby-scratch) en doubles-croches ≈120 BPM, puis « DOZE BY CLB » en entier, écho gauche/droite calé sur le rythme, petit rewind final discret. Plus aucun bruit de scratch séparé.
+- Fichier : voice/signature-doze-scratch.mp3 (6,1 s), renommé pour forcer le rechargement. Outils : tools/ non modifié ; script de fabrication dans le journal de session.
