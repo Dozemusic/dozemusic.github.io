@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.9.1";
+  const VERSION = "6.10.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1664,7 +1664,7 @@
       const SR = dec.sampleRate, dur = dec.duration;
       let ms = MOM.cache[t.id]; if (!Array.isArray(ms)) { ms = computeMoments(dec); MOM.cache[t.id] = ms; store.set("mom", MOM.cache); }
       let sigAt = null, sb = null;
-      if (radioMode() && voiceOn) { sb = await sigBuffer(); if (sb) sigAt = sigTime(ms, dur); }
+      if (radioMode() && voiceOn) { sb = await sigBuffer(); if (sb) sigAt = .25; }            // signature à la transition : dès le début du titre
       if (!ms.length && sigAt == null) { store.set("bakeBusy", 0); return; }
       // passages à recalculer, fusionnés s'ils se chevauchent
       let segs = ms.map(([a, b]) => [Math.max(0, a - .2), Math.min(dur, b)]);
@@ -2796,12 +2796,19 @@
       else S.pos = 0;
     } else { pauseByUser(); audio.currentTime = 0; return; }
     // Radio DOZE : la Voix DOZE fait une annonce tous les 3 titres enchaînés automatiquement
-    if (auto && S.label && S.label[0] === "Radio DOZE" && voiceOn && ++radioCount % 3 === 0) { sayThen("radio", playCurrent); return; }
+    // Radio DOZE : la signature « DOZE BY CLB » marque chaque transition.
+    // · ordinateur / Android : elle passe par-dessus le début du titre suivant, musique baissée (sigTick) ;
+    // · iPhone : elle est déjà gravée au début du titre suivant s'il est pré-calculé ; sinon elle passe entre les deux titres
+    //   (l'iPhone ne joue qu'un lecteur audio à la fois : la superposer coupait la musique et bloquait l'enchaînement).
+    if (auto && radioMode() && voiceOn && isIOS) {
+      const nx = current(), bk = nx && BAKE.ready.get(nx.id);
+      if (!(bk && bk.sig != null)) { try { audio.el.pause(); } catch {} sayThen("sig", playCurrent); return; }
+    }
     playCurrent();
   }
   // ---------- Voix DOZE : annonces de la radio et introduction des dédicaces ----------
   let voiceOn = store.get("voice", true), radioCount = 0, lastVoice = "";
-  const VOICE = { radio: [1, 2, 3, 4, 5, 6].map(i => `voice/radio-${i}.mp3`), dedic: [1, 2, 3].map(i => `voice/dedicace-${i}.mp3`) };
+  const VOICE = { radio: [1, 2, 3, 4, 5, 6].map(i => `voice/radio-${i}.mp3`), dedic: [1, 2, 3].map(i => `voice/dedicace-${i}.mp3`), sig: ["voice/signature-doze-by-clb.mp3"] };
   const vEl = new Audio(); vEl.preload = "none";
   // iOS n'autorise un lecteur audio qu'après un premier geste : on prépare la voix au premier appui sur l'écran.
   document.addEventListener("pointerdown", function prime() {
@@ -2812,7 +2819,7 @@
     if (!voiceOn || document.hidden) { done(); return; }          // écran verrouillé : pas d'annonce, la musique continue directement
     const list = VOICE[kind]; let f; do { f = list[Math.floor(Math.random() * list.length)]; } while (list.length > 1 && f === lastVoice); lastVoice = f;
     let over = false; const go = () => { if (over) return; over = true; clearTimeout(guard); vEl.onended = vEl.onerror = null; done(); };
-    const guard = setTimeout(go, 9000);
+    const guard = setTimeout(go, 12000);
     vEl.onended = go; vEl.onerror = go; vEl.muted = false; vEl.volume = 1; vEl.src = f;
     const p = vEl.play(); if (p && p.catch) p.catch(go);
   }
@@ -2864,7 +2871,7 @@
     return sigBuf;
   }
   const sigEl = new Audio(); sigEl.preload = "auto";
-  document.addEventListener("pointerdown", function primeSig() {                // iOS : on débloque le lecteur de la signature au premier appui
+  if (!isIOS) document.addEventListener("pointerdown", function primeSig() {    // hors iPhone : lecteur de la signature prêt au premier appui
     document.removeEventListener("pointerdown", primeSig, true);
     try { sigEl.muted = true; sigEl.src = SIG_URL; const p = sigEl.play(); if (p) p.then(() => { sigEl.pause(); sigEl.currentTime = 0; sigEl.muted = false; }, () => { sigEl.muted = false; }); } catch {}
   }, true);
@@ -2878,9 +2885,9 @@
     if (!t || !radioMode() || !voiceOn || audio.paused || audio.isExternal || SIG.doneFor === t.id) return;
     const bk = S.baked && BAKE.ready.get(t.id);
     if (bk && bk.sig != null) { SIG.doneFor = t.id; return; }                     // déjà gravée dans la version pré-calculée
-    if (isIOS && document.hidden) return;
-    const at = sigTime(MOM.cache[t.id], audio.duration), ct = audio.currentTime || 0;
-    if (at == null || ct < at || ct > at + 3) return;
+    if (isIOS) return;                                                         // iPhone : jamais par-dessus (un seul lecteur à la fois)
+    const ct = audio.currentTime || 0;
+    if (ct < .15 || ct > 4) return;                                              // transition : tout début du titre
     SIG.doneFor = t.id;
     sigEl.onended = () => sigDuck(false); sigEl.onerror = () => sigDuck(false);
     sigDuck(true); sigEl.muted = false; sigEl.volume = 1; sigEl.currentTime = 0; if (!/signature-doze-by-clb/.test(sigEl.src)) sigEl.src = SIG_URL;
