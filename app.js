@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.3.0";
+  const VERSION = "6.3.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -243,6 +243,7 @@
     }
     S.offlineMode = false;
     S.all = (data || []).map(t => ({ likes: 0, ...t }));
+    S.loadedAt = Date.now();
     render();
     sb.rpc("can_edit", { p_id: "00000000-0000-4000-8000-000000000000", p_key: "00000000-0000-4000-8000-000000000000" }).then(r => { S.hasV4 = !r.error; });
     if (S.hasV2) {
@@ -2945,6 +2946,30 @@
       } finally { const b = $("submit"); if (b) b.disabled = false; }
     });
   }
+
+  // ---------- catalogue toujours à jour ----------
+  // L'appli restée ouverte (ou rangée en arrière-plan sur le téléphone) va chercher les nouveaux sons d'elle-même :
+  // au retour sur l'écran et toutes les 5 minutes. Le titre en cours et la file d'attente ne sont pas touchés.
+  async function refreshCatalog(force) {
+    if (!sb || S.offlineMode || S.refreshing || (!force && Date.now() - (S.loadedAt || 0) < 60000)) return;
+    S.refreshing = true;
+    try {
+      const cols = "id,title,artist,genre,source,suno_id,audio_url,cover_url,plays,likes,created_at" + (S.hasV3 ? ",ai,made_with,user_id" : "");
+      const { data, error } = await sb.from("tracks").select(cols).order("created_at", { ascending: false }).limit(1000);
+      if (error || !data) return;
+      const known = new Set(S.all.map(t => t.id)), fresh = data.filter(t => !known.has(t.id));
+      S.all = data.map(t => ({ likes: 0, ...t })); S.loadedAt = Date.now();
+      const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+      if (fresh.length) {
+        toast(fresh.length > 1 ? `🆕 ${fresh.length} nouveaux sons sur DOZE : ${fresh[0].title}…` : `🆕 Nouveau son sur DOZE : ${fresh[0].title}`);
+        if (["accueil", "rechercher"].includes(S.view) && !typing) { const m = $("main"), y = m.scrollTop; render(); m.scrollTop = y; }
+      }
+    } finally { S.refreshing = false; }
+  }
+  if (window.__doze) window.__doze.refreshCatalog = refreshCatalog;
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshCatalog(); });
+  window.addEventListener("focus", () => refreshCatalog());
+  setInterval(() => { if (!document.hidden) refreshCatalog(true); }, 5 * 60000);
 
   // ---------- démarrage ----------
   const h0 = location.hash.slice(1);
