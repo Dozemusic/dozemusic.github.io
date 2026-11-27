@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.7.0";
+  const VERSION = "6.7.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -984,6 +984,12 @@
 
   // ---------- effets audio : égaliseur, halo, volume ----------
   const isIOS = /iP(hone|ad|od)/.test(navigator.platform) || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+  // iPhone : par défaut, le moteur Web Audio (égaliseur, Orbite, Moments 3D) se tait quand le téléphone est en mode
+  // silencieux, alors que la lecture simple reste audible. La session audio « playback » (Safari 17+) le garde audible,
+  // comme une vraie appli de musique. Sans cette API, DOZE n'utilise pas le moteur Web Audio automatiquement.
+  const playbackSession = () => { try { if (navigator.audioSession && navigator.audioSession.type !== "playback") navigator.audioSession.type = "playback"; } catch {} };
+  playbackSession();
+  const iosWebAudioOk = !isIOS || !!navigator.audioSession;
   const BANDS = [[31, "lowshelf", "Sub"], [62, "peaking", "Basses"], [125, "peaking", "Kick"], [250, "peaking", "Chaleur"], [500, "peaking", "Corps"],
     [1000, "peaking", "Médiums"], [2000, "peaking", "Voix"], [4000, "peaking", "Présence"], [8000, "peaking", "Brillance"], [16000, "highshelf", "Air"]];
   const NB = BANDS.length, ZERO = () => Array(NB).fill(0);
@@ -1039,6 +1045,7 @@
     if (FX.ctx) return true;
     try {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+      playbackSession();
       const c = FX.ctx = FX.pre && FX.pre.state !== "closed" ? FX.pre : new AC(); FX.pre = null;
       const src = c.createMediaElementSource(audio.el);
       c.onstatechange = () => { if (FX.ctx && FX.ctx.state !== "running" && !audio.paused) FX.ctx.resume().catch(() => {}); };
@@ -1248,6 +1255,7 @@
       if (!t) { toast("Lance d'abord une chanson, puis reviens dans Orbite"); return orbPaint(); }
       if (!orbOk()) { toast("Orbite fonctionne avec les titres publiés sur DOZE et Suno (pas SoundCloud ni YouTube)"); return orbPaint(); }
       if (!fxGraph() || !orbBuild()) { toast("Ton navigateur ne permet pas Orbite"); return orbPaint(); }
+      if (!iosWebAudioOk) setTimeout(() => toast("iPhone : si tu n'entends rien, désactive le mode silencieux (bouton sur le côté du téléphone)"), 1200);
       FX.ctx.resume().catch(() => {}); applyEq();
       const n = FX.ctx.currentTime; ORB.on = true; ORB.auto = null; MOM.cur = null; momPill(); orbApply();
       FX.orbWet.gain.setTargetAtTime(1, n, .15); FX.orbDry.gain.setTargetAtTime(0, n, .15);
@@ -1551,7 +1559,8 @@
   }
   // Prépare le moteur audio pendant un appui de l'auditeur : iPhone n'autorise à démarrer le son 3D qu'à ce moment-là
   function momPrime() {
-    if (!MOM.on || FX.ctx || (FX.pre && FX.pre.state !== "closed")) return;
+    playbackSession();
+    if (!MOM.on || !iosWebAudioOk || FX.ctx || (FX.pre && FX.pre.state !== "closed")) return;
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     try { FX.pre = new AC(); FX.pre.resume().catch(() => {}); } catch { FX.pre = null; }
   }
@@ -1571,7 +1580,7 @@
   function momTick() {
     if (ORB.on) return;
     const t = current(), ms = t && MOM.cache[t.id];
-    const live = MOM.on && t && Array.isArray(ms) && !audio.paused && orbOk() && !(isIOS && document.hidden);
+    const live = MOM.on && iosWebAudioOk && t && Array.isArray(ms) && !audio.paused && orbOk() && !(isIOS && document.hidden);
     const ct = audio.currentTime || 0, m = live ? ms.find(([a, b]) => ct >= a && ct < b) : null;
     const w = m ? Math.max(0, Math.min(1, (ct - m[0]) / 2.5, (m[1] - ct) / 2.5)) : 0;
     if (!m) { if (MOM.cur) { MOM.cur = null; ORB.auto = null; momFade(0); momPill(); } return; }
@@ -3184,6 +3193,25 @@
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshCatalog(); });
   window.addEventListener("focus", () => refreshCatalog());
   setInterval(() => { if (!document.hidden) refreshCatalog(true); }, 5 * 60000);
+
+  // ---------- mise à jour automatique de l'appli ----------
+  // Une appli installée peut garder l'ancienne version en mémoire. On vérifie la version publiée ; si elle a changé,
+  // on recharge tout de suite quand rien ne joue, sinon on propose de mettre à jour d'un appui.
+  async function checkUpdate() {
+    try {
+      const r = await fetch("./index.html?u=" + Date.now(), { cache: "no-store" }); if (!r.ok) return;
+      const m = /app\.js\?v=([0-9.]+)/.exec(await r.text()); if (!m || m[1] === VERSION) return;
+      const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) await reg.update().catch(() => {});
+      const tried = store.get("updTried", {});
+      if (audio.paused && !(tried.v === m[1] && Date.now() - tried.at < 15 * 60000)) { store.set("updTried", { v: m[1], at: Date.now() }); setTimeout(() => location.reload(), 800); return; }
+      let b = $("upd-banner");
+      if (!b) { b = document.createElement("button"); b.id = "upd-banner"; b.type = "button"; b.className = "upd-banner"; b.onclick = () => { store.set("updTried", { v: m[1], at: Date.now() }); location.reload(); }; document.body.appendChild(b); }
+      b.textContent = `✨ Nouvelle version ${m[1]} disponible · Mettre à jour`;
+    } catch {}
+  }
+  setTimeout(checkUpdate, 4000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
+  setInterval(checkUpdate, 30 * 60000);
 
   // ---------- démarrage ----------
   const h0 = location.hash.slice(1);

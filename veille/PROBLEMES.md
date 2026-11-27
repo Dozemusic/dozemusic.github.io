@@ -4,6 +4,12 @@ Chaque passage, le robot choisit un problème ouvert, cherche des solutions (doc
 
 ## Ouverts
 
+- [ ] **Son muet sur iPhone en mode silencieux** — signalé par Charles le 27 novembre 2026 (le titre avance mais aucun son).
+  Cause : sur iPhone, le moteur Web Audio (égaliseur, Orbite, Moments 3D) suit le bouton silencieux, contrairement à la lecture simple (WebKit 237322, 251532).
+  Fait en 6.7.1 : navigator.audioSession.type = "playback" (Safari 17+) au démarrage et avant chaque moteur audio ; sans cette API, les Moments 3D ne s'activent pas sur iPhone et Orbite prévient. À confirmer par Charles, mode silencieux activé.
+- [ ] **Anciennes versions restées sur les téléphones** — un autre utilisateur n'avait pas Orbite.
+  Fait en 6.7.1 : vérification de la version publiée à l'ouverture, au retour dans l'appli et toutes les 30 min ; rechargement automatique quand rien ne joue, sinon bandeau « Nouvelle version · Mettre à jour ».
+
 - [ ] **Lecture lente au démarrage et reprise après pause** — signalé par Charles le 27 novembre 2026.
   Constat : les MP4 de Suno ont leur sommaire (« moov », ~95 Ko) à la FIN du fichier (pas de « faststart ») ; le lecteur doit faire une deuxième requête avant de jouer. La version MP3 n'est pas publique sur le CDN (403).
   Fait en 6.7.0 : préconnexion à cdn1/cdn2.suno.ai ; fin du fichier préparée d'avance (titre à la une + 2 suivants) dans le cache « ecrin-warm-v1 » et servie par le service worker (1,2 s → 0,8 s mesuré à 400 ms de latence) ; reprise : réveil du moteur Web Audio et rechargement automatique au même endroit si le son ne repart pas en 2,5 s.
