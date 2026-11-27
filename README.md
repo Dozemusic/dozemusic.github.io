@@ -4,14 +4,14 @@ La musique des créateurs Suno, gratuite pour tout le monde. Les artistes publie
 
 **Appli :** https://dozemusic.github.io/ · **Studio (administrateur) :** https://dozemusic.github.io/studio/
 
-Version 6.4.0
+Version 6.5.0
 
 ## Fonctions
 - **Accueil** façon plateforme de streaming : nouveaux sons mis en exergue (badge « NOUVEAU » 7 jours, section « Nouveaux sons » en tête, son tout juste publié à la une, bandeau « X nouveaux sons depuis ta dernière visite »), titre à la une, rayons « Écoutés récemment », « Nouveautés », « Pépites à découvrir » (titres peu écoutés mis en avant à tour de rôle), « Les plus écoutées », artistes et genres.
 - **Rechercher** par titre, artiste ou genre, avec filtres par genre.
 - **Bibliothèque** sans compte : coups de cœur et historique gardés sur l'appareil.
 - **Pages d'artiste et de genre**, avec lecture et aléatoire.
-- **Lecteur** : aléatoire, répéter (liste ou titre), « écouter juste après », minuteur de sommeil, lecteur plein écran avec file d'attente, contrôles sur l'écran verrouillé.
+- **Lecteur** : Aléatoire DOZE (artistes alternés, sons écoutés récemment en fin de file ; « Hasard pur » au choix dans « À suivre »), répéter (liste ou titre), « écouter juste après », minuteur de sommeil, lecteur plein écran avec file d'attente, contrôles sur l'écran verrouillé.
 - **Publier** sans compte : lien Suno (`suno.com/song/…`) ou fichier MP3/WAV/M4A (15 Mo max) avec pochette.
 - **Transparence** : chaque titre est marqué « IA ». Partage d'un titre par lien direct (`?t=…`), signalement (masquage automatique après 5 signalements).
 - **Orbite** (exclusivité, `#orbite`) : le son voyage autour de la tête, sur n'importe quel titre DOZE ou Suno. Le morceau est démonté en direct en 4 objets sonores (voix, basses, ambiance G et D : matrice mid/side + Linkwitz-Riley à 150 Hz). Double moteur binaural mélangé par un curseur « Intensité » : PannerNode HRTF + moteur DOZE (retard interaural de Woodworth, ombre de la tête, écart de niveau, assourdissement derrière soi, loi de distance), plus une salle synthétique (ConvolverNode) qui sort le son de la tête. Trajectoires automatiques calées sur le tempo (cercle, huit, balancier, spirale, envol), scène en perspective 3D avec traînées, karaoké d'un appui, boussole du téléphone, partage par lien. Conseil AirPods : couper l'audio spatial d'Apple pendant Orbite.

@@ -836,3 +836,8 @@ html, body, .main, .np { overflow-x: hidden; }
 .orb-spin { position: absolute; top: 22px; right: 22px; z-index: 2; padding: 11px 16px; border-radius: 999px; cursor: pointer; font: 800 14px/1 var(--display); color: var(--fg); border: 1px solid rgba(169, 192, 245, .5); background: rgba(10, 13, 24, .75); backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(0, 0, 0, .4); }
 .orb-spin[aria-pressed="false"] { color: #0B0E18; border-color: transparent; background: linear-gradient(90deg, var(--orb1), var(--orb2)); animation: orbCall 2s ease-out infinite; }
 @media (max-width: 860px) { .orb-spin { top: 14px; right: 14px; padding: 10px 14px; font-size: 13px; } }
+
+/* ---------- Aléatoire DOZE (6.5.0) ---------- */
+.np-queue li.q-mode { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: default; padding: 10px 12px; margin-bottom: 6px; border-radius: 12px; font-size: 13px; border: 1px solid rgba(218, 154, 104, .45); background: linear-gradient(90deg, rgba(218, 154, 104, .22), rgba(218, 154, 104, .06)); }
+.np-queue li.q-mode:hover { background: linear-gradient(90deg, rgba(218, 154, 104, .22), rgba(218, 154, 104, .06)); }
+.np-queue li.q-mode button { flex: none; padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(218, 154, 104, .6); background: rgba(0, 0, 0, .25); color: var(--gold); font: 700 12px/1 var(--body); cursor: pointer; }

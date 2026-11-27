@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.4.0";
+  const VERSION = "6.5.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -2468,10 +2468,30 @@
   function syncAccountIcon() { document.querySelectorAll("[data-account-label]").forEach(el => el.textContent = S.profile ? S.profile.username : "Mon compte"); }
 
   // ---------- file de lecture ----------
+  // Aléatoire DOZE : les titres écoutés récemment passent en fin de file, et les chansons d'un même artiste sont
+  // espacées (tirage pondéré : on prend toujours l'artiste qui a le plus de titres restants, jamais deux fois de suite).
+  S.pureShuffle = store.get("pureShuffle", false);
+  function smartOrder(idx) {
+    const recent = new Map(history.slice(0, 40).map((id, r) => [id, r]));
+    const spread = list => {
+      const by = new Map();
+      for (const i of shuffled(list)) { const k = norm(S.queue[i].artist || "?"); if (!by.has(k)) by.set(k, []); by.get(k).push(i); }
+      const out = []; let last = null;
+      while (out.length < list.length) {
+        const cand = [...by.entries()].filter(([k, a]) => a.length && (k !== last || by.size === 1 || [...by.values()].filter(x => x.length).length === 1));
+        const max = Math.max(...cand.map(([, a]) => a.length)), top = cand.filter(([, a]) => a.length === max);
+        const [k, a] = top[Math.floor(Math.random() * top.length)]; out.push(a.shift()); last = k;
+      }
+      return out;
+    };
+    const fresh = idx.filter(i => !recent.has(S.queue[i].id));
+    const stale = idx.filter(i => recent.has(S.queue[i].id)).sort((a, b) => recent.get(S.queue[b].id) - recent.get(S.queue[a].id));   // le plus ancien d'abord, le dernier écouté tout au bout
+    return [...spread(fresh), ...stale];
+  }
   function buildOrder(startIdx) {
     const n = S.queue.length;
     let order = [...Array(n).keys()];
-    if (S.shuffle) { order.splice(order.indexOf(startIdx), 1); order = shuffled(order); order.unshift(startIdx); S.pos = 0; }
+    if (S.shuffle) { order.splice(order.indexOf(startIdx), 1); order = S.pureShuffle ? shuffled(order) : smartOrder(order); order.unshift(startIdx); S.pos = 0; }
     else S.pos = startIdx;
     S.order = order;
   }
@@ -2588,10 +2608,11 @@
   function renderQueue() {
     const ol = $("np-queue");
     const upcoming = S.order.slice(S.pos + 1, S.pos + 31).map(i => ({ t: S.queue[i], k: i }));
-    ol.innerHTML = upcoming.length ? upcoming.map(({ t }, j) => `<li data-q="${S.pos + 1 + j}">${imgTag(t)}<span><b>${esc(t.title)}</b><i>${esc(t.artist)}</i></span></li>`).join("")
-      : `<li class="q-empty">${S.repeat === "all" ? "La liste reprendra au début." : radioOn ? "📻 La Radio DOZE prendra le relais avec des titres proches." : "Rien après ce titre."}</li>`;
+    const mode = S.shuffle && S.queue.length > 2 ? `<li class="q-mode"><span>${S.pureShuffle ? "🎲 <b>Hasard pur</b> : mélange totalement au hasard" : "🔀 <b>Aléatoire DOZE</b> : artistes alternés, sons écoutés récemment à la fin"}</span><button type="button" data-shuffle-mode>${S.pureShuffle ? "Aléatoire DOZE" : "Hasard pur"}</button></li>` : "";
+    ol.innerHTML = mode + (upcoming.length ? upcoming.map(({ t }, j) => `<li data-q="${S.pos + 1 + j}">${imgTag(t)}<span><b>${esc(t.title)}</b><i>${esc(t.artist)}</i></span></li>`).join("")
+      : `<li class="q-empty">${S.repeat === "all" ? "La liste reprendra au début." : radioOn ? "📻 La Radio DOZE prendra le relais avec des titres proches." : "Rien après ce titre."}</li>`);
   }
-  $("np-queue").addEventListener("click", e => { const li = e.target.closest("[data-q]"); if (li) { S.pos = +li.dataset.q; playCurrent(); } });
+  $("np-queue").addEventListener("click", e => { if (e.target.closest("[data-shuffle-mode]")) { S.pureShuffle = !S.pureShuffle; store.set("pureShuffle", S.pureShuffle); if (S.queue.length) buildOrder(S.order[S.pos]); renderQueue(); toast(S.pureShuffle ? "Hasard pur : mélange totalement au hasard" : "Aléatoire DOZE : artistes alternés, sons récents à la fin"); return; } const li = e.target.closest("[data-q]"); if (li) { S.pos = +li.dataset.q; playCurrent(); } });
 
   // ---------- modes ----------
   function setShuffle(on) { S.shuffle = on; store.set("shuffle", on); if (S.queue.length) buildOrder(S.order[S.pos]); syncModes(); renderQueue(); }

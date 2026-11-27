@@ -8,7 +8,7 @@ Plaintes les plus fréquentes : publicités envahissantes (Audiomack, YouTube Mu
 DOZE a déjà : zéro pub, gratuit, mention « IA », égaliseur, hors ligne, paroles, radio d'un titre.
 
 - [ ] (P1) Corbeille : playlists et coups de cœur supprimés récupérables 30 jours — Apple Music (« 400 sons disparus »)
-- [ ] (P1) Aléatoire vraiment varié : ne pas rejouer un titre écouté dans les N derniers, mélange équilibré entre artistes — Spotify, YouTube Music
+- [x] (P1) Aléatoire vraiment varié — fait en 6.5.0 (« Aléatoire DOZE », bouton « Hasard pur ») : ne pas rejouer un titre écouté dans les N derniers, mélange équilibré entre artistes — Spotify, YouTube Music
 - [ ] (P1) Vérification des téléchargements hors ligne au démarrage (titres manquants re-téléchargés, compteur clair « 34/34 disponibles ») — Audiomack, YouTube Music
 - [ ] (P1) « Tout écouter » d'un artiste (discographie en un appui, aléatoire ou dans l'ordre) bien visible sur sa page — Deezer
 - [ ] (P2) Mode économie de données (qualité réduite en 3G/4G, préchargement du titre suivant en Wi-Fi seulement, compteur de Mo) — Audiomack CI, Deezer 4G
@@ -27,6 +27,12 @@ Plaintes : YouTube Music NG — lecture automatique impossible à couper (« on 
 - [ ] (P1) Interrupteur « Lecture automatique » bien visible (à la fin d'une liste : s'arrêter ou enchaîner sur la radio) — YouTube Music NG ; DOZE a déjà le réglage radio, à rendre visible dans le lecteur
 - [ ] (P1) Mode hors connexion honnête : distinguer « pas de réseau » et « serveur lent », et basculer tout seul sur les titres téléchargés — YouTube Music NG
 - [ ] (P2) File d'attente robuste : glisser pour réordonner, annuler une suppression — Spotify NG
+
+## Veille de la nuit du 26 au 27 novembre (avis App Store US et NG, robot)
+Plaintes : trop de pubs (YouTube Music NG « 2 longues pubs pour 1 chanson », SoundCloud, Spotify) ; aléatoire et lecture auto mal faits (Audiomack « ne mélange pas les sons », Spotify « choisit les titres à ma place », YouTube Music a retiré le bouton pour couper la lecture automatique) ; Deezer : impossible de bloquer un artiste, impossible de retrouver le titre qui vient de passer.
+
+- [ ] (P2) Bloquer un artiste (il n'apparaît plus nulle part pour cet auditeur) — Deezer
+- [ ] (P2) « Titre précédent » et historique de lecture accessibles en un appui depuis le lecteur — Deezer
 
 ## Son (voir SON.md)
 - [ ] (P2) Normalisation de sonie à −14 LUFS intégrés (référence des plateformes) mesurée par titre, au lieu d'un nivellement dynamique

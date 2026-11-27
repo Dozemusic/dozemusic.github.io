@@ -9,3 +9,4 @@
 | 2026-11-26 | Retour de Charles : plus de bouton pour relancer la rotation après avoir touché une sphère | La rotation continue pendant et après le déplacement d une sphère ; bouton « Faire tourner / Figer » toujours visible | 6.3.0 |
 | 2026-11-27 | Retour de Charles : nouveaux sons Suno invisibles | Catalogue rafraîchi automatiquement au retour sur l appli et toutes les 5 min, avec annonce des nouveaux sons | 6.3.1 |
 | 2026-11-27 | Avis App Store NG (YouTube Music, Spotify), Boomplay (analyses d'avis, Trustpilot) ; son : crossfeed bs2b / Bauer / Linkwitz | Confort casque (crossfeed) dans l'égaliseur | 6.4.0 |
+| 2026-11-27 | Travail du robot de la nuit (perdu faute d'accès GitHub) refait par la session principale | Aléatoire DOZE (artistes alternés, sons récents en fin), bouton « Hasard pur » | 6.5.0 |
