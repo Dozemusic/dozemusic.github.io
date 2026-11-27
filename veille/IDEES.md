@@ -20,7 +20,15 @@ DOZE a déjà : zéro pub, gratuit, mention « IA », égaliseur, hors ligne, pa
 - [ ] (P3) Écran « Mode voiture » : gros boutons, contraste élevé, recherche vocale — plaintes CarPlay
 - [ ] (P3) Rubrique « Récap de la semaine » : temps d'écoute, artistes découverts, à partager
 
+## Veille du 27 novembre 2026 (avis App Store NG : YouTube Music, Spotify ; Boomplay via analyses d'avis Google Play et Trustpilot)
+Flux App Store vides ce jour pour us, gb et la plupart des applis en ng : à retenter demain.
+Plaintes : YouTube Music NG — lecture automatique impossible à couper (« on avait l'option, pourquoi l'enlever ? »), onglets Paroles et « À découvrir » supprimés, 2 longues pubs par chanson, « pas de connexion internet » alors que le réseau est bon, hausse de prix. Spotify NG — pubs trop nombreuses, pas d'écoute hors ligne en gratuit, déconnecté du compte et « toutes mes playlists ont disparu », mise à jour qui casse la file d'attente. Boomplay — pubs plein écran impossibles à fermer qui figent l'appli, téléchargements peu fiables (source : analyses kimola.com et marlvel.ai d'avis Google Play, Trustpilot).
+
+- [ ] (P1) Interrupteur « Lecture automatique » bien visible (à la fin d'une liste : s'arrêter ou enchaîner sur la radio) — YouTube Music NG ; DOZE a déjà le réglage radio, à rendre visible dans le lecteur
+- [ ] (P1) Mode hors connexion honnête : distinguer « pas de réseau » et « serveur lent », et basculer tout seul sur les titres téléchargés — YouTube Music NG
+- [ ] (P2) File d'attente robuste : glisser pour réordonner, annuler une suppression — Spotify NG
+
 ## Son (voir SON.md)
 - [ ] (P2) Normalisation de sonie à −14 LUFS intégrés (référence des plateformes) mesurée par titre, au lieu d'un nivellement dynamique
 - [ ] (P2) Mode « écouteurs » : légère cible de courbe type Harman pour casques et écouteurs, réglable
-- [ ] (P3) Crossfeed optionnel au casque (réduit la fatigue des mixages très stéréo)
+- [x] (P3) Crossfeed optionnel au casque (réduit la fatigue des mixages très stéréo) — fait en 6.4.0 (« Confort casque », préréglages bs2b)

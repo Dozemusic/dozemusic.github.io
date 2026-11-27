@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.3.1";
+  const VERSION = "6.4.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1031,6 +1031,8 @@
     tonal: store.get("eqTonal", true), mine: store.get("eqMine", []), halo: store.get("halo", true) };
   if (FX.preset === "perso" && !(Array.isArray(oldCustom) && oldCustom.length === NB)) FX.preset = "auto";
   const saveKnobs = () => store.set("eqKnobs", FX.k);
+  // Préréglages bs2b (d'après Bauer 1961, Linkwitz 1971, Chu Moy, Jan Meier) : gain du canal croisé filtré et du direct, en dB
+  const XFEED = [null, { n: "Léger", lo: -10.917, hi: -1.417 }, { n: "Naturel", lo: -6.75, hi: -2.25 }, { n: "Fort", lo: -8, hi: -2 }];
 
   function fxGraph() {
     if (FX.ctx) return true;
@@ -1060,10 +1062,23 @@
       [src, pre, ...FX.filters, bass, pres, air, up].reduce((a, b) => (a.connect(b), b));
       // Point d'insertion d'Orbite : chemin direct (dry) par défaut, scène 3D (wet) construite seulement à l'activation
       FX.orbIn = c.createGain(); FX.orbDry = c.createGain(); FX.orbWet = c.createGain(); FX.orbOut = c.createGain(); FX.orbWet.gain.value = 0;
-      merge.connect(FX.orbIn); FX.orbIn.connect(FX.orbDry); FX.orbDry.connect(FX.orbOut); FX.orbWet.connect(FX.orbOut);
+      // Confort casque (crossfeed Bauer / Linkwitz, préréglages bs2b) : chaque oreille reçoit un peu du canal opposé, filtré
+      // en passe-bas du 1er ordre à 700 Hz (ombre de la tête ; son retard de groupe ≈ 0,23 ms = trajet vers l'oreille éloignée).
+      const xs = c.createChannelSplitter(2), xm = c.createChannelMerger(2), xf = {};
+      merge.connect(xs);
+      ["L", "R"].forEach((ch, i) => {
+        const dg = c.createGain(), dh = c.createBiquadFilter(); dh.type = "highshelf"; dh.frequency.value = 1100; dh.gain.value = 0;
+        xs.connect(dg, i); dg.connect(dh); dh.connect(xm, 0, i);
+        let lp; try { const x = Math.exp(-2 * Math.PI * 700 / c.sampleRate); lp = c.createIIRFilter([1 - x], [1, -x]); }
+        catch { lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = .5; lp.frequency.value = 700; }
+        const cg = c.createGain(); cg.gain.value = 0;
+        xs.connect(lp, 1 - i); lp.connect(cg); cg.connect(xm, 0, i);
+        xf[ch] = { dg, dh, cg };
+      });
+      xm.connect(FX.orbIn); FX.orbIn.connect(FX.orbDry); FX.orbDry.connect(FX.orbOut); FX.orbWet.connect(FX.orbOut);
       [FX.orbOut, level, makeup, lim, FX.gain, FX.analyser, c.destination].reduce((a, b) => (a.connect(b), b));
       FX.gain.connect(FX.spec);
-      FX.knobs = { pre, bass, pres, air, ll, rl, rr, lr, level, makeup };
+      FX.knobs = { pre, bass, pres, air, ll, rl, rr, lr, level, makeup, xf };
       return true;
     } catch (e) { console.warn(e); FX.ctx = null; return false; }
   }
@@ -1236,7 +1251,7 @@
       if (!store.get("orbTip", false) && isIOS) { store.set("orbTip", true); setTimeout(() => toast("AirPods : coupe « Audio spatial » dans le Centre de contrôle pour entendre Orbite à 100 %"), 900); }
     } else {
       ORB.on = false;
-      if (FX.ctx && FX.orbWet) { const n = FX.ctx.currentTime; FX.orbWet.gain.setTargetAtTime(0, n, .12); FX.orbDry.gain.setTargetAtTime(1, n, .12); }
+      if (FX.ctx && FX.orbWet) { const n = FX.ctx.currentTime; FX.orbWet.gain.setTargetAtTime(0, n, .12); FX.orbDry.gain.setTargetAtTime(1, n, .12); applyEq(); }
       if (!FX.enabled) setTimeout(() => { if (!ORB.on) fxTeardown(); }, 700);   // effets éteints par l'auditeur : on rend le lecteur d'origine
     }
     orbPaint();
@@ -1570,6 +1585,11 @@
     set(K.pre.gain, Math.pow(10, -boost * .8 / 20));      // réserve automatique : on baisse l'entrée d'autant qu'on amplifie
     const w = 1 + (k.width / 100) * .8, a = (1 + w) / 2, b = (1 - w) / 2;
     set(K.ll.gain, a); set(K.rr.gain, a); set(K.rl.gain, b); set(K.lr.gain, b);
+    // Confort casque : direct atténué dans les graves puis rendu dans les aigus (étagère), canal opposé filtré ajouté.
+    // Coupé pendant Orbite, qui a déjà son propre moteur binaural.
+    const xp = !ORB.on && XFEED[k.xfeed | 0];
+    ["L", "R"].forEach(ch => { const n = K.xf[ch];
+      set(n.dg.gain, xp ? Math.pow(10, xp.hi / 20) : 1); set(n.cg.gain, xp ? Math.pow(10, xp.lo / 20) : 0); set(n.dh.gain, xp ? -xp.hi : 0); });
     if (k.level) { K.level.threshold.value = -28; K.level.ratio.value = 3; K.level.knee.value = 12; K.level.attack.value = .01; K.level.release.value = .3; set(K.makeup.gain, Math.pow(10, 6 / 20)); }
     else { K.level.threshold.value = 0; K.level.ratio.value = 1; set(K.makeup.gain, 1); }
   }
@@ -1796,6 +1816,8 @@
       <div class="eq-knobs">
         ${[["bass", "Basses profondes", 0, 10, "dB", "Renfort sous 90 Hz, sans saturer."], ["clar", "Clarté", 0, 8, "dB", "Voix et détails plus nets."], ["width", "Espace 3D", 0, 100, "%", "Élargit la scène stéréo (idéal au casque)."]]
           .map(([key, n, mn, mx, u, hint]) => `<label class="knob"><span><b>${n}</b><small>${hint}</small></span><input type="range" min="${mn}" max="${mx}" step="1" value="${k[key]}" data-knob="${key}" ${on ? "" : "disabled"}><output>${k[key]} ${u}</output></label>`).join("")}
+        <div class="set-row col"><span><b>🎧 Confort casque</b><small>Chaque oreille entend un peu l'autre côté, comme devant des enceintes : moins de fatigue sur les longues écoutes, son moins « collé dans la tête ».</small></span>
+          <div class="chips">${["Aucun", ...XFEED.slice(1).map(x => x.n)].map((n, i) => `<button class="chip${(k.xfeed | 0) === i ? " is-on" : ""}" type="button" data-xfeed="${i}" ${on ? "" : "disabled"}>${n}</button>`).join("")}</div></div>
         <label class="set-row"><span><b>Volume nivelé</b><small>Tous les titres au même niveau sonore, sans écart d'une chanson à l'autre.</small></span><input type="checkbox" class="switch" data-set="level" ${k.level ? "checked" : ""} ${on ? "" : "disabled"}></label>
       </div>
       <details class="eq-fine"><summary>Réglage fin des 10 bandes</summary><div class="eq-bands">${BANDS.map(([f, , n], i) => `<label class="band"><span class="db">${g[i] > 0 ? "+" : ""}${g[i]} dB</span><input type="range" min="-12" max="12" step=".5" value="${g[i]}" data-band="${i}" aria-label="${n}" ${on ? "" : "disabled"}><span class="hz">${f >= 1000 ? f / 1000 + " k" : f} Hz</span><small>${n}</small></label>`).join("")}</div></details>
@@ -1960,6 +1982,7 @@
     const out = e.target.closest("[data-out]");
     if (out) { if (out.dataset.out === "airplay") audio.webkitShowPlaybackTargetPicker(); else audio.remote.prompt().catch(err => toast(err.name === "NotFoundError" ? "Aucun appareil trouvé sur ce réseau." : "Diffusion impossible depuis ce navigateur.")); return; }
     const pr = e.target.closest("[data-preset]"); if (pr) { FX.preset = pr.dataset.preset; store.set("eq", FX.preset); applyAutoEq(current()); renderSheet(); return; }
+    const xb = e.target.closest("[data-xfeed]"); if (xb) { FX.k.xfeed = +xb.dataset.xfeed; saveKnobs(); applyEq(); xb.parentElement.querySelectorAll("[data-xfeed]").forEach(b => b.classList.toggle("is-on", b === xb)); toast(FX.k.xfeed ? "Confort casque : " + XFEED[FX.k.xfeed].n + (ORB.on ? " (en pause pendant Orbite)" : "") : "Confort casque coupé"); return; }
     if (e.target.closest("[data-ab]")) { FX.bypass = !FX.bypass; applyEq(); e.target.closest("[data-ab]").classList.toggle("is-on", FX.bypass); toast(FX.bypass ? "Son d'origine" : "Son DOZE"); return; }
     if (e.target.closest("[data-analyze]")) { ensureAnalysis(current()); return; }
     if (e.target.closest("[data-eq-reset]")) { FX.custom = ZERO(); FX.k = { bass: 0, clar: 0, width: 0, level: false }; saveKnobs(); store.set("eqCustom", FX.custom); FX.preset = "plat"; store.set("eq", "plat"); applyEq(); renderSheet(); return; }
