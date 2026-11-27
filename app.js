@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.5.1";
+  const VERSION = "6.5.2";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -54,7 +54,7 @@
   const ytReady = () => ytApi || (ytApi = new Promise((res, rej) => { if (window.YT && YT.Player) return res(); window.onYouTubeIframeAPIReady = res; loadScript("https://www.youtube.com/iframe_api").catch(rej); }));
   class Player extends EventTarget {
     constructor(el) { super(); this.el = el; this.ext = null; this.bind(el); }
-    bind(el) { for (const ev of ["play", "pause", "timeupdate", "ended", "loadedmetadata", "error"]) el.addEventListener(ev, () => { if (el === this.el && !this.ext) this.emit(ev); }); }
+    bind(el) { for (const ev of ["play", "playing", "pause", "timeupdate", "ended", "loadedmetadata", "error"]) el.addEventListener(ev, () => { if (el === this.el && !this.ext) this.emit(ev); }); }
     // Remplace l'élément <audio> par un neuf, au même endroit du morceau : seule façon de « débrancher »
     // le moteur d'effets sur Safari, où ce branchement est définitif.
     swapElement() {
@@ -73,7 +73,7 @@
     emit(ev) { this.dispatchEvent(new Event(ev)); }
     get paused() { return this.ext ? this.ext.paused : this.el.paused; }
     get currentTime() { return this.ext ? this.ext.time : this.el.currentTime; }
-    set currentTime(v) { if (this.ext) this.ext.seek(v); else this.el.currentTime = v; }
+    set currentTime(v) { this.lastSeek = Date.now(); if (this.ext) this.ext.seek(v); else this.el.currentTime = v; }
     get duration() { return this.ext ? this.ext.dur : this.el.duration; }
     get error() { return this.ext ? this.ext.err : this.el.error; }
     get src() { return this.ext ? this.ext.url : (this.el.getAttribute("src") || ""); }
@@ -2530,9 +2530,10 @@
     document.title = t.title + " · " + t.artist + " | DOZE";
     if ("mediaSession" in navigator) {
       // Infos affichées sur l'écran verrouillé, la montre, CarPlay et l'écran de la voiture (Bluetooth).
-      const art = coverOf(t), abs = art.startsWith("data:") ? art : new URL(art, location.href).href;
+      // Sans pochette : logo DOZE en PNG (l'écran verrouillé de l'iPhone n'affiche pas les images SVG).
+      const abs = new URL(t.cover_url || "icon-512.png", location.href).href, png = /\.png(\?|$)/i.test(abs), webp = /\.webp(\?|$)/i.test(abs);
       navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: t.genre ? "DOZE · " + t.genre : "DOZE",
-        artwork: [96, 192, 256, 512].map(n => ({ src: abs, sizes: n + "x" + n, type: abs.endsWith(".png") ? "image/png" : "image/jpeg" })) });
+        artwork: [96, 192, 256, 512].map(n => ({ src: abs, sizes: n + "x" + n, type: png ? "image/png" : webp ? "image/webp" : "image/jpeg" })) });
     }
     history = [t.id, ...history.filter(x => x !== t.id)].slice(0, 50); store.set("history", history);
     syncLike(); refreshCurrent(); renderQueue();
@@ -2619,7 +2620,9 @@
   function syncModes() {
     document.querySelectorAll("#b-shuffle, [data-act=shuffle]").forEach(b => b.setAttribute("aria-pressed", S.shuffle));
     document.querySelectorAll("#b-repeat, [data-act=repeat]").forEach(b => { b.setAttribute("aria-pressed", S.repeat !== "off"); b.querySelector(".badge").hidden = S.repeat !== "one"; b.title = { off: "Répéter : non", all: "Répéter : toute la liste", one: "Répéter : ce titre" }[S.repeat]; });
-    audio.loop = S.repeat === "one";
+    // iPhone : l'élément audio tourne toujours en boucle, pour que « ended » ne ferme jamais la session audio
+    // (écran verrouillé) ; le retour à 0:00 est détecté plus bas et déclenche le titre suivant.
+    audio.loop = S.repeat === "one" || isIOS;
   }
   const actions = {
     play: togglePlay, next: () => next(false), prev,
@@ -2702,16 +2705,30 @@
     toast(`« ${t.title} » n'est pas disponible dans ton pays. Titre suivant…`);
     setTimeout(() => { if (current() && current().id === t.id) next(true); if (S.view === "accueil") { const y = $("main").scrollTop; render(); $("main").scrollTop = y; } }, 1200);
   });
+  // iPhone (élément en boucle) : un saut de la fin vers 0:00 sans action de l'auditeur = le titre est fini.
+  { let lastT = 0;
+    audio.addEventListener("timeupdate", () => {
+      const t = audio.currentTime, d = audio.duration;
+      if (isIOS && !audio.isExternal && S.repeat !== "one" && isFinite(d) && d > 5 && lastT > d - 1.5 && t < 1.5 && Date.now() - (audio.lastSeek || 0) > 1500) { lastT = 0; next(true); return; }
+      lastT = t;
+    });
+    audio.addEventListener("loadedmetadata", () => { lastT = 0; }); }
   audio.addEventListener("ended", () => { if (audio.isExternal && S.repeat === "one") { audio.currentTime = 0; audio.play(); return; } next(true); });
   audio.addEventListener("error", () => { if (audio.src) { toast("Ce titre n'est pas encore écoutable (son non public chez Suno). Passage au suivant."); setTimeout(() => next(true), 900); } });
   if ("mediaSession" in navigator) {
     const ms = navigator.mediaSession;
-    ms.setActionHandler("play", () => audio.play()); ms.setActionHandler("pause", () => pauseByUser());
-    ms.setActionHandler("nexttrack", () => next(false)); ms.setActionHandler("previoustrack", prev);
-    try { ms.setActionHandler("seekto", d => { audio.currentTime = d.seekTime; }); } catch {}
-    // Pas de boutons « ±10 s » : sur iPhone ils remplacent précédent / suivant sur l'écran verrouillé.
-    try { ms.setActionHandler("seekbackward", null); ms.setActionHandler("seekforward", null); } catch {}
-    try { ms.setActionHandler("stop", () => pauseByUser()); } catch {}
+    // iOS ignore les commandes enregistrées avant que la lecture ait vraiment démarré et affiche alors ses boutons
+    // « ±10 s » : on les réenregistre à chaque démarrage (événement « playing »), comme le font les lecteurs web qui marchent.
+    const handlers = () => {
+      const on = (a, f) => { try { ms.setActionHandler(a, f); } catch {} };
+      on("play", () => { fxResume(); audio.play().catch(() => {}); }); on("pause", () => pauseByUser());
+      on("nexttrack", () => next(false)); on("previoustrack", () => prev());
+      on("seekto", d => { audio.currentTime = d.seekTime; });
+      // Pas de boutons « ±10 s » : sur iPhone ils remplacent précédent / suivant sur l'écran verrouillé.
+      on("seekbackward", null); on("seekforward", null);
+      on("stop", () => pauseByUser());
+    };
+    handlers(); audio.addEventListener("playing", handlers); audio.addEventListener("play", handlers);
     // Barre de progression sur l'écran verrouillé et l'écran de la voiture
     const pos = () => { try { if (isFinite(audio.duration) && audio.duration > 0) ms.setPositionState({ duration: audio.duration, position: Math.min(audio.currentTime, audio.duration), playbackRate: audio.playbackRate || 1 }); } catch {} };
     ["loadedmetadata", "play", "pause"].forEach(ev => audio.addEventListener(ev, pos));
