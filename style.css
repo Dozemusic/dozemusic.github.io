@@ -856,3 +856,9 @@ html, body, .main, .np { overflow-x: hidden; }
 .upd-banner { position: fixed; left: 50%; top: calc(10px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 60; padding: 11px 18px; border: 0; border-radius: 999px; cursor: pointer; font: 800 13px/1.2 var(--display); color: var(--gold-ink); background: linear-gradient(180deg, var(--gold), #C98454); box-shadow: 0 10px 30px rgba(0, 0, 0, .5); max-width: calc(100vw - 32px); }
 
 .bake-state { display: block; margin-top: 6px; font-weight: 700; color: var(--orb2) !important; }
+
+/* ---------- Paroles calées sur la voix : karaoké mot par mot (6.12.0) ---------- */
+.lyr-lines p.kara.on { color: rgba(255, 255, 255, .45); }
+.lyr-lines p.kara.on .w { --p: 0%; background: linear-gradient(90deg, #fff var(--p), rgba(255, 255, 255, .45) var(--p)); -webkit-background-clip: text; background-clip: text; color: transparent; transition: text-shadow .2s; }
+.lyr-lines p.kara.on .w.sung { text-shadow: 0 0 18px rgba(218, 154, 104, .45); }
+.lyr.synced [data-lt="tap"] { display: none; }

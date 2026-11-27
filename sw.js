@@ -1,5 +1,5 @@
-// Version 6.11.0 : change le nom du cache à chaque version publiée.
-const CACHE = "ecrin-6.11.0";
+// Version 6.12.0 : change le nom du cache à chaque version publiée.
+const CACHE = "ecrin-6.12.0";
 const OFFLINE = "ecrin-offline-v1";   // chansons téléchargées : jamais effacées lors d'une mise à jour
 const LIBS = "ecrin-libs-v1";
 const WARM = "ecrin-warm-v1";        // fin des fichiers MP4 de Suno (leur sommaire « moov ») gardée d'avance pour démarrer vite         // bibliothèque Supabase et polices, pour démarrer sans connexion

@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.11.0";
+  const VERSION = "6.12.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -801,8 +801,19 @@
     let acc = start; L.lines.forEach((l, i) => { l.t = acc; acc += (end - start) * w[i] / tot; });
     L.estimated = true;
   }
+  // Paroles calées sur la voix : pour chaque titre, une transcription mot à mot de la chanson (ElevenLabs Scribe) a été
+  // alignée sur les paroles écrites (alignement global de séquences, mots approchants tolérés). Le résultat, publié avec
+  // le site (lyrics/<id>.json), donne le début et la fin de chaque ligne et de chaque mot : karaoké mot par mot.
+  async function syncedLyrics(t) {
+    if (t.trend) return null;
+    try { const r = await fetch(`lyrics/${t.id}.json`, { cache: "no-cache" }); if (!r.ok) return null;
+      const j = await r.json(); return j && Array.isArray(j.lines) && j.lines.length ? j : null; } catch { return null; }
+  }
   async function loadLyr(t) {
     S.lyr = { id: t.id, lines: [], timed: false, loading: true }; renderLyr(true);
+    const sy = await syncedLyrics(t);
+    if (!current() || current().id !== t.id) return;
+    if (sy) { S.lyrRaw = sy.lines.map(l => l.text).join("\n"); S.lyr = { id: t.id, lines: sy.lines.map(l => ({ text: l.text, t: l.t, e: l.e, w: l.w })), timed: true, synced: true }; S.lyrIdx = -1; renderLyr(true); return; }
     let text = null;
     if (offline[t.id] && offline[t.id].lyrics) text = offline[t.id].lyrics;
     else if (sb && S.hasV2 && !S.offlineMode && !t.trend) { try { const r = await sb.from("tracks").select("lyrics").eq("id", t.id).maybeSingle(); text = r.data && r.data.lyrics; } catch {} }
@@ -817,13 +828,36 @@
     box.hidden = !(has && S.showLyr);
     if (!has || !S.showLyr) return;
     if (full) {
-      $("lyr-lines").innerHTML = L.lines.map((l, i) => `<p data-l="${i}">${esc(l.text)}</p>`).join("");
-      $("lyr-note").textContent = L.mine ? "Ta synchronisation" : L.timed ? "Paroles synchronisées" : "Synchronisation estimée · ajustable";
+      $("lyr-lines").innerHTML = L.lines.map((l, i) => `<p data-l="${i}"${l.w ? ' class="kara"' : ""}>${l.w ? karaHTML(l) : esc(l.text)}</p>`).join("");
+      $("lyr").classList.toggle("synced", !!L.synced);
+      $("lyr-note").textContent = L.synced ? "Paroles calées sur la voix ✓" : L.mine ? "Ta synchronisation" : L.timed ? "Paroles synchronisées" : "Synchronisation estimée · ajustable";
       $("lyr-off").textContent = fmtOff(lyrOff[L.id] || 0);
       S.lyrIdx = -1;
     }
     syncLyr();
   }
+  // Mots de la ligne : mêmes règles de découpe que l'alignement (lettres, chiffres, apostrophes, traits d'union)
+  const WORD_RE = /[\p{L}\p{N}_'’-]+/gu, hasLN = w => /[\p{L}\p{N}]/u.test(w);
+  function karaHTML(l) {
+    let out = "", last = 0, k = 0;
+    for (const m of l.text.matchAll(WORD_RE)) {
+      if (!hasLN(m[0])) continue;
+      out += esc(l.text.slice(last, m.index)) + `<span class="w" data-k="${k++}">${esc(m[0])}</span>`; last = m.index + m[0].length;
+    }
+    return out + esc(l.text.slice(last));
+  }
+  // Karaoké : 60 fois par seconde, le mot chanté se remplit de gauche à droite au rythme de la voix
+  let karaRaf = 0;
+  function karaLoop() {
+    karaRaf = 0;
+    const L = S.lyr; if (!L || !L.synced || $("lyr").hidden || $("np").hidden || S.lyrIdx < 0) return;
+    const l = L.lines[S.lyrIdx], p = $("lyr-lines").children[S.lyrIdx]; if (!l || !l.w || !p) return;
+    const tt = audio.currentTime + (lyrOff[L.id] || 0), ws = p.querySelectorAll(".w");
+    ws.forEach((el, k) => { const w = l.w[k]; if (!w) return; const a = w[1], b = Math.max(w[2], a + .08);
+      const f = tt <= a ? 0 : tt >= b ? 1 : (tt - a) / (b - a); el.style.setProperty("--p", (f * 100).toFixed(1) + "%"); el.classList.toggle("sung", f >= 1); });
+    if (!audio.paused) karaRaf = requestAnimationFrame(karaLoop);
+  }
+  audio.addEventListener("play", () => { if (!karaRaf) karaRaf = requestAnimationFrame(karaLoop); });
   function syncLyr() {
     const L = S.lyr; if (!L || !L.lines.length || $("lyr").hidden || $("np").hidden) return;
     if (!L.timed && !L.estimated) estimateTimes(L, audio.duration);
@@ -831,7 +865,7 @@
     const tt = audio.currentTime + (lyrOff[L.id] || 0); let i = -1;
     for (let k = 0; k < L.lines.length; k++) { if (L.lines[k].t <= tt + .15) i = k; else break; }
     if (i === S.lyrIdx) return;
-    S.lyrIdx = i;
+    S.lyrIdx = i; if (L.synced && !karaRaf) karaRaf = requestAnimationFrame(karaLoop);
     const ps = $("lyr-lines").children;
     for (let k = 0; k < ps.length; k++) { ps[k].classList.toggle("on", k === i); ps[k].classList.toggle("past", k < i); }
     const cur = ps[Math.max(0, i)];
