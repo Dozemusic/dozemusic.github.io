@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.9.0";
+  const VERSION = "6.9.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1633,6 +1633,11 @@
   //  Préparée pour le titre en cours et le suivant ; le passage se fait au début d'un moment 3D (la coupure se fond dans l'effet).
   // ======================================================================================================
   const BAKE = { ready: new Map(), jobs: new Map(), status: {}, on: isIOS || location.search.includes("bake=1") };
+  // Sécurité anti-plantage : si la page a été fermée par le téléphone pendant un calcul (mémoire), on suspend la 3D
+  // pré-calculée 3 jours pour que DOZE s'ouvre et joue normalement.
+  (() => { const busy = store.get("bakeBusy", 0), off = store.get("bakeOffUntil", 0);
+    if (busy) { store.set("bakeBusy", 0); store.set("bakeOffUntil", Date.now() + 3 * 864e5); BAKE.on = false; setTimeout(() => toast("DOZE a mis en pause la 3D écran verrouillé : ton téléphone manquait de mémoire. La musique marche normalement."), 2500); }
+    else if (off > Date.now()) BAKE.on = false; })();
   if (window.__doze) window.__doze.BAKE = BAKE;
   function wavBlob(ab) {
     const ch = ab.numberOfChannels, n = ab.length, sr = ab.sampleRate, buf = new ArrayBuffer(44 + n * ch * 2), dv = new DataView(buf);
@@ -1643,43 +1648,67 @@
     for (let i = 0, o = 0; i < n; i++) for (let c = 0; c < ch; c++, o++) { const v = data[c][i]; pcm[o] = v >= 1 ? 32767 : v <= -1 ? -32768 : v * 32767; }
     return new Blob([buf], { type: "audio/wav" });
   }
+  // Calcul léger (6.9.1) : décodage à 32 kHz, et seuls les passages qui changent (moments 3D, signature) sont recalculés ;
+  // le reste est recopié tel quel. Mémoire divisée par ~3 par rapport à un rendu du titre entier.
+  const BAKE_SR = 32000;
   function bakeTrack(t) {
     if (!BAKE.on || !MOM.on || !t || BAKE.ready.has(t.id) || !t.audio_url || ["soundcloud", "youtube"].includes(t.source)) return Promise.resolve();
     if (BAKE.jobs.has(t.id)) return BAKE.jobs.get(t.id);
+    if (BAKE.jobs.size) return Promise.resolve();                         // un seul calcul à la fois
     const cn = navigator.connection; if (cn && (cn.saveData || /(^|-)2g/.test(cn.effectiveType || ""))) return Promise.resolve();
     const job = (async () => {
       const url = playable(t.audio_url), OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext; if (!OAC) return;
-      const raw0 = await fetchRaw(url); if (!raw0) return; const raw = raw0.slice(0);
-      const dec = await new Promise((ok, ko) => { const pr = new OAC(2, 44100, 44100).decodeAudioData(raw, ok, ko); if (pr && pr.catch) pr.catch(ko); });
+      const raw0 = await fetchRaw(url); if (!raw0) return;
+      store.set("bakeBusy", Date.now());                                    // si iOS ferme la page pendant le calcul, on le saura au retour
+      let dec = await new Promise((ok, ko) => { const pr = new OAC(2, BAKE_SR, BAKE_SR).decodeAudioData(raw0.slice(0), ok, ko); if (pr && pr.catch) pr.catch(ko); });
+      const SR = dec.sampleRate, dur = dec.duration;
       let ms = MOM.cache[t.id]; if (!Array.isArray(ms)) { ms = computeMoments(dec); MOM.cache[t.id] = ms; store.set("mom", MOM.cache); }
-      if (!ms.length) return;
-      const sr = dec.sampleRate, c = new OAC(2, dec.length, sr), src = c.createBufferSource(); src.buffer = dec;
-      const input = c.createGain(), dry = c.createGain(), wet = c.createGain(), lim = c.createDynamicsCompressor();
-      lim.threshold.value = -1.5; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = .002; lim.release.value = .1;
-      const duck = c.createGain(); src.connect(input); input.connect(dry); dry.connect(duck); wet.connect(duck); duck.connect(lim); lim.connect(c.destination);
-      // Radio DOZE : la signature « DOZE BY CLB » est gravée dans la version pré-calculée, sur le moment chaud, musique baissée
-      let sigAt = null;
-      if (radioMode() && voiceOn) { const sb = await sigBuffer(); if (sb) { sigAt = sigTime(ms, dec.duration); if (sigAt != null) {
-        const ss = c.createBufferSource(); ss.buffer = sb; ss.connect(lim); ss.start(sigAt);
-        duck.gain.setValueAtTime(1, Math.max(0, sigAt - .3)); duck.gain.linearRampToValueAtTime(.32, sigAt); duck.gain.setValueAtTime(.32, sigAt + sb.duration - 1.6); duck.gain.linearRampToValueAtTime(1, sigAt + sb.duration - .6); } } }
-      const G = orbGraph(c, input, wet, .85, .2), bpm = (anaCache[t.id] && anaCache[t.id].bpm) || 100;
-      dry.gain.setValueAtTime(1, 0); wet.gain.setValueAtTime(0, 0);
-      for (const [a, b, k] of ms) {
-        const cf = MOM_CFG[k] || MOM_CFG.outro, end = Math.min(b, dec.duration);
-        const C = { pos: ORB_PRESETS.voyage.p, motion: cf.motion, beats: cf.beats, mute: [0, 0, 0, 0], inten: .85, room: .2, phOff: -2 * Math.PI * (a * bpm / 60) / cf.beats, frozen: null };
-        for (let T = Math.max(a, .01); T <= end; T += .05) {
-          const w = Math.max(0, Math.min(1, (T - a) / 2.5, (b - T) / 2.5));
-          orbDrive(G.nodes, G.send, orbWorldAt(C, T, bpm).pts, C, (prm, v) => prm.linearRampToValueAtTime(v, T));
-          wet.gain.linearRampToValueAtTime(Math.sin(w * Math.PI / 2), T); dry.gain.linearRampToValueAtTime(Math.cos(w * Math.PI / 2), T);
+      let sigAt = null, sb = null;
+      if (radioMode() && voiceOn) { sb = await sigBuffer(); if (sb) sigAt = sigTime(ms, dur); }
+      if (!ms.length && sigAt == null) { store.set("bakeBusy", 0); return; }
+      // passages à recalculer, fusionnés s'ils se chevauchent
+      let segs = ms.map(([a, b]) => [Math.max(0, a - .2), Math.min(dur, b)]);
+      if (sigAt != null) segs.push([Math.max(0, sigAt - .6), Math.min(dur, sigAt + sb.duration + .3)]);
+      segs.sort((x, y) => x[0] - y[0]); segs = segs.reduce((acc, g) => { const l = acc[acc.length - 1]; if (l && g[0] <= l[1]) l[1] = Math.max(l[1], g[1]); else acc.push(g.slice()); return acc; }, []);
+      // le titre d'origine en WAV 16 bits, puis on remplace les passages recalculés
+      const n = dec.length, buf = new ArrayBuffer(44 + n * 4), dv = new DataView(buf), pcm = new Int16Array(buf, 44, n * 2);
+      const W = (o, str) => { for (let i = 0; i < str.length; i++) dv.setUint8(o + i, str.charCodeAt(i)); };
+      W(0, "RIFF"); dv.setUint32(4, 36 + n * 4, true); W(8, "WAVE"); W(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 2, true);
+      dv.setUint32(24, SR, true); dv.setUint32(28, SR * 4, true); dv.setUint16(32, 4, true); dv.setUint16(34, 16, true); W(36, "data"); dv.setUint32(40, n * 4, true);
+      const put = (L, R, at) => { for (let i = 0, o = at * 2; i < L.length && at + i < n; i++, o += 2) { const l = L[i], r = R[i]; pcm[o] = l >= 1 ? 32767 : l <= -1 ? -32768 : l * 32767; pcm[o + 1] = r >= 1 ? 32767 : r <= -1 ? -32768 : r * 32767; } };
+      put(dec.getChannelData(0), dec.getChannelData(1), 0);
+      const bpm = (anaCache[t.id] && anaCache[t.id].bpm) || 100;
+      for (const [s0, s1] of segs) {
+        const c = new OAC(2, Math.max(1, Math.ceil((s1 - s0) * SR)), SR), src = c.createBufferSource(); src.buffer = dec;
+        const input = c.createGain(), dry = c.createGain(), wet = c.createGain(), duck = c.createGain(), lim = c.createDynamicsCompressor();
+        lim.threshold.value = -1.5; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = .002; lim.release.value = .1;
+        src.connect(input); input.connect(dry); dry.connect(duck); wet.connect(duck); duck.connect(lim); lim.connect(c.destination);
+        const G = orbGraph(c, input, wet, .85, .2);
+        dry.gain.setValueAtTime(1, 0); wet.gain.setValueAtTime(0, 0);
+        for (const [a, b, k] of ms) {
+          if (b <= s0 || a >= s1) continue;
+          const cf = MOM_CFG[k] || MOM_CFG.outro, C = { pos: ORB_PRESETS.voyage.p, motion: cf.motion, beats: cf.beats, mute: [0, 0, 0, 0], inten: .85, room: .2, phOff: -2 * Math.PI * (a * bpm / 60) / cf.beats, frozen: null };
+          for (let T = Math.max(a, s0 + .01); T <= Math.min(b, s1); T += .05) {
+            const w = Math.max(0, Math.min(1, (T - a) / 2.5, (b - T) / 2.5)), r = T - s0;
+            orbDrive(G.nodes, G.send, orbWorldAt(C, T, bpm).pts, C, (prm, v) => prm.linearRampToValueAtTime(v, r));
+            wet.gain.linearRampToValueAtTime(Math.sin(w * Math.PI / 2), r); dry.gain.linearRampToValueAtTime(Math.cos(w * Math.PI / 2), r);
+          }
         }
+        if (sigAt != null && sigAt >= s0 && sigAt < s1) {             // Radio DOZE : signature gravée, musique baissée
+          const ss = c.createBufferSource(), r = sigAt - s0; ss.buffer = sb; ss.connect(lim); ss.start(r);
+          duck.gain.setValueAtTime(1, Math.max(0, r - .3)); duck.gain.linearRampToValueAtTime(.32, r); duck.gain.setValueAtTime(.32, r + sb.duration - 1.6); duck.gain.linearRampToValueAtTime(1, r + sb.duration - .6);
+        }
+        src.start(0, s0, s1 - s0);
+        const out = await c.startRendering();
+        put(out.getChannelData(0), out.getChannelData(1), Math.floor(s0 * SR));
       }
-      src.start(0);
-      const out = await c.startRendering();
-      BAKE.ready.set(t.id, { url: URL.createObjectURL(wavBlob(out)), moments: ms, sig: sigAt }); BAKE.status[t.id] = "ok";
+      dec = null;
+      BAKE.ready.set(t.id, { url: URL.createObjectURL(new Blob([buf], { type: "audio/wav" })), moments: ms, sig: sigAt }); BAKE.status[t.id] = "ok";
+      store.set("bakeBusy", 0);
       if (current() !== t && !BAKE.told) { BAKE.told = true; toast("🌀 Le titre suivant démarrera en 3D, même écran verrouillé"); }
       const keep = new Set([current() && current().id, t.id, ...S.order.slice(S.pos + 1, S.pos + 3).map(i => S.queue[i] && S.queue[i].id)]);
       for (const [id, x] of BAKE.ready) if (!keep.has(id)) { URL.revokeObjectURL(x.url); BAKE.ready.delete(id); }
-    })().catch(e => { console.warn("3D pré-calculée", e); BAKE.status[t.id] = "err"; if (current() === t) toast("3D écran verrouillé indisponible pour ce titre (" + String(e && e.message || e).slice(0, 60) + ")"); }).finally(() => { BAKE.jobs.delete(t.id); if (BAKE.status[t.id] === "prep") BAKE.status[t.id] = "none"; orbPaint(); });
+    })().catch(e => { store.set("bakeBusy", 0); console.warn("3D pré-calculée", e); BAKE.status[t.id] = "err"; }).finally(() => { BAKE.jobs.delete(t.id); if (BAKE.status[t.id] === "prep") BAKE.status[t.id] = "none"; orbPaint(); });
     BAKE.status[t.id] = "prep"; orbPaint();
     BAKE.jobs.set(t.id, job); return job;
   }
