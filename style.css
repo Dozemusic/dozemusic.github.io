@@ -842,3 +842,12 @@ html, body, .main, .np { overflow-x: hidden; }
 .np-queue li.q-mode:hover { background: linear-gradient(90deg, rgba(218, 154, 104, .22), rgba(218, 154, 104, .06)); }
 .np-queue li.q-mode button { flex: none; padding: 7px 12px; border-radius: 999px; border: 1px solid rgba(218, 154, 104, .6); background: rgba(0, 0, 0, .25); color: var(--gold); font: 700 12px/1 var(--body); cursor: pointer; }
 .np-queue li.q-mode span { display: block; min-width: 0; line-height: 1.4; }
+
+/* ---------- Orbite 6.6.0 : Arrêter, Moments 3D ---------- */
+.orb-stop { position: absolute; top: 22px; left: 22px; z-index: 2; padding: 11px 16px; border-radius: 999px; cursor: pointer; font: 800 14px/1 var(--display); color: #FFD9C7; border: 1px solid rgba(224, 121, 79, .7); background: rgba(40, 14, 8, .78); backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(0, 0, 0, .4); }
+.orb-mom { border: 1px solid rgba(155, 227, 198, .35); border-radius: 14px; padding: 12px; margin-top: 6px; background: rgba(155, 227, 198, .06); }
+.orb-mom .switch:checked { background: linear-gradient(90deg, var(--orb1), var(--orb2)); }
+.mom-pill { position: fixed; left: 50%; bottom: calc(var(--tab-h, 0px) + 96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 40; padding: 9px 16px; border: 0; border-radius: 999px; cursor: pointer; font: 800 13px/1 var(--display); color: #0B0E18; background: linear-gradient(90deg, var(--orb1), var(--orb2)); box-shadow: 0 0 0 0 rgba(169, 192, 245, .5), 0 10px 30px rgba(0, 0, 0, .5); animation: orbCall 2s ease-out infinite; white-space: nowrap; }
+@media (min-width: 861px) { .mom-pill { bottom: 110px; } }
+@media (max-width: 860px) { .orb-stop { top: 14px; left: 14px; padding: 10px 14px; font-size: 13px; } }
+@media (prefers-reduced-motion: reduce) { .mom-pill { animation: none; } }
