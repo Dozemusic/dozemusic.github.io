@@ -35,3 +35,9 @@
 - Demande : le bruit de scratch posé au début n'était pas chic ; voulu : la voix elle-même hachée et scratchée comme un DJ.
 - Fait : simulation de vinyle sur la voix (mouvements de main aller/retour, crossfader coupé net) : « do » · « do » · « DO » (baby-scratch) en doubles-croches ≈120 BPM, puis « DOZE BY CLB » en entier, écho gauche/droite calé sur le rythme, petit rewind final discret. Plus aucun bruit de scratch séparé.
 - Fichier : voice/signature-doze-scratch.mp3 (6,1 s), renommé pour forcer le rechargement. Outils : tools/ non modifié ; script de fabrication dans le journal de session.
+
+## 2026-11-27 — v6.12.4 : signature en fondu au début des titres (iPhone)
+- Demande : la signature doit passer en fondu sur le début des sons, pas seule avant le titre.
+- Cause : sur iPhone, le fondu n'existe que si le titre suivant est pré-mixé à temps ; sinon DOZE jouait la signature seule. Cas ratés : un calcul déjà en cours bloquait celui du titre suivant (sans nouvel essai), « suivant » touché trop tôt, dernier titre de la file radio jamais préparé, version préparée avec un autre titre précédent.
+- Correctifs : nouvel essai automatique (calcul occupé ou en échec) ; file radio prolongée à l'avance ; re-préparation si le titre précédent a changé ; filet 25 s avant la fin ; « suivant » manuel : le titre en cours continue jusqu'à 4 s le temps de préparer le titre suivant avec la signature sur son intro ; remontée de la musique adoucie (2 s) sous l'écho de la signature.
+- Tests iPhone simulé (pré-mixage actif) : 3 enchaînements, « suivant » manuel, double « suivant » → signature toujours en fondu, jamais seule, 0 erreur. Non-régression ordinateur OK.

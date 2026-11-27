@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.12.3";
+  const VERSION = "6.12.4";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1691,6 +1691,8 @@
   // le reste est recopié tel quel. Mémoire divisée par ~3 par rapport à un rendu du titre entier.
   const BAKE_SR = 32000;
   function bakeTrack(t, prev) {
+    const old = t && BAKE.ready.get(t.id);
+    if (old && radioMode() && prev && old.xfFrom !== prev.id && !BAKE.jobs.has(t.id)) { URL.revokeObjectURL(old.url); BAKE.ready.delete(t.id); }   // préparé avec un autre titre avant : on refait le fondu
     if (!bakeWanted() || !(MOM.on || radioMode()) || !t || BAKE.ready.has(t.id) || !t.audio_url || ["soundcloud", "youtube"].includes(t.source)) return Promise.resolve();
     if (BAKE.jobs.has(t.id)) return BAKE.jobs.get(t.id);
     if (BAKE.jobs.size) return Promise.resolve();                         // un seul calcul à la fois
@@ -1749,7 +1751,7 @@
         }
         for (const at of sigs) if (at >= s0 && at < s1) {              // Radio DOZE : signature gravée, musique baissée
           const ss = c.createBufferSource(), r = at - s0; ss.buffer = sb; ss.connect(lim); ss.start(r);
-          duck.gain.setValueAtTime(1, Math.max(0, r - .3)); duck.gain.linearRampToValueAtTime(.32, r); duck.gain.setValueAtTime(.32, r + sb.duration - 1.6); duck.gain.linearRampToValueAtTime(1, r + sb.duration - .6);
+          duck.gain.setValueAtTime(1, Math.max(0, r - .3)); duck.gain.linearRampToValueAtTime(.32, r); duck.gain.setValueAtTime(.32, r + sb.duration - 2.4); duck.gain.linearRampToValueAtTime(1, r + sb.duration - .4);
         }
         src.start(0, s0, s1 - s0);
         const out = await c.startRendering();
@@ -1761,7 +1763,7 @@
         const nX = Math.min(tail[0].length, n), off = tail[0].length - nX, sd = sb ? sb.duration : 0;
         for (let i = 0; i < nX; i++) {
           const x = i / nX, gIn = Math.sin(x * Math.PI / 2), gOut = Math.cos(x * Math.PI / 2), tt = i / SR;
-          const dk = sigAt != null && tt > sigAt - .3 && tt < sigAt + sd - .6 ? .32 : 1, o = i * 2;
+          const dk = sigAt == null || tt < sigAt - .3 || tt > sigAt + sd - .4 ? 1 : tt < sigAt + sd - 2.4 ? .32 : .32 + .68 * (tt - (sigAt + sd - 2.4)) / 2, o = i * 2;
           for (let ch = 0; ch < 2; ch++) { const v = pcm[o + ch] / 32767 * gIn + tail[ch][off + i] * gOut * dk; pcm[o + ch] = v >= 1 ? 32767 : v <= -1 ? -32768 : v * 32767; }
         }
       }
@@ -2815,7 +2817,7 @@
   function playCurrent(autoplay = true) {
     const t = current(); if (!t) return;
     S.counted = false;
-    const prevId = S.lastPlayedId; S.lastPlayedId = t.id; S.xfGo = false;
+    const prevId = S.lastPlayedId; S.lastPlayedId = t.id; S.xfGo = false; S.xfTry = false;
     const bk0 = BAKE.ready.get(t.id), bk = bk0 && (!bk0.xfFrom || bk0.xfFrom === prevId) ? bk0 : null; S.baked = !!bk;
     if (S.baked && FX.ctx && !ORB.on && isIOS) fxTeardown();            // iPhone : la version pré-calculée se lit sans moteur Web Audio
     audio.src = S.baked ? bk.url : playable(t.audio_url);
@@ -2844,9 +2846,14 @@
     // et le titre suivant seulement quand le titre en cours est entièrement chargé (pas de coupure faute de réseau).
     if (bakeWanted() && (MOM.on || radioMode())) {
       const startBake = () => { if (current() !== t) return; if (audio.paused || (audio.currentTime || 0) < 4) { setTimeout(startBake, 1500); return; }
-        Promise.resolve().then(() => { const nextBake = (k = 0) => { if (current() !== t) return; const n1 = S.queue[S.order[S.pos + 1]]; if (!n1) return;
+        Promise.resolve().then(() => { let tries = 0; const nextBake = (k = 0) => { if (current() !== t || k > 150) return;
+          if (S.pos >= S.order.length - 1 && radioMode() && radioOn && S.repeat === "off") radioExtend(t, true);   // dernier titre : la radio prépare déjà la suite
+          const n1 = S.queue[S.order[S.pos + 1]]; if (!n1) return;
+          const r1 = BAKE.ready.get(n1.id); if (r1 && (!radioMode() || r1.xfFrom === t.id)) return;       // déjà prêt (fondu depuis ce titre)
+          if (BAKE.jobs.size && !BAKE.jobs.has(n1.id)) { setTimeout(() => nextBake(k + 1), 2000); return; }   // un autre calcul tourne : on réessaie
           const el = audio.el, d = el.duration, full = el.buffered && el.buffered.length && isFinite(d) && el.buffered.end(el.buffered.length - 1) >= d - 1;
-          if (full || k >= 30 || /^blob:/.test(el.src)) bakeTrack(n1, t); else setTimeout(() => nextBake(k + 1), 2000); }; nextBake(); }); };
+          if (full || k >= 30 || /^blob:/.test(el.src)) bakeTrack(n1, t).then(() => { if (BAKE.status[n1.id] === "err" && tries++ < 1) setTimeout(() => nextBake(k + 1), 5000); else if (!BAKE.ready.has(n1.id) && BAKE.status[n1.id] !== "err") setTimeout(() => nextBake(k + 1), 3000); });
+          else setTimeout(() => nextBake(k + 1), 2000); }; nextBake(); }); };
       setTimeout(startBake, 1500);
     }
   }
@@ -2855,6 +2862,7 @@
   audio.addEventListener("timeupdate", () => {
     if (S.xfGo || S.sigPlaying || !radioMode() || audio.paused || audio.isExternal) return;
     const t = current(), nx = S.queue[S.order[S.pos + 1]], bk = nx && BAKE.ready.get(nx.id), d = audio.duration, ct = audio.currentTime || 0;
+    if (t && nx && isFinite(d) && ct > d - 25 && ct < d - XF && (!bk || bk.xfFrom !== t.id) && !BAKE.jobs.size && bakeWanted() && !S.xfTry) { S.xfTry = true; bakeTrack(nx, t); }
     if (!t || !bk || bk.xfFrom !== t.id || !isFinite(d) || ct < d - XF || ct > d - .25) return;
     S.xfGo = true; S.pos++; playCurrent();
   });
@@ -2876,7 +2884,17 @@
       const nx = current(), bk = nx && BAKE.ready.get(nx.id);
       // déjà gravée au début du titre pré-calculé ? sinon la signature passe par le lecteur principal lui-même :
       // c'est le seul lecteur que l'iPhone laisse jouer, y compris écran verrouillé (un second lecteur est refusé ou coupe la musique)
-      if (!(bk && bk.sig != null && (!bk.xfFrom || bk.xfFrom === S.lastPlayedId))) { playSigThen(playCurrent); return; }
+      const okBk = () => { const b = BAKE.ready.get(nx.id); return !!(b && b.sig != null && (!b.xfFrom || b.xfFrom === S.lastPlayedId)); };
+      if (!(bk && okBk())) {
+        // « suivant » touché avant que le fondu soit prêt : le titre en cours continue (comme un DJ qui cale le disque)
+        // pendant que DOZE prépare le titre suivant avec la signature posée sur son début ; 4 s au plus.
+        if (!auto && !audio.paused && bakeWanted() && nx && (!BAKE.jobs.size || BAKE.jobs.has(nx.id))) {
+          const pos0 = S.pos; let over = false; S.sigPlaying = true; toast("🎧 Fondu DOZE en préparation…");
+          const go = () => { if (over) return; over = true; clearTimeout(g); S.sigPlaying = false; if (S.pos !== pos0) return; if (okBk()) playCurrent(); else playSigThen(playCurrent); };
+          const g = setTimeout(go, 4000); bakeTrack(nx, null).then(go, go); return;
+        }
+        playSigThen(playCurrent); return;
+      }
     }
     playCurrent();
   }
@@ -2916,11 +2934,11 @@
     if (!out.length) out = shuffled(S.all.filter(t => t.id !== seed.id)).slice(0, n);   // tout a été écouté : on repart du catalogue
     return out;
   }
-  function radioExtend(seed) {
+  function radioExtend(seed, quiet) {
     const add = radioPick(seed); if (!add.length) return false;
     for (const t of add) { S.queue.push(t); S.order.push(S.queue.length - 1); }
     S.label = ["Radio DOZE", "d'après « " + seed.title + " »"]; $("np-ctx-type").textContent = S.label[0]; $("np-ctx-name").textContent = S.label[1];
-    toast("📻 Radio DOZE : la musique continue avec des titres proches");
+    if (!quiet) toast("📻 Radio DOZE : la musique continue avec des titres proches");
     return true;
   }
   function startRadio(t) { startQueue([t, ...radioPick(t, 15)], 0, true, ["Radio DOZE", "d'après « " + t.title + " »"]); }
