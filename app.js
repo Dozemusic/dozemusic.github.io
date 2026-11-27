@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.6.0";
+  const VERSION = "6.7.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -245,6 +245,7 @@
     S.all = (data || []).map(t => ({ likes: 0, ...t }));
     S.loadedAt = Date.now();
     render();
+    setTimeout(() => { (S.ctx.hero || []).concat(S.all.slice(0, 2)).forEach(warmTrack); }, 1500);   // le titre à la une démarrera tout de suite
     sb.rpc("can_edit", { p_id: "00000000-0000-4000-8000-000000000000", p_key: "00000000-0000-4000-8000-000000000000" }).then(r => { S.hasV4 = !r.error; });
     if (S.hasV2) {
       const w = await sb.rpc("top_week", { p_limit: 20 });
@@ -2646,6 +2647,7 @@
     }
     history = [t.id, ...history.filter(x => x !== t.id)].slice(0, 50); store.set("history", history);
     syncLike(); refreshCurrent(); renderQueue();
+    setTimeout(warmUpcoming, 4000);
   }
   function next(auto = false) {
     if (!S.queue.length) return;
@@ -2713,8 +2715,50 @@
   function togglePlay() {
     if (!audio.src) { const l = S.ctx.hero || S.all; if (l && l.length) startQueue(l, 0); return; }
     if (audio.paused && S.dedicVoice) { S.dedicVoice = false; playWithVoice("dedic"); return; }
-    if (audio.paused) { fxResume(); audio.play().catch(() => {}); } else pauseByUser();
+    if (audio.paused) resumePlay(); else pauseByUser();
   }
+  // Reprise fiable après une pause (écran verrouillé, appli mise en arrière-plan) :
+  // 1. on réveille le moteur audio s'il a été suspendu par le téléphone ;
+  // 2. si le son ne repart pas dans les 2,5 s (téléphone qui a vidé la mémoire du titre, réseau coupé entre-temps),
+  //    on recharge le titre au même endroit et on relance, sans que l'auditeur ait à refaire quoi que ce soit.
+  function resumePlay() {
+    fxResume();
+    if (FX.ctx && FX.ctx.state !== "running") FX.ctx.resume().catch(() => {});
+    if (audio.isExternal) { audio.play(); return; }
+    const src = audio.el.getAttribute("src"), t0 = audio.currentTime || 0, el = audio.el; let ok = false;
+    const mark = () => { ok = true; }; el.addEventListener("playing", mark, { once: true });
+    audio.play().catch(() => {});
+    clearTimeout(S.resumeTimer);
+    S.resumeTimer = setTimeout(() => {
+      el.removeEventListener("playing", mark);
+      if (ok || !src || audio.el !== el || audio.el.getAttribute("src") !== src || intentAt > Date.now() - 2500) return;
+      if (!audio.paused && audio.currentTime > t0 + .3) return;             // ça joue bien, rien à faire
+      el.addEventListener("loadedmetadata", () => { try { el.currentTime = t0; } catch {} el.play().catch(() => {}); }, { once: true });
+      el.src = src; el.load();
+      if (FX.ctx && FX.ctx.state !== "running") FX.ctx.resume().catch(() => {});
+    }, 2500);
+  }
+  // Démarrage rapide : on prépare d'avance la fin des fichiers MP4 de Suno (leur sommaire) pour le titre à la une
+  // et les deux titres suivants de la file. Le service worker la sert ensuite immédiatement au lecteur.
+  const warmDone = new Set();
+  async function warmTrack(t) {
+    try {
+      if (!t || !t.audio_url || ["soundcloud", "youtube"].includes(t.source) || !("caches" in window)) return;
+      const url = playable(t.audio_url); if (!/^https:\/\/cdn\d?\.suno\.ai\//.test(url) || warmDone.has(url) || warmDone.size > 60) return;
+      const c = navigator.connection; if (c && (c.saveData || /(^|-)2g/.test(c.effectiveType || ""))) return;
+      warmDone.add(url);
+      const cache = await caches.open("ecrin-warm-v1"), key = url + "?doze-tail";
+      if (await cache.match(key)) return;
+      const h = await fetch(url, { headers: { Range: "bytes=0-1" }, mode: "cors" });
+      const tot = +((h.headers.get("content-range") || "").split("/")[1] || 0); if (!tot) return;
+      const start = Math.max(0, tot - 196608), r = await fetch(url, { headers: { Range: `bytes=${start}-${tot - 1}` }, mode: "cors" });
+      if (r.status !== 206) return;
+      const body = await r.arrayBuffer();
+      await cache.put(key, new Response(body, { headers: { "Content-Type": "video/mp4", "X-Start": String(start), "X-Total": String(tot) } }));
+      const keys = await cache.keys(); for (const k of keys.slice(0, Math.max(0, keys.length - 40))) cache.delete(k);
+    } catch {}
+  }
+  function warmUpcoming() { const ids = S.order.slice(S.pos + 1, S.pos + 3); ids.forEach(i => warmTrack(S.queue[i])); }
   function renderQueue() {
     const ol = $("np-queue");
     const upcoming = S.order.slice(S.pos + 1, S.pos + 31).map(i => ({ t: S.queue[i], k: i }));
@@ -2830,7 +2874,7 @@
     // « ±10 s » : on les réenregistre à chaque démarrage (événement « playing »), comme le font les lecteurs web qui marchent.
     const handlers = () => {
       const on = (a, f) => { try { ms.setActionHandler(a, f); } catch {} };
-      on("play", () => { fxResume(); audio.play().catch(() => {}); }); on("pause", () => pauseByUser());
+      on("play", () => resumePlay()); on("pause", () => pauseByUser());
       on("nexttrack", () => next(false)); on("previoustrack", () => prev());
       on("seekto", d => { audio.currentTime = d.seekTime; });
       // Pas de boutons « ±10 s » : sur iPhone ils remplacent précédent / suivant sur l'écran verrouillé.

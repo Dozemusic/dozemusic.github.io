@@ -4,6 +4,11 @@ Chaque passage, le robot choisit un problème ouvert, cherche des solutions (doc
 
 ## Ouverts
 
+- [ ] **Lecture lente au démarrage et reprise après pause** — signalé par Charles le 27 novembre 2026.
+  Constat : les MP4 de Suno ont leur sommaire (« moov », ~95 Ko) à la FIN du fichier (pas de « faststart ») ; le lecteur doit faire une deuxième requête avant de jouer. La version MP3 n'est pas publique sur le CDN (403).
+  Fait en 6.7.0 : préconnexion à cdn1/cdn2.suno.ai ; fin du fichier préparée d'avance (titre à la une + 2 suivants) dans le cache « ecrin-warm-v1 » et servie par le service worker (1,2 s → 0,8 s mesuré à 400 ms de latence) ; reprise : réveil du moteur Web Audio et rechargement automatique au même endroit si le son ne repart pas en 2,5 s.
+  Pistes suivantes : préparer aussi le début du fichier ; remuxer les MP4 en « faststart » (Edge Function + stockage Supabase) ; vérifier sur iPhone réel avec Charles.
+
 - [ ] **Boutons suivant / précédent sur l'écran verrouillé (iPhone)** — signalé par Charles le 27 novembre 2026.
   Pistes à vérifier : Media Session API (`navigator.mediaSession.setActionHandler("nexttrack" / "previoustrack")`, métadonnées, `setPositionState`) ; titres lus par l'iframe SoundCloud ou YouTube (Tendances) qui échappent à l'élément `<audio>` ; moteur Web Audio (égaliseur, Orbite) qui s'arrête à l'écran verrouillé sur iOS ; enchaînement au titre suivant quand la page est en arrière-plan (préchargement du titre suivant, même élément `<audio>`) ; possibilité de passer par des fichiers MP3 / MP4 directs (CDN Suno, stockage Supabase) plutôt que par les lecteurs intégrés.
   Notes (27 nov., robot) — corrections publiées en 6.5.2, à confirmer par Charles sur un vrai iPhone :
