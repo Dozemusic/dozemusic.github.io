@@ -15,3 +15,4 @@
 | 2026-11-27 | Demande de Charles : arrêter Orbite, et effet 3D automatique seulement sur certains passages | Bouton « Arrêter Orbite » ; Moments 3D automatiques (intro, pont ou envolée, outro) mesurés à ±16-19 dB contre ±2 dB hors moments | 6.6.0 |
 | 2026-11-27 | Retour de Charles : lecture lente au démarrage, pas de reprise après pause écran verrouillé | Démarrage rapide (fin des MP4 Suno préparée d avance, connexion anticipée au CDN) : 1,2 s → 0,8 s mesuré à 400 ms de latence ; reprise fiable (réveil du moteur audio, rechargement automatique si le son ne repart pas) | 6.7.0 |
 | 2026-11-27 | Retour de Charles : son muet sur iPhone (mode silencieux) ; un autre utilisateur sans la version 3D | Session audio « playback » pour garder le son en mode silencieux ; mise à jour automatique de l appli | 6.7.1 |
+| 2026-11-27 | Demande de Charles : 3D écran verrouillé « par tous les moyens » | 3D pré-calculée sur iPhone (rendu hors ligne lu par le lecteur normal) | 6.8.0 |
