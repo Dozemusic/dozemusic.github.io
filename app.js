@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.8.3";
+  const VERSION = "6.9.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1656,7 +1656,12 @@
       const sr = dec.sampleRate, c = new OAC(2, dec.length, sr), src = c.createBufferSource(); src.buffer = dec;
       const input = c.createGain(), dry = c.createGain(), wet = c.createGain(), lim = c.createDynamicsCompressor();
       lim.threshold.value = -1.5; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = .002; lim.release.value = .1;
-      src.connect(input); input.connect(dry); dry.connect(lim); wet.connect(lim); lim.connect(c.destination);
+      const duck = c.createGain(); src.connect(input); input.connect(dry); dry.connect(duck); wet.connect(duck); duck.connect(lim); lim.connect(c.destination);
+      // Radio DOZE : la signature « DOZE BY CLB » est gravée dans la version pré-calculée, sur le moment chaud, musique baissée
+      let sigAt = null;
+      if (radioMode() && voiceOn) { const sb = await sigBuffer(); if (sb) { sigAt = sigTime(ms, dec.duration); if (sigAt != null) {
+        const ss = c.createBufferSource(); ss.buffer = sb; ss.connect(lim); ss.start(sigAt);
+        duck.gain.setValueAtTime(1, Math.max(0, sigAt - .3)); duck.gain.linearRampToValueAtTime(.32, sigAt); duck.gain.setValueAtTime(.32, sigAt + sb.duration - 1.6); duck.gain.linearRampToValueAtTime(1, sigAt + sb.duration - .6); } } }
       const G = orbGraph(c, input, wet, .85, .2), bpm = (anaCache[t.id] && anaCache[t.id].bpm) || 100;
       dry.gain.setValueAtTime(1, 0); wet.gain.setValueAtTime(0, 0);
       for (const [a, b, k] of ms) {
@@ -1670,7 +1675,7 @@
       }
       src.start(0);
       const out = await c.startRendering();
-      BAKE.ready.set(t.id, { url: URL.createObjectURL(wavBlob(out)), moments: ms }); BAKE.status[t.id] = "ok";
+      BAKE.ready.set(t.id, { url: URL.createObjectURL(wavBlob(out)), moments: ms, sig: sigAt }); BAKE.status[t.id] = "ok";
       if (current() !== t && !BAKE.told) { BAKE.told = true; toast("🌀 Le titre suivant démarrera en 3D, même écran verrouillé"); }
       const keep = new Set([current() && current().id, t.id, ...S.order.slice(S.pos + 1, S.pos + 3).map(i => S.queue[i] && S.queue[i].id)]);
       for (const [id, x] of BAKE.ready) if (!keep.has(id)) { URL.revokeObjectURL(x.url); BAKE.ready.delete(id); }
@@ -2809,6 +2814,52 @@
     return true;
   }
   function startRadio(t) { startQueue([t, ...radioPick(t, 15)], 0, true, ["Radio DOZE", "d'après « " + t.title + " »"]); }
+
+  // ---------- Signature vocale « DOZE BY CLB » en mode Radio ----------
+  // Une fois par titre, sur le moment chaud (envolée ou pont repéré par les Moments 3D, sinon vers 40 % du titre),
+  // la grosse voix DOZE passe par-dessus la musique, qui baisse le temps de la signature puis remonte.
+  // Sur iPhone, elle est gravée directement dans la version 3D pré-calculée (elle passe donc aussi écran verrouillé).
+  const SIG_URL = "voice/signature-doze-by-clb.mp3";
+  const radioMode = () => !!(S.label && S.label[0] === "Radio DOZE");
+  function sigTime(ms, dur) {
+    if (!isFinite(dur) || dur < 40) return null;
+    const hot = (Array.isArray(ms) ? ms : []).find(m => m[2] === "refrain" || m[2] === "pont");
+    const at = hot ? hot[0] + .5 : dur * .4;
+    return at > 15 && at < dur - 15 ? at : dur * .4;
+  }
+  let sigBuf = null;
+  async function sigBuffer() {
+    if (sigBuf) return sigBuf;
+    try { const raw = await (await fetch(SIG_URL)).arrayBuffer(); const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      sigBuf = await new Promise((ok, ko) => { const pr = new OAC(2, 44100, 44100).decodeAudioData(raw, ok, ko); if (pr && pr.catch) pr.catch(ko); }); } catch { sigBuf = null; }
+    return sigBuf;
+  }
+  const sigEl = new Audio(); sigEl.preload = "auto";
+  document.addEventListener("pointerdown", function primeSig() {                // iOS : on débloque le lecteur de la signature au premier appui
+    document.removeEventListener("pointerdown", primeSig, true);
+    try { sigEl.muted = true; sigEl.src = SIG_URL; const p = sigEl.play(); if (p) p.then(() => { sigEl.pause(); sigEl.currentTime = 0; sigEl.muted = false; }, () => { sigEl.muted = false; }); } catch {}
+  }, true);
+  const SIG = { doneFor: null, el: sigEl };
+  function sigDuck(on) {
+    if (FX.gain && FX.ctx) { FX.gain.gain.setTargetAtTime(on ? .32 : 1, FX.ctx.currentTime, on ? .08 : .25); return; }
+    if (!isIOS) { const v = +$("vol").value || 1; audio.volume = on ? v * .32 : v; }      // iPhone n'accepte pas le réglage de volume par l'appli
+  }
+  function sigTick() {
+    const t = current();
+    if (!t || !radioMode() || !voiceOn || audio.paused || audio.isExternal || SIG.doneFor === t.id) return;
+    const bk = S.baked && BAKE.ready.get(t.id);
+    if (bk && bk.sig != null) { SIG.doneFor = t.id; return; }                     // déjà gravée dans la version pré-calculée
+    if (isIOS && document.hidden) return;
+    const at = sigTime(MOM.cache[t.id], audio.duration), ct = audio.currentTime || 0;
+    if (at == null || ct < at || ct > at + 3) return;
+    SIG.doneFor = t.id;
+    sigEl.onended = () => sigDuck(false); sigEl.onerror = () => sigDuck(false);
+    sigDuck(true); sigEl.muted = false; sigEl.volume = 1; sigEl.currentTime = 0; if (!/signature-doze-by-clb/.test(sigEl.src)) sigEl.src = SIG_URL;
+    const p = sigEl.play(); if (p && p.catch) p.catch(() => sigDuck(false));
+    setTimeout(() => sigDuck(false), 8000);
+  }
+  setInterval(sigTick, 250);
+  if (window.__doze) window.__doze.SIG = SIG;
 
   function prev() {
     if (!S.queue.length) return;
