@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.8.0";
+  const VERSION = "6.8.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1091,7 +1091,7 @@
     } catch (e) { console.warn(e); FX.ctx = null; return false; }
   }
   function fxResume() {
-    if (FX.enabled) fxGraph();
+    if (FX.enabled && !S.baked) fxGraph();                            // version 3D pré-calculée : lecteur direct, pour l'écran verrouillé
     if (FX.ctx && FX.ctx.state !== "running") FX.ctx.resume().catch(() => {});
     applyEq();
   }
@@ -1461,6 +1461,8 @@
     $("orb-start").hidden = ORB.on;
     const st = $("orb-stop"); if (st) st.hidden = !ORB.on;
     const mo = p.querySelector("[data-mom-power]"); if (mo) mo.checked = MOM.on;
+    const bs = $("bake-state"); if (bs) { const t0 = current(), k = t0 && (S.baked ? "ok" : BAKE.status[t0.id]); bs.hidden = !BAKE.on;
+      bs.textContent = !t0 ? "📱 Écran verrouillé : lance un titre, la 3D sera préparée pendant l'écoute." : k === "ok" ? "📱 Écran verrouillé : 3D prête pour ce titre ✓ Tu peux verrouiller." : k === "prep" ? "📱 Écran verrouillé : 3D en préparation… garde l'écran allumé quelques secondes." : k === "err" ? "📱 Écran verrouillé : préparation impossible pour ce titre." : "📱 Écran verrouillé : la 3D sera préparée dans quelques secondes."; }
     const sp = $("orb-spin"); if (sp) { sp.hidden = !ORB.on; sp.textContent = ORB.motion === "aucun" ? "▶ Faire tourner" : "❚❚ Figer"; sp.setAttribute("aria-pressed", String(ORB.motion !== "aucun")); }
   }
   function orbMount() {
@@ -1489,7 +1491,7 @@
           <div class="orb-now" id="orb-now"></div>
           <p class="orb-warn" id="orb-warn" hidden>Ce titre est lu par le lecteur SoundCloud ou YouTube : Orbite fonctionne avec les titres publiés sur DOZE et Suno.</p>
           <label class="set-row orb-power"><span><b>Orbite</b><small id="orb-state"></small></span><input type="checkbox" class="switch" data-orb-power></label>
-          <label class="set-row orb-mom"><span><b>🌀 Moments 3D automatiques</b><small>Pendant l'écoute normale, le son voyage de gauche à droite seulement sur certains passages (intro, pont, outro), puis revient au son normal. Repéré tout seul dans chaque titre.</small></span><input type="checkbox" class="switch" data-mom-power></label>
+          <label class="set-row orb-mom"><span><b>🌀 Moments 3D automatiques</b><small>Pendant l'écoute normale, le son voyage de gauche à droite seulement sur certains passages (intro, pont, outro), puis revient au son normal. Repéré tout seul dans chaque titre.</small><small id="bake-state" class="bake-state" hidden></small></span><input type="checkbox" class="switch" data-mom-power></label>
           <h3>Voyages et scènes</h3><div class="orb-chips">${presets}</div>
           <h3>Mouvement automatique</h3><div class="orb-mos">${motions}</div>
           <label class="set-row"><span><b>Vitesse</b><small>Un tour complet tous les…</small></span><select data-orb-beats class="orb-sel"><option value="2">2 temps (très rapide)</option><option value="4">4 temps (rapide)</option><option value="8">8 temps</option><option value="16">16 temps (lent)</option></select></label>
@@ -1593,7 +1595,7 @@
     if (ORB.on) return;
     const t = current(), ms = t && MOM.cache[t.id];
     if (BAKE.on && t && !S.baked && !ORB.on) bakeSwapCheck(t, ms);
-    const live = MOM.on && iosWebAudioOk && !S.baked && t && Array.isArray(ms) && !audio.paused && orbOk() && !(isIOS && document.hidden);
+    const live = MOM.on && iosWebAudioOk && !BAKE.on && !S.baked && t && Array.isArray(ms) && !audio.paused && orbOk() && !(isIOS && document.hidden);
     const ct = audio.currentTime || 0, m = live ? ms.find(([a, b]) => ct >= a && ct < b) : null;
     const w = m ? Math.max(0, Math.min(1, (ct - m[0]) / 2.5, (m[1] - ct) / 2.5)) : 0;
     if (!m) { if (MOM.cur) { MOM.cur = null; ORB.auto = null; momFade(0); momPill(); } return; }
@@ -1619,8 +1621,6 @@
   // iPhone : le moteur audio s'arrête écran verrouillé ; s'il n'a été lancé que pour les Moments 3D, on rend le lecteur d'origine.
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden || !isIOS) return;
-    const t = current(), bk = t && BAKE.ready.get(t.id);
-    if (bk && !S.baked && !ORB.on && !FX.enabled) { bakeSwap(bk); return; }        // dernière chance : la version 3D pré-calculée
     if (MOM.byMom && !ORB.on && !FX.enabled) { MOM.byMom = false; MOM.cur = null; ORB.auto = null; fxTeardown(); momPill(); }
   });
 
@@ -1631,7 +1631,7 @@
   //  elle continue écran verrouillé, en arrière-plan et en mode silencieux, comme n'importe quelle chanson.
   //  Préparée pour le titre en cours et le suivant ; le passage se fait au début d'un moment 3D (la coupure se fond dans l'effet).
   // ======================================================================================================
-  const BAKE = { ready: new Map(), jobs: new Map(), on: isIOS || location.search.includes("bake=1") };
+  const BAKE = { ready: new Map(), jobs: new Map(), status: {}, on: isIOS || location.search.includes("bake=1") };
   if (window.__doze) window.__doze.BAKE = BAKE;
   function wavBlob(ab) {
     const ch = ab.numberOfChannels, n = ab.length, sr = ab.sampleRate, buf = new ArrayBuffer(44 + n * ch * 2), dv = new DataView(buf);
@@ -1672,10 +1672,12 @@
       }
       src.start(0);
       const out = await c.startRendering();
-      BAKE.ready.set(t.id, { url: URL.createObjectURL(wavBlob(out)), moments: ms });
+      BAKE.ready.set(t.id, { url: URL.createObjectURL(wavBlob(out)), moments: ms }); BAKE.status[t.id] = "ok";
+      if (current() === t) toast("🌀 3D prête : tu peux verrouiller ton téléphone, le son continuera de voyager");
       const keep = new Set([current() && current().id, t.id, ...S.order.slice(S.pos + 1, S.pos + 3).map(i => S.queue[i] && S.queue[i].id)]);
       for (const [id, x] of BAKE.ready) if (!keep.has(id)) { URL.revokeObjectURL(x.url); BAKE.ready.delete(id); }
-    })().catch(e => console.warn("3D pré-calculée", e)).finally(() => BAKE.jobs.delete(t.id));
+    })().catch(e => { console.warn("3D pré-calculée", e); BAKE.status[t.id] = "err"; if (current() === t) toast("3D écran verrouillé indisponible pour ce titre (" + String(e && e.message || e).slice(0, 60) + ")"); }).finally(() => { BAKE.jobs.delete(t.id); if (BAKE.status[t.id] === "prep") BAKE.status[t.id] = "none"; orbPaint(); });
+    BAKE.status[t.id] = "prep"; orbPaint();
     BAKE.jobs.set(t.id, job); return job;
   }
   // Passe sur la version pré-calculée au même endroit du morceau
@@ -1689,9 +1691,8 @@
   }
   // Pendant l'écoute (écran allumé) : on bascule au début d'un moment 3D, la petite coupure se fond dans l'effet
   function bakeSwapCheck(t, ms) {
-    const bk = BAKE.ready.get(t.id); if (!bk || audio.paused || FX.enabled || document.hidden) return;
-    const ct = audio.currentTime || 0, list = Array.isArray(ms) ? ms : bk.moments;
-    if (list.some(([a, b]) => (ct >= a - .25 && ct < a + .5) || (ct >= a && ct < b && MOM.cur))) bakeSwap(bk);
+    const bk = BAKE.ready.get(t.id); if (!bk || audio.paused || document.hidden) return;
+    bakeSwap(bk);                                                        // dès qu'elle est prête, écran allumé : ensuite on peut verrouiller
   }
   audio.addEventListener("play", () => { const t = current(); if (t && MOM.on) later(t, () => ensureMoments(t), 2500); momPill(); });
   audio.addEventListener("pause", momPill);
@@ -2723,7 +2724,8 @@
   function playCurrent(autoplay = true) {
     const t = current(); if (!t) return;
     S.counted = false;
-    const bk = BAKE.ready.get(t.id); S.baked = !!(bk && !FX.enabled);
+    const bk = BAKE.ready.get(t.id); S.baked = !!bk;
+    if (S.baked && FX.ctx && !ORB.on) fxTeardown();                     // la version 3D pré-calculée se lit sans moteur Web Audio
     audio.src = S.baked ? bk.url : playable(t.audio_url);
     if (autoplay) { fxResume(); audio.play().catch(() => {}); }
     $("p-title").textContent = t.title; $("p-artist").textContent = t.artist;
@@ -2746,7 +2748,7 @@
     history = [t.id, ...history.filter(x => x !== t.id)].slice(0, 50); store.set("history", history);
     syncLike(); refreshCurrent(); renderQueue();
     setTimeout(warmUpcoming, 4000);
-    setTimeout(() => { const c0 = current(); if (c0 !== t) return; bakeTrack(t).then(() => { const n1 = S.queue[S.order[S.pos + 1]]; if (n1 && current() === t) bakeTrack(n1); }); }, 5000);
+    setTimeout(() => { const c0 = current(); if (c0 !== t || S.baked) return; bakeTrack(t).then(() => { const n1 = S.queue[S.order[S.pos + 1]]; if (n1 && current() === t) bakeTrack(n1); }); }, 1200);
   }
   function next(auto = false) {
     if (!S.queue.length) return;

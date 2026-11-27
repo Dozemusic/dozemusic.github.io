@@ -854,3 +854,5 @@ html, body, .main, .np { overflow-x: hidden; }
 
 /* ---------- Mise à jour proposée (6.7.1) ---------- */
 .upd-banner { position: fixed; left: 50%; top: calc(10px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 60; padding: 11px 18px; border: 0; border-radius: 999px; cursor: pointer; font: 800 13px/1.2 var(--display); color: var(--gold-ink); background: linear-gradient(180deg, var(--gold), #C98454); box-shadow: 0 10px 30px rgba(0, 0, 0, .5); max-width: calc(100vw - 32px); }
+
+.bake-state { display: block; margin-top: 6px; font-weight: 700; color: var(--orb2) !important; }
