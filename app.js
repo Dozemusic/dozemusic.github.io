@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.8.1";
+  const VERSION = "6.8.2";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1563,6 +1563,7 @@
     return out.sort((a, b) => a[0] - b[0]).map(([a, b, k]) => [Math.round(a * 10) / 10, Math.round(b * 10) / 10, k]);
   }
   async function ensureMoments(t) {
+    if (BAKE.on) return;                                            // iPhone : repérés pendant la préparation de la 3D pré-calculée
     if (!MOM.on || !t || MOM.cache[t.id] || !t.audio_url || ["soundcloud", "youtube"].includes(t.source)) return;
     MOM.cache[t.id] = "…";                                          // une seule analyse à la fois par titre
     const ab = await decodeTrack(playable(t.audio_url));
@@ -1648,10 +1649,7 @@
     const cn = navigator.connection; if (cn && (cn.saveData || /(^|-)2g/.test(cn.effectiveType || ""))) return Promise.resolve();
     const job = (async () => {
       const url = playable(t.audio_url), OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext; if (!OAC) return;
-      let res = null; try { res = await (await caches.open(OFF_CACHE)).match(url); } catch {}
-      if (!res) res = await fetch(url, { mode: "cors" });
-      if (!res || !res.ok) return;
-      const raw = await res.arrayBuffer();
+      const raw0 = await fetchRaw(url); if (!raw0) return; const raw = raw0.slice(0);
       const dec = await new Promise((ok, ko) => { const pr = new OAC(2, 44100, 44100).decodeAudioData(raw, ok, ko); if (pr && pr.catch) pr.catch(ko); });
       let ms = MOM.cache[t.id]; if (!Array.isArray(ms)) { ms = computeMoments(dec); MOM.cache[t.id] = ms; store.set("mom", MOM.cache); }
       if (!ms.length) return;
@@ -1807,16 +1805,26 @@
   function setOutVolume(v) { if (FX.gain) FX.gain.gain.setTargetAtTime(Math.max(0, v), FX.ctx.currentTime, .1); else audio.volume = Math.max(0, Math.min(1, v * (+$("vol").value))); }
 
   // ----- Analyse IA du son : tempo, énergie par octave, dynamique, attaques → style + correction tonale -----
+  // Un seul téléchargement complet par titre, partagé entre l'analyse, les Moments 3D et la 3D pré-calculée
+  const rawJobs = new Map();
+  function fetchRaw(url) {
+    if (rawJobs.has(url)) return rawJobs.get(url);
+    const job = (async () => {
+      let res = null; try { res = await (await caches.open(OFF_CACHE)).match(url); } catch {}
+      if (!res) res = await fetch(url, { mode: "cors" });
+      return res && res.ok ? await res.arrayBuffer() : null;
+    })().catch(() => null);
+    rawJobs.set(url, job); setTimeout(() => rawJobs.delete(url), 90000);
+    return job;
+  }
   const decodeJobs = new Map();
   function decodeTrack(url) {
     if (decodeJobs.has(url)) return decodeJobs.get(url);
     const job = (async () => {
       const c = navigator.connection; if (c && (c.saveData || /(^|-)2g|3g/.test(c.effectiveType || ""))) return null;   // économise les données mobiles lentes
       const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext; if (!OAC) return null;
-      let res = null; try { res = await (await caches.open(OFF_CACHE)).match(url); } catch {}
-      if (!res) res = await fetch(url, { mode: "cors" });
-      if (!res || !res.ok) return null;
-      const buf = await res.arrayBuffer(); if (buf.byteLength > 18e6) return null;
+      const raw = await fetchRaw(url); if (!raw || raw.byteLength > 18e6) return null;
+      const buf = raw.slice(0);                          // decodeAudioData consomme le tampon : on garde l'original pour les autres
       const ctx = new OAC(1, 16000, 16000);              // décodage mono à 16 kHz : léger en mémoire
       return await new Promise((ok, ko) => { const p = ctx.decodeAudioData(buf, ok, ko); if (p && p.catch) p.catch(ko); });
     })().catch(e => { console.warn("décodage", e); return null; });
@@ -2748,7 +2756,15 @@
     history = [t.id, ...history.filter(x => x !== t.id)].slice(0, 50); store.set("history", history);
     syncLike(); refreshCurrent(); renderQueue();
     setTimeout(warmUpcoming, 4000);
-    setTimeout(() => { const c0 = current(); if (c0 !== t || S.baked) return; bakeTrack(t).then(() => { const n1 = S.queue[S.order[S.pos + 1]]; if (n1 && current() === t) bakeTrack(n1); }); }, 1200);
+    // 3D pré-calculée : on attend que la lecture soit lancée depuis 4 s pour ne jamais retarder le démarrage du son,
+    // et le titre suivant seulement quand le titre en cours est entièrement chargé (pas de coupure faute de réseau).
+    if (BAKE.on && MOM.on) {
+      const startBake = () => { if (current() !== t) return; if (S.baked || audio.paused || (audio.currentTime || 0) < 4) { setTimeout(startBake, 1500); return; }
+        bakeTrack(t).then(() => { const nextBake = (k = 0) => { if (current() !== t) return; const n1 = S.queue[S.order[S.pos + 1]]; if (!n1) return;
+          const el = audio.el, d = el.duration, full = el.buffered && el.buffered.length && isFinite(d) && el.buffered.end(el.buffered.length - 1) >= d - 1;
+          if (full || k >= 30 || /^blob:/.test(el.src)) bakeTrack(n1); else setTimeout(() => nextBake(k + 1), 2000); }; nextBake(); }); };
+      setTimeout(startBake, 1500);
+    }
   }
   function next(auto = false) {
     if (!S.queue.length) return;
