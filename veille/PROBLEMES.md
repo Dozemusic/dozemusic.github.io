@@ -4,6 +4,10 @@ Chaque passage, le robot choisit un problème ouvert, cherche des solutions (doc
 
 ## Ouverts
 
+- [ ] **Plus de son après une pause sur iPhone (le titre avance)** — signalé par Charles le 27 novembre 2026 (radio, écran allumé, pas en mode silencieux).
+  Hypothèse retenue : depuis 6.6.0, DOZE créait en arrière-plan un AudioContext (préparation des Moments 3D en direct) et imposait la session audio « playback » dès l'ouverture ; sur iOS, ce moteur inactif peut perturber la session audio de l'élément <audio> après une pause.
+  Fait en 6.12.1 : plus aucun AudioContext ni changement de session sur iPhone tant que l'auditeur n'ouvre pas Orbite ou l'égaliseur ; bouton « 🔧 Réparer le son » dans le menu ⋯ (lecteur neuf branché directement, au même endroit). À confirmer par Charles ; sinon, piste suivante : lecture des versions pré-calculées (blob WAV) après pause.
+
 - [ ] **3D coupée écran verrouillé (iPhone)** — demandé par Charles le 27 novembre 2026 (« par tous les moyens »).
   Veille : iOS interrompt le moteur Web Audio dès que Safari passe en arrière-plan, sauf peut-être avec une session audio « playback » (test d'un seul développeur : https://github.com/jackywxd/haijieliu/pull/16) ; à la fin naturelle d'un titre, WebKit ferme la session (https://daily.dev/posts/getting-my-iphone-music-app-to-keep-playing-on-the-lock-screen-l8ytobjbj).
   Fait en 6.8.0 : « 3D pré-calculée ». Sur iPhone, DOZE calcule hors ligne (OfflineAudioContext, même moteur Orbite) une version WAV du titre avec les Moments 3D gravés dedans, lue par le lecteur audio normal : elle continue écran verrouillé, en arrière-plan et en mode silencieux. Titre en cours (bascule au début d'un moment 3D, ou au verrouillage) et titre suivant (démarre directement en 3D). Mesuré : ±16 dB pendant les moments, son d'origine ailleurs.

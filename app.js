@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.12.0";
+  const VERSION = "6.12.1";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -736,7 +736,7 @@
     menuEl = document.createElement("div");
     menuEl.className = "menu";
     if (!items && t && t.trend) items = `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="ytopen">▶ Ouvrir sur YouTube</button><button type="button" data-a="ytshare">Partager</button>`;
-    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="radio">📻 Radio de ce titre</button><button type="button" data-a="dedic">🎁 Dédicacer ce son</button>${t && canOffline(t) ? (offline[t.id] ? '<button type="button" data-a="undl">✓ Retirer des téléchargements</button>' : '<button type="button" data-a="dl">⬇ Télécharger (hors ligne)</button>') : ""}<button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button>${t && canEditTrack(t) && S.hasV4 ? '<button type="button" data-a="lyredit">✎ Paroles et synchro</button>' : ""}<div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>${t && adminKey && S.hasV4 ? '<button type="button" data-a="admdel" class="danger">🗑 Supprimer ce titre (admin)</button>' : ""}`;
+    menuEl.innerHTML = items || `<button type="button" data-a="next">Écouter juste après</button><button type="button" data-a="radio">📻 Radio de ce titre</button><button type="button" data-a="dedic">🎁 Dédicacer ce son</button>${t && canOffline(t) ? (offline[t.id] ? '<button type="button" data-a="undl">✓ Retirer des téléchargements</button>' : '<button type="button" data-a="dl">⬇ Télécharger (hors ligne)</button>') : ""}<button type="button" data-a="addlist">Ajouter à une playlist</button><button type="button" data-a="artist">Voir l'artiste</button><button type="button" data-a="share">Partager</button><button type="button" data-a="fixsound">🔧 Réparer le son</button>${t && canEditTrack(t) && S.hasV4 ? '<button type="button" data-a="lyredit">✎ Paroles et synchro</button>' : ""}<div class="sep"></div><button type="button" data-a="report" class="danger">Signaler un abus</button>${t && adminKey && S.hasV4 ? '<button type="button" data-a="admdel" class="danger">🗑 Supprimer ce titre (admin)</button>' : ""}`;
     document.body.appendChild(menuEl);
     const r = btn.getBoundingClientRect(), mh = menuEl.offsetHeight;
     const top = r.bottom + 6 + mh > innerHeight ? r.top - mh - 6 : r.bottom + 6;
@@ -759,6 +759,7 @@
       }
       if (a === "undl") removeOffline(t.id);
       if (a === "radio") { startRadio(t); closeMenu(); return; }
+      if (a === "fixsound") { closeMenu(); fixSound(); return; }
       if (a === "dedic") { S.dedTrack = t; closeMenu(); openSheet("dedic"); return; }
       if (a === "addlist") { const own = myLists.filter(x => x.key); closeMenu(); openMenu(btn, t, own.map(x => `<button type="button" data-a="to:${esc(x.id)}">${esc(x.name)}</button>`).join("") + (own.length ? '<div class="sep"></div>' : "") + '<button type="button" data-a="tonew">+ Nouvelle playlist…</button>'); return; }
       if (a && a.startsWith("to:")) editList(a.slice(3), ids => ids.includes(t.id) ? ids : [...ids, t.id], null, "Ajouté à « %s »");
@@ -1022,7 +1023,7 @@
   // silencieux, alors que la lecture simple reste audible. La session audio « playback » (Safari 17+) le garde audible,
   // comme une vraie appli de musique. Sans cette API, DOZE n'utilise pas le moteur Web Audio automatiquement.
   const playbackSession = () => { try { if (navigator.audioSession && navigator.audioSession.type !== "playback") navigator.audioSession.type = "playback"; } catch {} };
-  playbackSession();
+  // (6.12.1) la session « playback » n'est plus imposée au démarrage : seulement quand un moteur d'effets est réellement créé
   const iosWebAudioOk = !isIOS || !!navigator.audioSession;
   const BANDS = [[31, "lowshelf", "Sub"], [62, "peaking", "Basses"], [125, "peaking", "Kick"], [250, "peaking", "Chaleur"], [500, "peaking", "Corps"],
     [1000, "peaking", "Médiums"], [2000, "peaking", "Voix"], [4000, "peaking", "Présence"], [8000, "peaking", "Brillance"], [16000, "highshelf", "Air"]];
@@ -1609,7 +1610,7 @@
   }
   // Prépare le moteur audio pendant un appui de l'auditeur : iPhone n'autorise à démarrer le son 3D qu'à ce moment-là
   function momPrime() {
-    playbackSession();
+    if (isIOS) return;                     // iPhone : aucun moteur audio créé en arrière-plan (il pouvait rendre la musique muette après une pause)
     if (!MOM.on || !iosWebAudioOk || FX.ctx || (FX.pre && FX.pre.state !== "closed")) return;
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     try { FX.pre = new AC(); FX.pre.resume().catch(() => {}); } catch { FX.pre = null; }
@@ -2973,6 +2974,15 @@
     if (!S.queue.length) return;
     if (audio.currentTime > 3) { audio.currentTime = 0; return; }
     S.pos = S.pos > 0 ? S.pos - 1 : S.order.length - 1; playCurrent();
+  }
+  // Bouton de secours : repart sur un lecteur neuf, branché directement aux haut-parleurs, au même endroit du titre
+  function fixSound() {
+    const playing = !audio.paused;
+    try { if (FX.pre) { FX.pre.close(); FX.pre = null; } } catch {}
+    if (ORB.on) orbSet(false);
+    if (FX.ctx) { FX.enabled = false; store.set("fx", false); fxTeardown(); } else audio.swapElement();
+    setTimeout(() => { audio.play().catch(() => {}); }, 350);
+    toast(playing ? "Son réinitialisé : lecteur direct, sans effets" : "Son réinitialisé : appuie sur lecture");
   }
   function togglePlay() {
     if (!audio.src) { const l = S.ctx.hero || S.all; if (l && l.length) startQueue(l, 0); return; }
