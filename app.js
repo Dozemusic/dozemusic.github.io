@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.10.0";
+  const VERSION = "6.11.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -1091,7 +1091,7 @@
     } catch (e) { console.warn(e); FX.ctx = null; return false; }
   }
   function fxResume() {
-    if (FX.enabled && !S.baked) fxGraph();                            // version 3D pré-calculée : lecteur direct, pour l'écran verrouillé
+    if (FX.enabled && !(S.baked && isIOS)) fxGraph();                            // version 3D pré-calculée : lecteur direct, pour l'écran verrouillé
     if (FX.ctx && FX.ctx.state !== "running") FX.ctx.resume().catch(() => {});
     applyEq();
   }
@@ -1636,8 +1636,12 @@
   // Sécurité anti-plantage : si la page a été fermée par le téléphone pendant un calcul (mémoire), on suspend la 3D
   // pré-calculée 3 jours pour que DOZE s'ouvre et joue normalement.
   (() => { const busy = store.get("bakeBusy", 0), off = store.get("bakeOffUntil", 0);
-    if (busy) { store.set("bakeBusy", 0); store.set("bakeOffUntil", Date.now() + 3 * 864e5); BAKE.on = false; setTimeout(() => toast("DOZE a mis en pause la 3D écran verrouillé : ton téléphone manquait de mémoire. La musique marche normalement."), 2500); }
-    else if (off > Date.now()) BAKE.on = false; })();
+    if (busy) { store.set("bakeBusy", 0); store.set("bakeOffUntil", Date.now() + 3 * 864e5); BAKE.on = false; BAKE.disabled = true; setTimeout(() => toast("DOZE a mis en pause la 3D écran verrouillé : ton téléphone manquait de mémoire. La musique marche normalement."), 2500); }
+    else if (off > Date.now()) { BAKE.on = false; BAKE.disabled = true; } })();
+  // Pré-calcul voulu : sur iPhone (3D écran verrouillé), et partout en mode Radio (signatures et fondus enchaînés)
+  const bakeWanted = () => !BAKE.disabled && (BAKE.on || radioMode());
+  const XF = 6;                                                          // durée du fondu enchaîné entre deux titres (s)
+  BAKE.tails = {};
   if (window.__doze) window.__doze.BAKE = BAKE;
   function wavBlob(ab) {
     const ch = ab.numberOfChannels, n = ab.length, sr = ab.sampleRate, buf = new ArrayBuffer(44 + n * ch * 2), dv = new DataView(buf);
@@ -1651,8 +1655,8 @@
   // Calcul léger (6.9.1) : décodage à 32 kHz, et seuls les passages qui changent (moments 3D, signature) sont recalculés ;
   // le reste est recopié tel quel. Mémoire divisée par ~3 par rapport à un rendu du titre entier.
   const BAKE_SR = 32000;
-  function bakeTrack(t) {
-    if (!BAKE.on || !MOM.on || !t || BAKE.ready.has(t.id) || !t.audio_url || ["soundcloud", "youtube"].includes(t.source)) return Promise.resolve();
+  function bakeTrack(t, prev) {
+    if (!bakeWanted() || !(MOM.on || radioMode()) || !t || BAKE.ready.has(t.id) || !t.audio_url || ["soundcloud", "youtube"].includes(t.source)) return Promise.resolve();
     if (BAKE.jobs.has(t.id)) return BAKE.jobs.get(t.id);
     if (BAKE.jobs.size) return Promise.resolve();                         // un seul calcul à la fois
     const cn = navigator.connection; if (cn && (cn.saveData || /(^|-)2g/.test(cn.effectiveType || ""))) return Promise.resolve();
@@ -1663,12 +1667,26 @@
       let dec = await new Promise((ok, ko) => { const pr = new OAC(2, BAKE_SR, BAKE_SR).decodeAudioData(raw0.slice(0), ok, ko); if (pr && pr.catch) pr.catch(ko); });
       const SR = dec.sampleRate, dur = dec.duration;
       let ms = MOM.cache[t.id]; if (!Array.isArray(ms)) { ms = computeMoments(dec); MOM.cache[t.id] = ms; store.set("mom", MOM.cache); }
-      let sigAt = null, sb = null;
-      if (radioMode() && voiceOn) { sb = await sigBuffer(); if (sb) sigAt = .25; }            // signature à la transition : dès le début du titre
-      if (!ms.length && sigAt == null) { store.set("bakeBusy", 0); return; }
+      const radio = radioMode();
+      // fin du titre gardée pour le fondu enchaîné vers le titre qui suivra
+      BAKE.tails[t.id] = [0, 1].map(ch => dec.getChannelData(ch).slice(Math.max(0, dec.length - XF * SR)));
+      const tk = Object.keys(BAKE.tails); if (tk.length > 3) delete BAKE.tails[tk[0]];
+      // Radio : signature à la transition (sur le fondu enchaîné) et sur le moment chaud (envolée, pont)
+      let sigs = [], sb = null;
+      if (radio && voiceOn) { sb = await sigBuffer(); if (sb) { sigs.push(.25); const hot = sigTime(ms, dur); if (hot != null && hot > sb.duration + 8) sigs.push(hot); } }
+      const sigAt = sigs.length ? sigs[0] : null;
+      if (!MOM.on) ms = [];                                               // Moments 3D coupés : seulement la radio
+      // fondu enchaîné : la fin du titre précédent (gardée, ou décodée à part puis libérée)
+      let tail = null;
+      if (radio && prev && prev.id !== t.id) {
+        tail = BAKE.tails[prev.id];
+        if (!tail && prev.audio_url) { try { const pr0 = await fetchRaw(playable(prev.audio_url)); if (pr0) { const pd = await new Promise((ok, ko) => { const q = new OAC(2, BAKE_SR, BAKE_SR).decodeAudioData(pr0.slice(0), ok, ko); if (q && q.catch) q.catch(ko); });
+          tail = [0, 1].map(ch => pd.getChannelData(ch).slice(Math.max(0, pd.length - XF * SR))); } } catch { tail = null; } }
+      }
+      if (!ms.length && !sigs.length && !tail) { store.set("bakeBusy", 0); return; }
       // passages à recalculer, fusionnés s'ils se chevauchent
       let segs = ms.map(([a, b]) => [Math.max(0, a - .2), Math.min(dur, b)]);
-      if (sigAt != null) segs.push([Math.max(0, sigAt - .6), Math.min(dur, sigAt + sb.duration + .3)]);
+      for (const at of sigs) segs.push([Math.max(0, at - .6), Math.min(dur, at + sb.duration + .3)]);
       segs.sort((x, y) => x[0] - y[0]); segs = segs.reduce((acc, g) => { const l = acc[acc.length - 1]; if (l && g[0] <= l[1]) l[1] = Math.max(l[1], g[1]); else acc.push(g.slice()); return acc; }, []);
       // le titre d'origine en WAV 16 bits, puis on remplace les passages recalculés
       const n = dec.length, buf = new ArrayBuffer(44 + n * 4), dv = new DataView(buf), pcm = new Int16Array(buf, 44, n * 2);
@@ -1694,16 +1712,26 @@
             wet.gain.linearRampToValueAtTime(Math.sin(w * Math.PI / 2), r); dry.gain.linearRampToValueAtTime(Math.cos(w * Math.PI / 2), r);
           }
         }
-        if (sigAt != null && sigAt >= s0 && sigAt < s1) {             // Radio DOZE : signature gravée, musique baissée
-          const ss = c.createBufferSource(), r = sigAt - s0; ss.buffer = sb; ss.connect(lim); ss.start(r);
+        for (const at of sigs) if (at >= s0 && at < s1) {              // Radio DOZE : signature gravée, musique baissée
+          const ss = c.createBufferSource(), r = at - s0; ss.buffer = sb; ss.connect(lim); ss.start(r);
           duck.gain.setValueAtTime(1, Math.max(0, r - .3)); duck.gain.linearRampToValueAtTime(.32, r); duck.gain.setValueAtTime(.32, r + sb.duration - 1.6); duck.gain.linearRampToValueAtTime(1, r + sb.duration - .6);
         }
         src.start(0, s0, s1 - s0);
         const out = await c.startRendering();
         put(out.getChannelData(0), out.getChannelData(1), Math.floor(s0 * SR));
       }
+      // fondu enchaîné : la fin du titre précédent s'efface pendant que celui-ci monte (puissance constante),
+      // baissée elle aussi pendant la signature de transition
+      if (tail) {
+        const nX = Math.min(tail[0].length, n), off = tail[0].length - nX, sd = sb ? sb.duration : 0;
+        for (let i = 0; i < nX; i++) {
+          const x = i / nX, gIn = Math.sin(x * Math.PI / 2), gOut = Math.cos(x * Math.PI / 2), tt = i / SR;
+          const dk = sigAt != null && tt > sigAt - .3 && tt < sigAt + sd - .6 ? .32 : 1, o = i * 2;
+          for (let ch = 0; ch < 2; ch++) { const v = pcm[o + ch] / 32767 * gIn + tail[ch][off + i] * gOut * dk; pcm[o + ch] = v >= 1 ? 32767 : v <= -1 ? -32768 : v * 32767; }
+        }
+      }
       dec = null;
-      BAKE.ready.set(t.id, { url: URL.createObjectURL(new Blob([buf], { type: "audio/wav" })), moments: ms, sig: sigAt }); BAKE.status[t.id] = "ok";
+      BAKE.ready.set(t.id, { url: URL.createObjectURL(new Blob([buf], { type: "audio/wav" })), moments: ms, sig: sigAt, sigs, xfFrom: tail && prev ? prev.id : null }); BAKE.status[t.id] = "ok";
       store.set("bakeBusy", 0);
       if (current() !== t && !BAKE.told) { BAKE.told = true; toast("🌀 Le titre suivant démarrera en 3D, même écran verrouillé"); }
       const keep = new Set([current() && current().id, t.id, ...S.order.slice(S.pos + 1, S.pos + 3).map(i => S.queue[i] && S.queue[i].id)]);
@@ -2752,8 +2780,9 @@
   function playCurrent(autoplay = true) {
     const t = current(); if (!t) return;
     S.counted = false;
-    const bk = BAKE.ready.get(t.id); S.baked = !!bk;
-    if (S.baked && FX.ctx && !ORB.on) fxTeardown();                     // la version 3D pré-calculée se lit sans moteur Web Audio
+    const prevId = S.lastPlayedId; S.lastPlayedId = t.id; S.xfGo = false;
+    const bk0 = BAKE.ready.get(t.id), bk = bk0 && (!bk0.xfFrom || bk0.xfFrom === prevId) ? bk0 : null; S.baked = !!bk;
+    if (S.baked && FX.ctx && !ORB.on && isIOS) fxTeardown();            // iPhone : la version pré-calculée se lit sans moteur Web Audio
     audio.src = S.baked ? bk.url : playable(t.audio_url);
     if (autoplay) { fxResume(); audio.play().catch(() => {}); }
     $("p-title").textContent = t.title; $("p-artist").textContent = t.artist;
@@ -2778,14 +2807,22 @@
     setTimeout(warmUpcoming, 4000);
     // 3D pré-calculée : on attend que la lecture soit lancée depuis 4 s pour ne jamais retarder le démarrage du son,
     // et le titre suivant seulement quand le titre en cours est entièrement chargé (pas de coupure faute de réseau).
-    if (BAKE.on && MOM.on) {
-      const startBake = () => { if (current() !== t) return; if (S.baked || audio.paused || (audio.currentTime || 0) < 4) { setTimeout(startBake, 1500); return; }
+    if (bakeWanted() && (MOM.on || radioMode())) {
+      const startBake = () => { if (current() !== t) return; if (audio.paused || (audio.currentTime || 0) < 4) { setTimeout(startBake, 1500); return; }
         Promise.resolve().then(() => { const nextBake = (k = 0) => { if (current() !== t) return; const n1 = S.queue[S.order[S.pos + 1]]; if (!n1) return;
           const el = audio.el, d = el.duration, full = el.buffered && el.buffered.length && isFinite(d) && el.buffered.end(el.buffered.length - 1) >= d - 1;
-          if (full || k >= 30 || /^blob:/.test(el.src)) bakeTrack(n1); else setTimeout(() => nextBake(k + 1), 2000); }; nextBake(); }); };
+          if (full || k >= 30 || /^blob:/.test(el.src)) bakeTrack(n1, t); else setTimeout(() => nextBake(k + 1), 2000); }; nextBake(); }); };
       setTimeout(startBake, 1500);
     }
   }
+  // Fondu enchaîné (Radio) : si le titre suivant est prêt avec la fin de celui-ci mélangée à son début, on y passe
+  // XF secondes avant la fin. Événement « timeupdate » : il continue d'arriver écran verrouillé.
+  audio.addEventListener("timeupdate", () => {
+    if (S.xfGo || !radioMode() || audio.paused || audio.isExternal) return;
+    const t = current(), nx = S.queue[S.order[S.pos + 1]], bk = nx && BAKE.ready.get(nx.id), d = audio.duration, ct = audio.currentTime || 0;
+    if (!t || !bk || bk.xfFrom !== t.id || !isFinite(d) || ct < d - XF || ct > d - .25) return;
+    S.xfGo = true; S.pos++; playCurrent();
+  });
   function next(auto = false) {
     if (!S.queue.length) return;
     if (auto && S.sleepEnd) { S.sleepEnd = false; updateSleepBadge(); pauseByUser(); toast("Bonne nuit. Minuteur terminé."); return; }
@@ -2882,13 +2919,14 @@
   }
   function sigTick() {
     const t = current();
-    if (!t || !radioMode() || !voiceOn || audio.paused || audio.isExternal || SIG.doneFor === t.id) return;
+    if (!t || !radioMode() || !voiceOn || audio.paused || audio.isExternal) return;
     const bk = S.baked && BAKE.ready.get(t.id);
-    if (bk && bk.sig != null) { SIG.doneFor = t.id; return; }                     // déjà gravée dans la version pré-calculée
+    if (bk && bk.sig != null) return;                                            // déjà gravées dans la version pré-calculée
     if (isIOS) return;                                                         // iPhone : jamais par-dessus (un seul lecteur à la fois)
-    const ct = audio.currentTime || 0;
-    if (ct < .15 || ct > 4) return;                                              // transition : tout début du titre
-    SIG.doneFor = t.id;
+    const ct = audio.currentTime || 0, hot = sigTime(MOM.cache[t.id], audio.duration), key = ct < 5 ? t.id + ":debut" : t.id + ":chaud";
+    if (SIG.last === key) return;
+    if (!((ct >= .15 && ct <= 4) || (hot != null && ct >= hot && ct <= hot + 3))) return;   // transition, puis moment chaud
+    SIG.last = key;
     sigEl.onended = () => sigDuck(false); sigEl.onerror = () => sigDuck(false);
     sigDuck(true); sigEl.muted = false; sigEl.volume = 1; sigEl.currentTime = 0; if (!/signature-doze-by-clb/.test(sigEl.src)) sigEl.src = SIG_URL;
     const p = sigEl.play(); if (p && p.catch) p.catch(() => sigDuck(false));
