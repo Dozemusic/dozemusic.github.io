@@ -1,5 +1,5 @@
-// Version 6.12.4 : change le nom du cache à chaque version publiée.
-const CACHE = "ecrin-6.12.4";
+// Version 6.13.0 : change le nom du cache à chaque version publiée.
+const CACHE = "ecrin-6.13.0";
 const OFFLINE = "ecrin-offline-v1";   // chansons téléchargées : jamais effacées lors d'une mise à jour
 const LIBS = "ecrin-libs-v1";
 const WARM = "ecrin-warm-v1";        // fin des fichiers MP4 de Suno (leur sommaire « moov ») gardée d'avance pour démarrer vite         // bibliothèque Supabase et polices, pour démarrer sans connexion
@@ -61,6 +61,9 @@ self.addEventListener("fetch", e => {
     }));
     return;
   }
+  // Page de partage d'un titre (t/<id>.html) : l'appli installée ouvre directement le titre, même hors connexion.
+  const tp = e.request.mode === "navigate" && url.pathname.match(/\/t\/([0-9a-f-]{36})\.html$/);
+  if (tp) { e.respondWith(Response.redirect(new URL("../?t=" + tp[1], url).href, 302)); return; }
   // Le reste (page, config, tendances) : réseau d'abord, mais si le réseau traîne plus de 3 s, la copie locale prend le relais.
   e.respondWith((async () => {
     const net = fetch(e.request, { cache: "no-store" }).then(r => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); } return r; });

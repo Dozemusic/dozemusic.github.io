@@ -1,5 +1,5 @@
 /* DOZE 5.8.0 */
-  const VERSION = "6.12.4";
+  const VERSION = "6.13.0";
 (() => {
   "use strict";
   const $ = id => document.getElementById(id);
@@ -192,7 +192,8 @@
   const current = () => S.queue[S.order[S.pos]];
   let toastTimer;
   function toast(msg) { const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, Math.max(2800, msg.length * 55)); }
-  function shareUrl(t) { const u = new URL(location.href); u.search = "?t=" + t.id; u.hash = ""; return u.toString(); }
+  // Lien partagé : page t/<id>.html (pochette et titre dans l'aperçu WhatsApp, Facebook, X…), qui ouvre aussitôt le titre dans DOZE.
+  function shareUrl(t) { if (/^[0-9a-f-]{36}$/.test(t.id)) return new URL("t/" + t.id + ".html", appUrl()).href; const u = new URL(location.href); u.search = "?t=" + t.id; u.hash = ""; return u.toString(); }
   function share(t) {
     openShare({ kind: "titre", title: `« ${t.title} » de ${t.artist}`, text: `🎧 Écoute « ${t.title} » de ${t.artist} sur DOZE`, url: shareUrl(t), cover: coverOf(t) });
   }
@@ -3065,8 +3066,12 @@
     const upcoming = S.order.slice(S.pos + 1, S.pos + 31).map(i => ({ t: S.queue[i], k: i }));
     const mode = S.shuffle && S.queue.length > 2 ? `<li class="q-mode"><span>${S.pureShuffle ? "🎲 <b>Hasard pur</b> : mélange totalement au hasard" : "🔀 <b>Aléatoire DOZE</b> : artistes alternés, sons écoutés récemment à la fin"}</span><button type="button" data-shuffle-mode>${S.pureShuffle ? "Aléatoire DOZE" : "Hasard pur"}</button></li>` : "";
     ol.innerHTML = mode + (upcoming.length ? upcoming.map(({ t }, j) => `<li data-q="${S.pos + 1 + j}">${imgTag(t)}<span><b>${esc(t.title)}</b><i>${esc(t.artist)}</i></span></li>`).join("")
-      : `<li class="q-empty">${S.repeat === "all" ? "La liste reprendra au début." : radioOn ? "📻 La Radio DOZE prendra le relais avec des titres proches." : "Rien après ce titre."}</li>`);
+      : `<li class="q-empty">${S.repeat === "all" ? "La liste reprendra au début." : radioOn ? "📻 La Radio DOZE prendra le relais avec des titres proches." : "Rien après ce titre."}</li>`)
+      // Lecture automatique toujours visible et réversible en un appui (YouTube Music a retiré ce bouton : 1re plainte au Nigeria)
+      + `<li class="q-auto"><span><b>♾️ Lecture automatique</b><small>${S.repeat === "all" ? "Désactivée tant que « répéter la liste » est actif." : radioOn ? "À la fin de la liste, la Radio DOZE enchaîne des titres proches." : "À la fin de la liste, la musique s'arrête."}</small></span><input type="checkbox" class="switch" data-autoplay aria-label="Lecture automatique" ${radioOn ? "checked" : ""}></li>`;
   }
+  $("np-queue").addEventListener("change", e => { const c = e.target.closest("[data-autoplay]"); if (!c) return;
+    radioOn = c.checked; store.set("radio", radioOn); renderQueue(); toast(radioOn ? "Lecture automatique : la Radio DOZE enchaînera à la fin de la liste" : "Lecture automatique coupée : la musique s'arrêtera à la fin de la liste"); });
   $("np-queue").addEventListener("click", e => { if (e.target.closest("[data-shuffle-mode]")) { S.pureShuffle = !S.pureShuffle; store.set("pureShuffle", S.pureShuffle); if (S.queue.length) buildOrder(S.order[S.pos]); renderQueue(); toast(S.pureShuffle ? "Hasard pur : mélange totalement au hasard" : "Aléatoire DOZE : artistes alternés, sons récents à la fin"); return; } const li = e.target.closest("[data-q]"); if (li) { S.pos = +li.dataset.q; playCurrent(); } });
 
   // ---------- modes ----------

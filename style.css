@@ -862,3 +862,9 @@ html, body, .main, .np { overflow-x: hidden; }
 .lyr-lines p.kara.on .w { --p: 0%; background: linear-gradient(90deg, #fff var(--p), rgba(255, 255, 255, .45) var(--p)); -webkit-background-clip: text; background-clip: text; color: transparent; transition: text-shadow .2s; }
 .lyr-lines p.kara.on .w.sung { text-shadow: 0 0 18px rgba(218, 154, 104, .45); }
 .lyr.synced [data-lt="tap"] { display: none; }
+
+/* Lecture automatique, en bas de « À suivre » */
+.np-queue li.q-auto { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: default; margin-top: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .08); background: rgba(255, 255, 255, .04); }
+.np-queue li.q-auto:hover { background: rgba(255, 255, 255, .04); }
+.np-queue li.q-auto span { display: grid; gap: 2px; min-width: 0; font-size: 14px; }
+.np-queue li.q-auto small { color: var(--muted); font-size: 12px; line-height: 1.35; }

@@ -24,7 +24,7 @@ DOZE a déjà : zéro pub, gratuit, mention « IA », égaliseur, hors ligne, pa
 Flux App Store vides ce jour pour us, gb et la plupart des applis en ng : à retenter demain.
 Plaintes : YouTube Music NG — lecture automatique impossible à couper (« on avait l'option, pourquoi l'enlever ? »), onglets Paroles et « À découvrir » supprimés, 2 longues pubs par chanson, « pas de connexion internet » alors que le réseau est bon, hausse de prix. Spotify NG — pubs trop nombreuses, pas d'écoute hors ligne en gratuit, déconnecté du compte et « toutes mes playlists ont disparu », mise à jour qui casse la file d'attente. Boomplay — pubs plein écran impossibles à fermer qui figent l'appli, téléchargements peu fiables (source : analyses kimola.com et marlvel.ai d'avis Google Play, Trustpilot).
 
-- [ ] (P1) Interrupteur « Lecture automatique » bien visible (à la fin d'une liste : s'arrêter ou enchaîner sur la radio) — YouTube Music NG ; DOZE a déjà le réglage radio, à rendre visible dans le lecteur
+- [x] (P1) Interrupteur « Lecture automatique » bien visible (à la fin d'une liste : s'arrêter ou enchaîner sur la radio) — YouTube Music NG ; DOZE a déjà le réglage radio, à rendre visible dans le lecteur — fait en 6.13.0 (interrupteur en bas de « À suivre »)
 - [ ] (P1) Mode hors connexion honnête : distinguer « pas de réseau » et « serveur lent », et basculer tout seul sur les titres téléchargés — YouTube Music NG
 - [ ] (P2) File d'attente robuste : glisser pour réordonner, annuler une suppression — Spotify NG
 
@@ -33,6 +33,15 @@ Plaintes : trop de pubs (YouTube Music NG « 2 longues pubs pour 1 chanson », S
 
 - [ ] (P2) Bloquer un artiste (il n'apparaît plus nulle part pour cet auditeur) — Deezer
 - [ ] (P2) « Titre précédent » et historique de lecture accessibles en un appui depuis le lecteur — Deezer
+
+## Veille du 28 novembre 2026 (avis App Store : Apple Music GB, Amazon Music FR, Tidal US, Deezer BE, SoundCloud FR, Audiomack GH ; flux Boomplay KE vide)
+Plaintes : Amazon Music FR : coupures en plein morceau, « faux gratuit » (impossible de passer au titre suivant sans payer), appli trop basique. Apple Music GB : interface jugée plus compliquée à chaque mise à jour, AutoMix imposé à chaque ouverture, titres retirés des playlists sans prévenir (licences par pays), synchronisation entre appareils qui échoue. Tidal US : la lecture s'ARRÊTE sur un titre devenu indisponible au lieu de passer au suivant, musique IA non signalée (« AI slop »), téléchargements qui remplissent la mémoire, fondu enchaîné supprimé, recherche faible. Deezer BE : 80 % des titres inaccessibles sans payer, paroles payantes, pas de dossiers de playlists, CarPlay qui ne reprend pas, pas de Chromecast. Audiomack GH : pubs de paris sportifs répétées, pas de lecture en boucle ni de paroles. SoundCloud FR : appli iOS qui fige au lancement, pubs sans fin.
+DOZE fait déjà : passage automatique au suivant si un titre est indisponible, mention « IA », zéro pub, paroles gratuites, boucle.
+
+- [ ] (P2) Prévenir quand un titre d'une playlist disparaît (masqué ou supprimé) au lieu de le retirer en silence, avec « titres similaires » — Apple Music GB
+- [ ] (P2) Espace de stockage des téléchargements visible (Mo utilisés, tout supprimer en un appui, limite au choix) — Tidal US
+- [ ] (P3) Dossiers de playlists — Deezer BE
+- [ ] (P3) Fondu enchaîné réglable entre titres (0 à 12 s) — Tidal US
 
 ## Son (voir SON.md)
 - [ ] (P2) Normalisation de sonie à −14 LUFS intégrés (référence des plateformes) mesurée par titre, au lieu d'un nivellement dynamique
